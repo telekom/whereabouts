@@ -26,7 +26,7 @@ import (
 // OverlappingRangeIPReservationApplyConfiguration represents a declarative configuration of the OverlappingRangeIPReservation type for use
 // with apply.
 //
-// OverlappingRangeIPReservation is the Schema for the OverlappingRangeIPReservations API
+// OverlappingRangeIPReservation is the Schema for the overlappingrangeipreservations API.
 type OverlappingRangeIPReservationApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`

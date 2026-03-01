@@ -20,11 +20,11 @@ package v1alpha1
 // IPPoolSpecApplyConfiguration represents a declarative configuration of the IPPoolSpec type for use
 // with apply.
 //
-// IPPoolSpec defines the desired state of IPPool
+// IPPoolSpec defines the desired state of IPPool.
 type IPPoolSpecApplyConfiguration struct {
-	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation
+	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation.
 	Range *string `json:"range,omitempty"`
-	// Allocations is the set of allocated IPs for the given range. Its` indices are a direct mapping to the
+	// Allocations is the set of allocated IPs for the given range. Its indices are a direct mapping to the
 	// IP with the same index/offset for the pool's range.
 	Allocations map[string]IPAllocationApplyConfiguration `json:"allocations,omitempty"`
 }

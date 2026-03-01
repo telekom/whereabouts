@@ -26,7 +26,7 @@ import (
 // IPPoolApplyConfiguration represents a declarative configuration of the IPPool type for use
 // with apply.
 //
-// IPPool is the Schema for the ippools API
+// IPPool is the Schema for the ippools API.
 type IPPoolApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`

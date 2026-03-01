@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: overlappingrangeipreservations.whereabouts.cni.cncf.io
 spec:
   group: whereabouts.cni.cncf.io
@@ -11,14 +11,24 @@ spec:
     kind: OverlappingRangeIPReservation
     listKind: OverlappingRangeIPReservationList
     plural: overlappingrangeipreservations
+    shortNames:
+    - orip
     singular: overlappingrangeipreservation
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.podref
+      name: PodRef
+      type: string
+    - jsonPath: .spec.containerid
+      name: ContainerID
+      priority: 1
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: OverlappingRangeIPReservation is the Schema for the OverlappingRangeIPReservations
-          API
+        description: OverlappingRangeIPReservation is the Schema for the overlappingrangeipreservations
+          API.
         properties:
           apiVersion:
             description: |-
@@ -39,13 +49,20 @@ spec:
             type: object
           spec:
             description: OverlappingRangeIPReservationSpec defines the desired state
-              of OverlappingRangeIPReservation
+              of OverlappingRangeIPReservation.
             properties:
               containerid:
+                description: ContainerID is the identifier of the container that owns
+                  this reservation.
                 type: string
               ifname:
+                description: IfName is the network interface name inside the pod for
+                  this reservation.
                 type: string
               podref:
+                description: PodRef is the namespace/name reference of the pod that
+                  owns this reservation.
+                minLength: 1
                 type: string
             required:
             - podref
@@ -55,3 +72,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}

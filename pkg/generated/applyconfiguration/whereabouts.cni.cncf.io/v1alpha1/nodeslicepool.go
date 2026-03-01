@@ -26,7 +26,7 @@ import (
 // NodeSlicePoolApplyConfiguration represents a declarative configuration of the NodeSlicePool type for use
 // with apply.
 //
-// NodeSlicePool is the Schema for the nodesliceippools API
+// NodeSlicePool is the Schema for the nodeslicepools API.
 type NodeSlicePoolApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`

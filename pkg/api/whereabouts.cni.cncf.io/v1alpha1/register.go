@@ -35,23 +35,14 @@ func Resource(resource string) schema.GroupResource {
 }
 
 var (
-	// SchemeBuilder initializes a scheme builder
-	SchemeBuilder runtime.SchemeBuilder
-	//SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	localSchemeBuilder = &SchemeBuilder
+	// SchemeBuilder is used to add functions to the scheme.
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
-	// AddToScheme is a global function that registers this API group & version to a scheme
+	// AddToScheme adds this API group & version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
-func init() {
-	// We only register manually written functions here. The registration of the
-	// generated functions takes place in the generated files. The separation
-	// makes the code compile even when the generated files are missing.
-	localSchemeBuilder.Register(addKnownTypes)
-}
-
-// Adds the list of known types to Scheme.
+// addKnownTypes registers the CRD types with the given scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&IPPool{},

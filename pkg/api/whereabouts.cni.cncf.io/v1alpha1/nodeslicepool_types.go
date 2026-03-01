@@ -6,39 +6,47 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NodeSlicePoolSpec defines the desired state of NodeSlicePool
+// NodeSlicePoolSpec defines the desired state of NodeSlicePool.
 type NodeSlicePoolSpec struct {
-	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation
-	// this refers to the entire range where the node is allocated a subset
+	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation.
+	// This refers to the entire range where the node is allocated a subset.
+	// +kubebuilder:validation:MinLength=1
 	Range string `json:"range"`
 
-	// SliceSize is the size of subnets or slices of the range that each node will be assigned
+	// SliceSize is the size of subnets or slices of the range that each node will be assigned.
+	// +kubebuilder:validation:MinLength=1
 	SliceSize string `json:"sliceSize"`
 }
 
-// NodeSlicePoolStatus defines the desired state of NodeSlicePool
+// NodeSlicePoolStatus defines the observed state of NodeSlicePool.
 type NodeSlicePoolStatus struct {
-	// Allocations holds the allocations of nodes to slices
-	Allocations []NodeSliceAllocation `json:"allocations"`
+	// Allocations holds the allocations of nodes to slices.
+	Allocations []NodeSliceAllocation `json:"allocations,omitempty"`
 }
 
+// NodeSliceAllocation represents a single node-to-slice assignment.
 type NodeSliceAllocation struct {
-	// NodeName is the name of the node assigned to this slice, empty node name is an available slice for assignment
+	// NodeName is the name of the node assigned to this slice. An empty node name
+	// indicates that this slice is available for assignment.
 	NodeName string `json:"nodeName"`
 
-	// SliceRange is the subnet of this slice
+	// SliceRange is the subnet of this slice.
 	SliceRange string `json:"sliceRange"`
 }
 
-// ParseCIDR formats the Range of the IPPool
+// ParseCIDR formats the Range of the NodeSlicePool.
 func (i NodeSlicePool) ParseCIDR() (net.IP, *net.IPNet, error) {
 	return net.ParseCIDR(i.Spec.Range)
 }
 
 // +genclient
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=nsp
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`
+// +kubebuilder:printcolumn:name="SliceSize",type=string,JSONPath=`.spec.sliceSize`
 
-// NodeSlicePool is the Schema for the nodesliceippools API
+// NodeSlicePool is the Schema for the nodeslicepools API.
 type NodeSlicePool struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -49,7 +57,7 @@ type NodeSlicePool struct {
 
 // +kubebuilder:object:root=true
 
-// NodeSlicePoolList contains a list of NodeSlicePool
+// NodeSlicePoolList contains a list of NodeSlicePool.
 type NodeSlicePoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

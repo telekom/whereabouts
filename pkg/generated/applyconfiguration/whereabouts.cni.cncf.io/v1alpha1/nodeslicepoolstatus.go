@@ -20,9 +20,9 @@ package v1alpha1
 // NodeSlicePoolStatusApplyConfiguration represents a declarative configuration of the NodeSlicePoolStatus type for use
 // with apply.
 //
-// NodeSlicePoolStatus defines the desired state of NodeSlicePool
+// NodeSlicePoolStatus defines the observed state of NodeSlicePool.
 type NodeSlicePoolStatusApplyConfiguration struct {
-	// Allocations holds the allocations of nodes to slices
+	// Allocations holds the allocations of nodes to slices.
 	Allocations []NodeSliceAllocationApplyConfiguration `json:"allocations,omitempty"`
 }
 

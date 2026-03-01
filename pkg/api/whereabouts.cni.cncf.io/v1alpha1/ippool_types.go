@@ -6,31 +6,41 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// IPPoolSpec defines the desired state of IPPool
+// IPPoolSpec defines the desired state of IPPool.
 type IPPoolSpec struct {
-	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation
+	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation.
+	// +kubebuilder:validation:MinLength=1
 	Range string `json:"range"`
-	// Allocations is the set of allocated IPs for the given range. Its` indices are a direct mapping to the
+
+	// Allocations is the set of allocated IPs for the given range. Its indices are a direct mapping to the
 	// IP with the same index/offset for the pool's range.
 	Allocations map[string]IPAllocation `json:"allocations"`
 }
 
-// ParseCIDR formats the Range of the IPPool
+// ParseCIDR formats the Range of the IPPool.
 func (i IPPool) ParseCIDR() (net.IP, *net.IPNet, error) {
 	return net.ParseCIDR(i.Spec.Range)
 }
 
-// IPAllocation represents metadata about the pod/container owner of a specific IP
+// IPAllocation represents metadata about the pod/container owner of a specific IP.
 type IPAllocation struct {
+	// ContainerID is the identifier of the container that owns this allocation.
 	ContainerID string `json:"id"`
-	PodRef      string `json:"podref"`
-	IfName      string `json:"ifname,omitempty"`
+
+	// PodRef is the namespace/name reference of the pod that owns this allocation.
+	PodRef string `json:"podref"`
+
+	// IfName is the network interface name inside the pod for this allocation.
+	IfName string `json:"ifname,omitempty"`
 }
 
 // +genclient
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=ipp
+// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`
+// +kubebuilder:printcolumn:name="Allocations",type=integer,JSONPath=`.spec.allocations`,priority=1
 
-// IPPool is the Schema for the ippools API
+// IPPool is the Schema for the ippools API.
 type IPPool struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -40,7 +50,7 @@ type IPPool struct {
 
 // +kubebuilder:object:root=true
 
-// IPPoolList contains a list of IPPool
+// IPPoolList contains a list of IPPool.
 type IPPoolList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

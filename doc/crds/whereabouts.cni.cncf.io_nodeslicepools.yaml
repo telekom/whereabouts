@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: nodeslicepools.whereabouts.cni.cncf.io
 spec:
   group: whereabouts.cni.cncf.io
@@ -11,13 +11,22 @@ spec:
     kind: NodeSlicePool
     listKind: NodeSlicePoolList
     plural: nodeslicepools
+    shortNames:
+    - nsp
     singular: nodeslicepool
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.range
+      name: Range
+      type: string
+    - jsonPath: .spec.sliceSize
+      name: SliceSize
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NodeSlicePool is the Schema for the nodesliceippools API
+        description: NodeSlicePool is the Schema for the nodeslicepools API.
         properties:
           apiVersion:
             description: |-
@@ -37,43 +46,48 @@ spec:
           metadata:
             type: object
           spec:
-            description: NodeSlicePoolSpec defines the desired state of NodeSlicePool
+            description: NodeSlicePoolSpec defines the desired state of NodeSlicePool.
             properties:
               range:
                 description: |-
-                  Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation
-                  this refers to the entire range where the node is allocated a subset
+                  Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation.
+                  This refers to the entire range where the node is allocated a subset.
+                minLength: 1
                 type: string
               sliceSize:
                 description: SliceSize is the size of subnets or slices of the range
-                  that each node will be assigned
+                  that each node will be assigned.
+                minLength: 1
                 type: string
             required:
             - range
             - sliceSize
             type: object
           status:
-            description: NodeSlicePoolStatus defines the desired state of NodeSlicePool
+            description: NodeSlicePoolStatus defines the observed state of NodeSlicePool.
             properties:
               allocations:
-                description: Allocations holds the allocations of nodes to slices
+                description: Allocations holds the allocations of nodes to slices.
                 items:
+                  description: NodeSliceAllocation represents a single node-to-slice
+                    assignment.
                   properties:
                     nodeName:
-                      description: NodeName is the name of the node assigned to this
-                        slice, empty node name is an available slice for assignment
+                      description: |-
+                        NodeName is the name of the node assigned to this slice. An empty node name
+                        indicates that this slice is available for assignment.
                       type: string
                     sliceRange:
-                      description: SliceRange is the subnet of this slice
+                      description: SliceRange is the subnet of this slice.
                       type: string
                   required:
                   - nodeName
                   - sliceRange
                   type: object
                 type: array
-            required:
-            - allocations
             type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}

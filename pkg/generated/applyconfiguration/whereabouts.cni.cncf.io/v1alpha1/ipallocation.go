@@ -20,11 +20,14 @@ package v1alpha1
 // IPAllocationApplyConfiguration represents a declarative configuration of the IPAllocation type for use
 // with apply.
 //
-// IPAllocation represents metadata about the pod/container owner of a specific IP
+// IPAllocation represents metadata about the pod/container owner of a specific IP.
 type IPAllocationApplyConfiguration struct {
+	// ContainerID is the identifier of the container that owns this allocation.
 	ContainerID *string `json:"id,omitempty"`
-	PodRef      *string `json:"podref,omitempty"`
-	IfName      *string `json:"ifname,omitempty"`
+	// PodRef is the namespace/name reference of the pod that owns this allocation.
+	PodRef *string `json:"podref,omitempty"`
+	// IfName is the network interface name inside the pod for this allocation.
+	IfName *string `json:"ifname,omitempty"`
 }
 
 // IPAllocationApplyConfiguration constructs a declarative configuration of the IPAllocation type for use with

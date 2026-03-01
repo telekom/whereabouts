@@ -20,11 +20,14 @@ package v1alpha1
 // OverlappingRangeIPReservationSpecApplyConfiguration represents a declarative configuration of the OverlappingRangeIPReservationSpec type for use
 // with apply.
 //
-// OverlappingRangeIPReservationSpec defines the desired state of OverlappingRangeIPReservation
+// OverlappingRangeIPReservationSpec defines the desired state of OverlappingRangeIPReservation.
 type OverlappingRangeIPReservationSpecApplyConfiguration struct {
+	// ContainerID is the identifier of the container that owns this reservation.
 	ContainerID *string `json:"containerid,omitempty"`
-	PodRef      *string `json:"podref,omitempty"`
-	IfName      *string `json:"ifname,omitempty"`
+	// PodRef is the namespace/name reference of the pod that owns this reservation.
+	PodRef *string `json:"podref,omitempty"`
+	// IfName is the network interface name inside the pod for this reservation.
+	IfName *string `json:"ifname,omitempty"`
 }
 
 // OverlappingRangeIPReservationSpecApplyConfiguration constructs a declarative configuration of the OverlappingRangeIPReservationSpec type for use with

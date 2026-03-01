@@ -19,10 +19,13 @@ package v1alpha1
 
 // NodeSliceAllocationApplyConfiguration represents a declarative configuration of the NodeSliceAllocation type for use
 // with apply.
+//
+// NodeSliceAllocation represents a single node-to-slice assignment.
 type NodeSliceAllocationApplyConfiguration struct {
-	// NodeName is the name of the node assigned to this slice, empty node name is an available slice for assignment
+	// NodeName is the name of the node assigned to this slice. An empty node name
+	// indicates that this slice is available for assignment.
 	NodeName *string `json:"nodeName,omitempty"`
-	// SliceRange is the subnet of this slice
+	// SliceRange is the subnet of this slice.
 	SliceRange *string `json:"sliceRange,omitempty"`
 }
 

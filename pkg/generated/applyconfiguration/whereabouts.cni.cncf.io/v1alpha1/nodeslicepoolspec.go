@@ -20,12 +20,12 @@ package v1alpha1
 // NodeSlicePoolSpecApplyConfiguration represents a declarative configuration of the NodeSlicePoolSpec type for use
 // with apply.
 //
-// NodeSlicePoolSpec defines the desired state of NodeSlicePool
+// NodeSlicePoolSpec defines the desired state of NodeSlicePool.
 type NodeSlicePoolSpecApplyConfiguration struct {
-	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation
-	// this refers to the entire range where the node is allocated a subset
+	// Range is a RFC 4632/4291-style string that represents an IP address and prefix length in CIDR notation.
+	// This refers to the entire range where the node is allocated a subset.
 	Range *string `json:"range,omitempty"`
-	// SliceSize is the size of subnets or slices of the range that each node will be assigned
+	// SliceSize is the size of subnets or slices of the range that each node will be assigned.
 	SliceSize *string `json:"sliceSize,omitempty"`
 }
 

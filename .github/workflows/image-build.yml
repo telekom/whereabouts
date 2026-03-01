@@ -1,5 +1,14 @@
 name: Image build
 on: [pull_request]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-amd64:
     name: Image build/amd64

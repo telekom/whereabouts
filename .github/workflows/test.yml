@@ -1,14 +1,22 @@
 on: 
   pull_request:
     paths-ignore:
-      - "**/*.md'"
+      - "**/*.md"
       - "doc/*.{json,png,svg}"
   push: 
     paths-ignore:
-      - "**/*.md'"
+      - "**/*.md"
       - "doc/*.{json,png,svg}"
 
 name: Test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:

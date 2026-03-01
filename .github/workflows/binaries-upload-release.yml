@@ -4,6 +4,9 @@ on:
     types:
       - created
 
+permissions:
+  contents: write
+
 jobs:
   upload:
     runs-on: ubuntu-latest
@@ -12,16 +15,20 @@ jobs:
         arch: [amd64, arm64, arm]
     steps:
     - uses: actions/checkout@v6
+    - name: Install Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: go.mod
     - name: Build whereabouts binary
       env:
         GOARCH: ${{ matrix.arch }}
-      run: ./hack/build-go.sh
+      run: |
+        ./hack/build-go.sh
+        mv ./bin/whereabouts ./bin/whereabouts-${{ matrix.arch }}
     - name: Upload whereabouts binary
-      uses: actions/upload-release-asset@v1
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./bin/whereabouts-${{ matrix.arch }}
+        tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./bin/whereabouts
-        asset_name: whereabouts-${{ matrix.arch }}
-        asset_content_type: application/octet-stream

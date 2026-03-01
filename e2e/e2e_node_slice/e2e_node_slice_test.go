@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/apps/v1"
@@ -296,7 +295,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 					Expect(totalAllocations).To(Equal(initialReplicaNumber))
 				})
 
-				table.DescribeTable("stateful sets scale up / down", func(testSetup func(int), instanceDelta int) {
+				DescribeTable("stateful sets scale up / down", func(testSetup func(int), instanceDelta int) {
 					const scaleTimeout = util.CreatePodTimeout * 6
 
 					testSetup(instanceDelta)
@@ -322,27 +321,27 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 					}, scaleTimeout).Should(
 						Equal(initialReplicaNumber), "we should have one allocation for each live pod")
 				},
-					table.Entry("scale up then down 5 replicas", func(deltaInstances int) {
+					Entry("scale up then down 5 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 5),
-					table.Entry("scale up then down 10 replicas", func(deltaInstances int) {
+					Entry("scale up then down 10 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 10),
-					table.Entry("scale up then down 20 replicas", func(deltaInstances int) {
+					Entry("scale up then down 20 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 20),
-					table.Entry("scale down then up 5 replicas", func(deltaInstances int) {
+					Entry("scale down then up 5 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 5),
-					table.Entry("scale down then up 10 replicas", func(deltaInstances int) {
+					Entry("scale down then up 10 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 10),
-					table.Entry("scale down then up 20 replicas", func(deltaInstances int) {
+					Entry("scale down then up 20 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 20),

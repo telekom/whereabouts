@@ -7,8 +7,7 @@ import (
 	"net"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
@@ -36,11 +35,11 @@ var _ = Describe("IP Pool consistency checker", func() {
 				pool = NewMockedPool()
 			})
 
-			table.DescribeTable("does not have stale IPs", func(podList []corev1.Pod) {
+			DescribeTable("does not have stale IPs", func(podList []corev1.Pod) {
 				Expect(NewPoolConsistencyCheck(pool, podList).StaleIPs()).To(BeEmpty())
 			},
-				table.Entry("without any live pod", []corev1.Pod{}),
-				table.Entry("independently of live pods", []corev1.Pod{
+				Entry("without any live pod", []corev1.Pod{}),
+				Entry("independently of live pods", []corev1.Pod{
 					newPod("1", "2", "111.111.111.111"),
 				}))
 		})
@@ -75,11 +74,11 @@ var _ = Describe("IP Pool consistency checker", func() {
 
 			var podList []corev1.Pod
 
-			table.DescribeTable("does not have stale IPs", func(ipPool storage.IPPool) {
+			DescribeTable("does not have stale IPs", func(ipPool storage.IPPool) {
 				Expect(NewPoolConsistencyCheck(ipPool, podList).MissingIPs()).To(BeEmpty())
 			},
-				table.Entry("with an empty IPPool", NewMockedPool()),
-				table.Entry("even when the IPPool features allocations", NewMockedPool(
+				Entry("with an empty IPPool", NewMockedPool()),
+				Entry("even when the IPPool features allocations", NewMockedPool(
 					types.IPReservation{IP: net.ParseIP(ip)})))
 		})
 

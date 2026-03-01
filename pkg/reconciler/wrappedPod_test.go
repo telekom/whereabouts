@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	k8snetworkplumbingwgv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -83,7 +82,7 @@ var _ = Describe("Pod Wrapper operations", func() {
 	}
 
 	Context("the wrap pod operation", func() {
-		table.DescribeTable("should extract the IPs from the network status annotations", func(ips ...string) {
+		DescribeTable("should extract the IPs from the network status annotations", func(ips ...string) {
 			expectedIPs := map[string]void{}
 			for _, ip := range ips {
 				expectedIPs[ip] = void{}
@@ -92,9 +91,9 @@ var _ = Describe("Pod Wrapper operations", func() {
 			pod := generatePodSpec(ips...)
 			Expect(wrapPod(pod).ips).To(Equal(expectedIPs))
 		},
-			table.Entry("when the annotation does not feature multus networks"),
-			table.Entry("when the annotation has a multus networks", "192.168.14.14"),
-			table.Entry("when the annotation has multiple multus networks", "192.168.14.14", "10.10.10.10"),
+			Entry("when the annotation does not feature multus networks"),
+			Entry("when the annotation has a multus networks", "192.168.14.14"),
+			Entry("when the annotation has multiple multus networks", "192.168.14.14", "10.10.10.10"),
 		)
 
 		It("should skip the default network annotations", func() {
@@ -140,7 +139,7 @@ var _ = Describe("Pod Wrapper operations", func() {
 			namespace string
 		}
 
-		table.DescribeTable("", func(podsInfo ...podInfo) {
+		DescribeTable("", func(podsInfo ...podInfo) {
 			var pods []v1.Pod
 			whereaboutsPods := map[string]void{}
 
@@ -160,13 +159,13 @@ var _ = Describe("Pod Wrapper operations", func() {
 
 			Expect(indexPods(pods, whereaboutsPods)).To(Equal(expectedPodWrapper))
 		},
-			table.Entry("when no pods are passed"),
-			table.Entry("when a pod is passed", podInfo{
+			Entry("when no pods are passed"),
+			Entry("when a pod is passed", podInfo{
 				ips:       []string{"10.10.10.10"},
 				name:      "pod1",
 				namespace: "default",
 			}),
-			table.Entry("when multiple pods are passed",
+			Entry("when multiple pods are passed",
 				podInfo{
 					ips:       []string{"10.10.10.10"},
 					name:      "pod1",

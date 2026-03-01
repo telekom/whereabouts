@@ -7,7 +7,7 @@ import (
 
 	"github.com/telekom/whereabouts/pkg/types"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

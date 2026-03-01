@@ -33,7 +33,6 @@ linters:
     - staticcheck        # Comprehensive static analysis (successor of megacheck)
     - unused             # Unused code detection
     - ineffassign        # Detects ineffectual assignments
-    - typecheck          # Type-checking (Go compiler front-end)
 
   settings:
     gosec:

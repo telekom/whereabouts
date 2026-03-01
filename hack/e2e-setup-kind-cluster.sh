@@ -13,8 +13,8 @@ while true; do
   esac
 done
 
-HERE="$(dirname "$(readlink --canonicalize ${BASH_SOURCE[0]})")"
-ROOT="$(readlink --canonicalize "$HERE/..")"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
 MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset.yml"
 CNIS_DAEMONSET_PATH="$ROOT/hack/cni-install.yml"
 TIMEOUT_K8="5000s"
@@ -25,7 +25,7 @@ TIMEOUT_K8="${TIMEOUT}s"
 KIND_CLUSTER_NAME="whereabouts"
 OCI_BIN="${OCI_BIN:-"docker"}"
 IMG_PROJECT="whereabouts"
-IMG_REGISTRY="ghcr.io/k8snetworkplumbingwg"
+IMG_REGISTRY="ghcr.io/telekom"
 IMG_TAG="latest"
 IMG_NAME="$IMG_REGISTRY/$IMG_PROJECT:$IMG_TAG"
 
@@ -49,6 +49,15 @@ check_requirements() {
       exit 1
     fi
   done
+  # Use GNU timeout (gtimeout on macOS via coreutils)
+  if command -v timeout &> /dev/null; then
+    TIMEOUT_CMD="timeout"
+  elif command -v gtimeout &> /dev/null; then
+    TIMEOUT_CMD="gtimeout"
+  else
+    echo "timeout (or gtimeout) is not available; install coreutils"
+    exit 1
+  fi
 }
 
 retry() {
@@ -61,7 +70,7 @@ retry() {
   while [ $retries -gt 0 ]
   do
     status=0
-    timeout $to bash -c "echo $cmd && $cmd" || status=$?
+    $TIMEOUT_CMD $to bash -c "echo $cmd && $cmd" || status=$?
     if [ $status -eq 0 ]; then
       break;
     fi
@@ -89,11 +98,11 @@ retry kubectl create -f "${CNIS_DAEMONSET_PATH}"
 retry kubectl -n kube-system wait --for=condition=ready -l name="cni-plugins" pod --timeout=$TIMEOUT_K8
 echo "## build whereabouts"
 pushd "$ROOT"
-$OCI_BIN build . -t "$IMG_NAME"
+$OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .
 popd
 
 echo "## load image into KinD"
-trap "rm /tmp/whereabouts-img.tar || true" EXIT
+trap "rm -f /tmp/whereabouts-img.tar" EXIT
 "$OCI_BIN" save -o /tmp/whereabouts-img.tar "$IMG_NAME"
 kind load image-archive --name "$KIND_CLUSTER_NAME" /tmp/whereabouts-img.tar
 
@@ -101,10 +110,10 @@ echo "## install whereabouts"
 for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml" "whereabouts.cni.cncf.io_nodeslicepools.yaml"; do
   # insert 'imagePullPolicy: Never' under the container 'image' so it is certain that the image used
   # by the daemonset is the one loaded into KinD and not one pulled from a repo
-  sed '/        image:/a\        imagePullPolicy: Never' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
+  awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
 done
 # deployment has an extra tab for the sed so doing out of the loop
-sed '/          image:/a\          imagePullPolicy: Never' "$ROOT/doc/crds/node-slice-controller.yaml" | retry kubectl apply -f -
+awk '/^          image:/{print; print "          imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/node-slice-controller.yaml" | retry kubectl apply -f -
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-controller pod --timeout=$TIMEOUT_K8
 echo "## done"

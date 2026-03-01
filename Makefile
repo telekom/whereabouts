@@ -2,7 +2,7 @@ CURPATH=$(PWD)
 BIN_DIR=$(CURPATH)/bin
 
 IMAGE_NAME ?= whereabouts
-IMAGE_REGISTRY ?= ghcr.io/k8snetworkplumbingwg
+IMAGE_REGISTRY ?= ghcr.io/telekom
 IMAGE_PULL_POLICY ?= Always
 IMAGE_TAG ?= latest
 COMPUTE_NODES ?= 2

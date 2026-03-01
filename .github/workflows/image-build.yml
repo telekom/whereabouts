@@ -28,13 +28,8 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:pr-${{ github.event.number }}
           file: Dockerfile
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - name: Run Trivy vulnerability scanner
-        continue-on-error: true # Trivy action may fail fetching refs on forks
-        uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
-        with:
-          image-ref: ghcr.io/${{ github.repository }}:pr-${{ github.event.number }}
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-          format: 'table'
-          exit-code: '1'
+        run: trivy image --ignore-unfixed --scanners vuln --severity CRITICAL,HIGH --exit-code 1 ghcr.io/${{ github.repository }}:pr-${{ github.event.number }}

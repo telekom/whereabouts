@@ -120,4 +120,4 @@ SPDX-License-Identifier = "Apache-2.0"
 path = ["vendor/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "NONE"
-SPDX-License-Identifier = "NOASSERTION"
+SPDX-License-Identifier = "LicenseRef-Vendor"

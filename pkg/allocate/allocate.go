@@ -24,7 +24,6 @@ func (a AssignmentError) Error() string {
 
 // AssignIP assigns an IP using a range and a reserve list.
 func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservation, containerID, podRef, ifName string) (net.IPNet, []types.IPReservation, error) {
-
 	// Setup the basics here.
 	_, ipnet, _ := net.ParseCIDR(ipamConf.Range)
 
@@ -87,7 +86,7 @@ func IterateForAssignment(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, r
 	// Get the valid range, delimited by the ipnet's first and last usable IP as well as the rangeStart and rangeEnd.
 	firstIP, lastIP, err := iphelpers.GetIPRange(ipnet, rangeStart, rangeEnd)
 	if err != nil {
-		logging.Errorf("GetIPRange request failed with: %v", err)
+		logging.Errorf("GetIPRange request failed with: %s", err)
 		return net.IP{}, reserveList, err
 	}
 	logging.Debugf("IterateForAssignment input >> range_start: %v | range_end: %v | ipnet: %v | first IP: %v | last IP: %v",

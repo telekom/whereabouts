@@ -120,7 +120,7 @@ var _ = Describe("Allocation operations", func() {
 	})
 
 	It("overlapping range can be set", func() {
-		var globalConf string = `{
+		var globalConf = `{
 			"datastore": "kubernetes",
 			"kubernetes": {
 				"kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
@@ -139,7 +139,7 @@ var _ = Describe("Allocation operations", func() {
 	})
 
 	It("overlapping range can be disabled", func() {
-		var globalConf string = `{
+		var globalConf = `{
 			"datastore": "kubernetes",
 			"kubernetes": {
 				"kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"

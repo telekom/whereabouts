@@ -2,7 +2,7 @@ CURPATH=$(PWD)
 BIN_DIR=$(CURPATH)/bin
 
 IMAGE_NAME ?= whereabouts
-IMAGE_REGISTRY ?= ghcr.io/k8snetworkplumbingwg
+IMAGE_REGISTRY ?= ghcr.io/telekom
 IMAGE_PULL_POLICY ?= Always
 IMAGE_TAG ?= latest
 COMPUTE_NODES ?= 2
@@ -36,6 +36,12 @@ update-deps:
 	go mod tidy
 	go mod vendor
 	go mod verify
+
+lint:
+	golangci-lint run --timeout=5m ./...
+
+lint-fix:
+	golangci-lint run --timeout=5m --fix ./...
 
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)

@@ -130,7 +130,7 @@ func NewController(
 
 	logger.Info("Setting up event handlers")
 
-	nadInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = nadInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.onNadEvent,
 		UpdateFunc: func(old, cur interface{}) {
 			oldNad := old.(*cncfV1.NetworkAttachmentDefinition)
@@ -144,7 +144,7 @@ func NewController(
 		DeleteFunc: c.onNadEvent,
 	})
 
-	nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.requeueNADs,
 		DeleteFunc: c.requeueNADs,
 	})
@@ -304,7 +304,7 @@ func (c *Controller) syncHandler(ctx context.Context, key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
+		return err
 	}
 	err = c.checkForMultiNadMismatch(name, namespace)
 	if err != nil {
@@ -320,7 +320,7 @@ func (c *Controller) syncHandler(ctx context.Context, key string) error {
 		// if we are down during the delete this could be missed similar to endpoints see kubernetes #6877
 		nodeSlices, err := c.nodeSlicePoolLister.List(labels.Everything())
 		if err != nil {
-			return nil
+			return err
 		}
 		for _, nodeSlice := range nodeSlices {
 			if hasOwnerRef(nodeSlice, name) {

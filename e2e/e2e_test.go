@@ -838,6 +838,1108 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
+		// ────────────────────────────────────────────────────────────────
+		// Parameterized IPv4 / IPv6 feature tests
+		// Each feature is exercised with both address families.
+		// ────────────────────────────────────────────────────────────────
+
+		Context("Single pod allocation across address families", func() {
+			table.DescribeTable("allocates and deallocates a single pod",
+				func(networkName, ipRange string, expectV6 bool) {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					podName := "wb-single-" + networkName
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					By("checking pod IP is within range")
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+
+					By("verifying address family")
+					if expectV6 {
+						Expect(util.IsIPv6(ips[0])).To(BeTrue(), "expected IPv6, got %s", ips[0])
+					} else {
+						Expect(util.IsIPv4(ips[0])).To(BeTrue(), "expected IPv4, got %s", ips[0])
+					}
+
+					By("verifying IPPool allocation exists")
+					verifyAllocations(clientInfo, ipRange, ips[0], testNamespace, podName, "net1")
+
+					By("deleting pod and verifying deallocation")
+					Expect(clientInfo.DeletePod(p)).To(Succeed())
+					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, podName, ips)
+				},
+				table.Entry("IPv4", "wa-single-v4", "10.50.0.0/24", false),
+				table.Entry("IPv6", "wa-single-v6", "fd00:50::/112", true),
+			)
+		})
+
+		Context("Multi-interface allocation across address families", func() {
+			table.DescribeTable("allocates multiple interfaces on a single pod",
+				func(networkName, ipRange string, expectV6 bool) {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					podName := "wb-multi-" + networkName
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName, networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					var allIPs []string
+					for _, ifName := range []string{"net1", "net2"} {
+						ips, err := retrievers.SecondaryIfaceIPValue(p, ifName)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(ips).NotTo(BeEmpty())
+						Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+						if expectV6 {
+							Expect(util.IsIPv6(ips[0])).To(BeTrue())
+						} else {
+							Expect(util.IsIPv4(ips[0])).To(BeTrue())
+						}
+						allIPs = append(allIPs, ips[0])
+					}
+
+					By("verifying each interface got a different IP")
+					Expect(allIPs[0]).NotTo(Equal(allIPs[1]))
+				},
+				table.Entry("IPv4", "wa-multi-v4", "10.51.0.0/24", false),
+				table.Entry("IPv6", "wa-multi-v6", "fd00:51::/112", true),
+			)
+		})
+
+		Context("Exclude ranges across address families", func() {
+			table.DescribeTable("skips excluded IPs",
+				func(networkName, ipRange string, excludeRanges, forbiddenIPs []string, expectV6 bool) {
+					nad := util.MacvlanNetworkWithWhereaboutsExcludeRange(
+						networkName, testNamespace, ipRange, excludeRanges)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					podName := "wb-excl-" + networkName
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+
+					if expectV6 {
+						Expect(util.IsIPv6(ips[0])).To(BeTrue())
+					} else {
+						Expect(util.IsIPv4(ips[0])).To(BeTrue())
+					}
+
+					By("verifying IP is not in excluded range")
+					for _, forbidden := range forbiddenIPs {
+						Expect(ips[0]).NotTo(Equal(forbidden),
+							"IP %s should have been excluded", forbidden)
+					}
+				},
+				table.Entry("IPv4 — exclude first two IPs",
+					"wa-excl-v4", "10.52.0.0/30",
+					[]string{"10.52.0.0/31"}, []string{"10.52.0.0", "10.52.0.1"}, false),
+				table.Entry("IPv6 — exclude first two IPs",
+					"wa-excl-v6", "fd00:52::/126",
+					[]string{"fd00:52::/127"}, []string{"fd00:52::", "fd00:52::1"}, true),
+			)
+		})
+
+		Context("Range start/end across address families", func() {
+			table.DescribeTable("allocates within start/end bounds only",
+				func(networkName, cidr, rangeStart, rangeEnd string, expectV6 bool) {
+					nad := util.MacvlanNetworkWithWhereaboutsRangeStartEnd(
+						networkName, testNamespace, cidr, rangeStart, rangeEnd)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					podName := "wb-range-" + networkName
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.InRange(cidr, ips[0])).To(Succeed())
+					Expect(util.InIPRange(rangeStart, rangeEnd, ips[0])).To(Succeed())
+
+					if expectV6 {
+						Expect(util.IsIPv6(ips[0])).To(BeTrue())
+					} else {
+						Expect(util.IsIPv4(ips[0])).To(BeTrue())
+					}
+				},
+				table.Entry("IPv4 — sub-range of /24",
+					"wa-range-v4", "10.53.0.0/24", "10.53.0.100", "10.53.0.105", false),
+				table.Entry("IPv6 — sub-range of /112",
+					"wa-range-v6", "fd00:53::/112", "fd00:53::a0", "fd00:53::af", true),
+			)
+		})
+
+		Context("Overlapping range protection across address families", func() {
+			table.DescribeTable("prevents or allows duplicate IPs based on enable_overlapping_ranges",
+				func(nad1Name, nad2Name, ipRange string, enableOverlapping, expectV6 bool) {
+					// When overlapping is enabled both NADs share a pool so the
+					// pool's own allocation logic guarantees unique IPs.
+					// When disabled each NAD gets its own pool so both
+					// independently assign the first available IP (.1).
+					poolName1, poolName2 := nad1Name, nad2Name
+					if enableOverlapping {
+						poolName1, poolName2 = wbstorage.UnnamedNetwork, wbstorage.UnnamedNetwork
+					}
+					nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						nad1Name, testNamespace, ipRange, []string{}, poolName1, enableOverlapping)
+					nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						nad2Name, testNamespace, ipRange, []string{}, poolName2, enableOverlapping)
+
+					_, err := clientInfo.AddNetAttachDef(nad1)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad1)).To(Succeed()) }()
+					_, err = clientInfo.AddNetAttachDef(nad2)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad2)).To(Succeed()) }()
+
+					pod1Name := "wb-overlap1-" + nad1Name
+					p1, err := clientInfo.ProvisionPod(
+						pod1Name, testNamespace,
+						util.PodTierLabel(pod1Name),
+						entities.PodNetworkSelectionElements(nad1Name))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p1) }()
+
+					pod2Name := "wb-overlap2-" + nad2Name
+					p2, err := clientInfo.ProvisionPod(
+						pod2Name, testNamespace,
+						util.PodTierLabel(pod2Name),
+						entities.PodNetworkSelectionElements(nad2Name))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p2) }()
+
+					ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+					Expect(err).NotTo(HaveOccurred())
+
+					if expectV6 {
+						Expect(util.IsIPv6(ips1[0])).To(BeTrue())
+						Expect(util.IsIPv6(ips2[0])).To(BeTrue())
+					}
+
+					if enableOverlapping {
+						By("overlapping enabled: IPs must be different")
+						Expect(ips1[0]).NotTo(Equal(ips2[0]))
+					} else {
+						By("overlapping disabled: IPs may be the same")
+						Expect(ips1[0]).To(Equal(ips2[0]))
+					}
+				},
+				table.Entry("IPv4 overlapping enabled",
+					"wa-ov4-en-1", "wa-ov4-en-2", "10.54.0.0/28", true, false),
+				table.Entry("IPv4 overlapping disabled",
+					"wa-ov4-dis-1", "wa-ov4-dis-2", "10.55.0.0/28", false, false),
+				table.Entry("IPv6 overlapping enabled",
+					"wa-ov6-en-1", "wa-ov6-en-2", "fd00:54::/124", true, true),
+				table.Entry("IPv6 overlapping disabled",
+					"wa-ov6-dis-1", "wa-ov6-dis-2", "fd00:55::/124", false, true),
+			)
+		})
+
+		Context("Pool exhaustion across address families", func() {
+			table.DescribeTable("fails to schedule when pool is exhausted",
+				func(networkName, ipRange string, numUsable int) {
+					const (
+						serviceName     = "web-exhaust"
+						statefulSetName = "wb-exhaust"
+						selector        = "app=" + serviceName
+					)
+
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed())
+					}()
+
+					By(fmt.Sprintf("creating statefulset with %d replicas to fill pool", numUsable))
+					_, err = clientInfo.ProvisionStatefulSet(
+						statefulSetName, testNamespace, serviceName, numUsable, networkName)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+					}()
+
+					By("scaling up by 1 — should fail due to exhaustion")
+					Expect(clientInfo.ScaleStatefulSet(serviceName, testNamespace, 1)).To(Succeed())
+					Expect(
+						wbtestclient.WaitForStatefulSetCondition(
+							context.Background(), clientInfo.Client, testNamespace,
+							serviceName, numUsable+1, 20*time.Second,
+							wbtestclient.IsStatefulSetReadyPredicate),
+					).To(HaveOccurred(), "should fail because pool is exhausted")
+				},
+				// /30 = 4 addresses total; .0 is skipped → 3 usable; but last is broadcast-ish
+				// in practice whereabouts gives 2 usable IPs from a /30
+				table.Entry("IPv4 /30 pool", "wa-exhaust-v4", "10.56.0.0/30", 2),
+				// /126 = 4 addresses; similar behavior for IPv6
+				table.Entry("IPv6 /126 pool", "wa-exhaust-v6", "fd00:56::/126", 2),
+			)
+		})
+
+		Context("Concurrent allocation across address families", func() {
+			table.DescribeTable("handles concurrent allocations without IP conflicts",
+				func(networkName, ipRange string, replicaCount int, expectV6 bool) {
+					const rsSteadyTimeout = 120 * time.Second
+					rsName := "wb-conc-" + networkName
+
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					k8sIPAM, err := wbstorage.NewKubernetesIPAMWithNamespace("", "", types.IPAMConfig{
+						Kubernetes: types.KubernetesConfig{
+							KubeConfigPath: testConfig.KubeconfigPath,
+						},
+					}, ipPoolNamespace)
+					Expect(err).NotTo(HaveOccurred())
+
+					rs, err := clientInfo.ProvisionReplicaSet(
+						rsName, testNamespace, 0,
+						util.PodTierLabel(rsName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						// Scale down before deleting
+						scaled, err := clientInfo.UpdateReplicaSet(
+							entities.ReplicaSetObject(0, rsName, testNamespace,
+								util.PodTierLabel(rsName),
+								entities.PodNetworkSelectionElements(networkName)))
+						Expect(err).NotTo(HaveOccurred())
+						Expect(wbtestclient.WaitForReplicaSetSteadyState(
+							context.Background(), clientInfo.Client, testNamespace,
+							entities.ReplicaSetQuery(rsName), scaled, rsSteadyTimeout)).To(Succeed())
+						Expect(clientInfo.DeleteReplicaSet(rs)).To(Succeed())
+					}()
+
+					By(fmt.Sprintf("scaling to %d replicas simultaneously", replicaCount))
+					rs, err = clientInfo.UpdateReplicaSet(
+						entities.ReplicaSetObject(int32(replicaCount), rsName, testNamespace,
+							util.PodTierLabel(rsName),
+							entities.PodNetworkSelectionElements(networkName)))
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(wbtestclient.WaitForReplicaSetSteadyState(
+						context.Background(), clientInfo.Client, testNamespace,
+						entities.ReplicaSetQuery(rsName), rs, rsSteadyTimeout)).To(Succeed())
+
+					podList, err := wbtestclient.ListPods(context.Background(),
+						clientInfo.Client, testNamespace, entities.ReplicaSetQuery(rsName))
+					Expect(err).NotTo(HaveOccurred())
+					Expect(podList.Items).To(HaveLen(replicaCount))
+
+					ipSet := make(map[string]struct{})
+					for _, p := range podList.Items {
+						ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+						Expect(err).NotTo(HaveOccurred())
+						Expect(ips).NotTo(BeEmpty())
+						Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+						if expectV6 {
+							Expect(util.IsIPv6(ips[0])).To(BeTrue())
+						}
+						_, dup := ipSet[ips[0]]
+						Expect(dup).To(BeFalse(), "duplicate IP: %s", ips[0])
+						ipSet[ips[0]] = struct{}{}
+					}
+
+					By("verifying pool consistency")
+					ipPool, err := k8sIPAM.GetIPPool(context.Background(),
+						wbstorage.PoolIdentifier{IpRange: ipRange, NetworkName: wbstorage.UnnamedNetwork})
+					Expect(err).NotTo(HaveOccurred())
+					Expect(poolconsistency.NewPoolConsistencyCheck(ipPool, podList.Items).MissingIPs()).To(BeEmpty())
+					Expect(poolconsistency.NewPoolConsistencyCheck(ipPool, podList.Items).StaleIPs()).To(BeEmpty())
+				},
+				table.Entry("IPv4 — 10 pods on /28", "wa-conc-v4", "10.57.0.0/28", 10, false),
+				table.Entry("IPv6 — 10 pods on /124", "wa-conc-v6", "fd00:57::/124", 10, true),
+			)
+		})
+
+		Context("DS: exclude ranges", func() {
+			It("applies exclude ranges to both address families in dual-stack config", func() {
+				const (
+					networkName   = "wa-ds-excl"
+					v4Range       = "10.58.0.0/30"
+					v6Range       = "fd00:58::/126"
+					singlePodName = "wb-ds-excl-test"
+				)
+
+				// Build a NAD with dual-stack ipRanges and excludes for both families.
+				// We'll use the raw config approach since our helpers only do single-stack excludes.
+				macvlanConfig := fmt.Sprintf(`{
+					"cniVersion": "0.3.0",
+					"disableCheck": true,
+					"plugins": [{
+						"type": "macvlan",
+						"master": "eth0",
+						"mode": "bridge",
+						"ipam": {
+							"type": "whereabouts",
+							"leader_lease_duration": 1500,
+							"leader_renew_deadline": 1000,
+							"leader_retry_period": 500,
+							"range": "%s",
+							"exclude": ["10.58.0.0/31"],
+							"ipRanges": [{"range": "%s", "exclude": ["fd00:58::/127"]}],
+							"log_level": "debug",
+							"log_file": "/tmp/wb",
+							"enable_overlapping_ranges": true
+						}
+					}]
+				}`, v4Range, v6Range)
+				nad := util.GenerateNetAttachDefSpec(networkName, testNamespace, macvlanConfig)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					singlePodName, testNamespace,
+					util.PodTierLabel(singlePodName),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).To(HaveLen(2))
+
+				By("checking IPv4 address avoids excluded range")
+				Expect(util.InRange(v4Range, ips[0])).To(Succeed())
+				Expect(ips[0]).NotTo(Equal("10.58.0.0"))
+				Expect(ips[0]).NotTo(Equal("10.58.0.1"))
+
+				By("checking IPv6 address avoids excluded range")
+				Expect(util.InRange(v6Range, ips[1])).To(Succeed())
+				Expect(ips[1]).NotTo(Equal("fd00:58::"))
+				Expect(ips[1]).NotTo(Equal("fd00:58::1"))
+			})
+		})
+
+		Context("DS: range_start/range_end", func() {
+			It("respects range bounds for both address families", func() {
+				const (
+					networkName   = "wa-ds-range"
+					v4Range       = "10.59.0.0/24"
+					v6Range       = "fd00:59::/112"
+					singlePodName = "wb-ds-range-test"
+				)
+
+				macvlanConfig := fmt.Sprintf(`{
+					"cniVersion": "0.3.0",
+					"disableCheck": true,
+					"plugins": [{
+						"type": "macvlan",
+						"master": "eth0",
+						"mode": "bridge",
+						"ipam": {
+							"type": "whereabouts",
+							"leader_lease_duration": 1500,
+							"leader_renew_deadline": 1000,
+							"leader_retry_period": 500,
+							"range": "%s",
+							"range_start": "10.59.0.200",
+							"range_end": "10.59.0.205",
+							"ipRanges": [{"range": "%s", "range_start": "fd00:59::c8", "range_end": "fd00:59::cd"}],
+							"log_level": "debug",
+							"log_file": "/tmp/wb",
+							"enable_overlapping_ranges": true
+						}
+					}]
+				}`, v4Range, v6Range)
+				nad := util.GenerateNetAttachDefSpec(networkName, testNamespace, macvlanConfig)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					singlePodName, testNamespace,
+					util.PodTierLabel(singlePodName),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).To(HaveLen(2))
+
+				By("checking IPv4 within range bounds")
+				Expect(util.InIPRange("10.59.0.200", "10.59.0.205", ips[0])).To(Succeed())
+				By("checking IPv6 within range bounds")
+				Expect(util.InIPRange("fd00:59::c8", "fd00:59::cd", ips[1])).To(Succeed())
+			})
+		})
+
+		Context("Allocation verification across address families", func() {
+			table.DescribeTable("verifies IPPool allocation matches pod IP",
+				func(networkName, ipRange string, expectV6 bool) {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					podName := "wb-verify-" + networkName
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+
+					By("verifying IPPool has the correct allocation")
+					ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+						context.Background(),
+						wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipRange, NetworkName: wbstorage.UnnamedNetwork}),
+						metav1.GetOptions{})
+					Expect(err).NotTo(HaveOccurred())
+
+					podRef := getPodRef(testNamespace, podName)
+					allocations := allocationForPodRef(podRef, *ipPool)
+					Expect(allocations).To(HaveLen(1))
+					Expect(allocations[0].IfName).To(Equal("net1"))
+					Expect(allocations[0].PodRef).To(Equal(podRef))
+
+					By("verifying the allocation offset matches the pod IP")
+					firstIP, _, err := net.ParseCIDR(ipRange)
+					Expect(err).NotTo(HaveOccurred())
+					offset, err := iphelpers.IPGetOffset(net.ParseIP(ips[0]), firstIP)
+					Expect(err).NotTo(HaveOccurred())
+					_, ok := ipPool.Spec.Allocations[fmt.Sprintf("%d", offset)]
+					Expect(ok).To(BeTrue(), "allocation for pod IP %s at offset %d should exist", ips[0], offset)
+				},
+				table.Entry("IPv4", "wa-verify-v4", "10.60.0.0/24", false),
+				table.Entry("IPv6", "wa-verify-v6", "fd00:60::/112", true),
+			)
+		})
+
+		Context("Reconciler stale IP cleanup", func() {
+			const singlePodName = "whereabouts-reconciler-test"
+
+			AfterEach(func() {
+				if pod != nil {
+					_ = clientInfo.DeletePod(pod)
+				}
+			})
+
+			It("cleans up stale allocations referencing non-existent pods", func() {
+				By("getting or creating the IPPool")
+				ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+					context.Background(),
+					wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipv4TestRange, NetworkName: wbstorage.UnnamedNetwork}),
+					metav1.GetOptions{})
+				if err != nil && errors.IsNotFound(err) {
+					pod, err = clientInfo.ProvisionPod(
+						singlePodName+"-init", testNamespace,
+						util.PodTierLabel(singlePodName),
+						entities.PodNetworkSelectionElements(testNetworkName))
+					Expect(err).NotTo(HaveOccurred())
+					Expect(clientInfo.DeletePod(pod)).To(Succeed())
+					pod = nil
+					Eventually(func() error {
+						ipPool, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+							context.Background(),
+							wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipv4TestRange, NetworkName: wbstorage.UnnamedNetwork}),
+							metav1.GetOptions{})
+						return err
+					}, 10*time.Second, time.Second).Should(Succeed())
+				} else {
+					Expect(err).NotTo(HaveOccurred())
+				}
+
+				By("injecting a stale allocation for a non-existent pod")
+				updatedPool := ipPool.DeepCopy()
+				staleOffset := "999"
+				updatedPool.Spec.Allocations[staleOffset] = v1alpha1.IPAllocation{
+					PodRef:      "default/non-existent-pod-xyz",
+					ContainerID: "deadbeef",
+					IfName:      "net1",
+				}
+				_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Update(
+					context.Background(), updatedPool, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("waiting for the reconciler to clean up the stale allocation")
+				Eventually(func() bool {
+					ipPool, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+						context.Background(),
+						wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipv4TestRange, NetworkName: wbstorage.UnnamedNetwork}),
+						metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					_, exists := ipPool.Spec.Allocations[staleOffset]
+					return !exists
+				}, 2*time.Minute, 5*time.Second).Should(BeTrue(),
+					"the reconciler should have removed the stale allocation for non-existent pod")
+			})
+		})
+
+		// ────────────────────────────────────────────────────────────────
+		// DualStack combination tests
+		// ────────────────────────────────────────────────────────────────
+
+		Context("DS: overlapping range protection", func() {
+			It("prevents duplicate IPs across two dual-stack NADs with overlapping enabled", func() {
+				const (
+					nad1Name = "wa-ds-ov-1"
+					nad2Name = "wa-ds-ov-2"
+					v4Range  = "10.61.0.0/28"
+					v6Range  = "fd00:61::/124"
+				)
+
+				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad1Name, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad2Name, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+
+				_, err := clientInfo.AddNetAttachDef(nad1)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad1)).To(Succeed()) }()
+				_, err = clientInfo.AddNetAttachDef(nad2)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad2)).To(Succeed()) }()
+
+				p1, err := clientInfo.ProvisionPod(
+					"wb-ds-ov-1", testNamespace,
+					util.PodTierLabel("wb-ds-ov-1"),
+					entities.PodNetworkSelectionElements(nad1Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p1) }()
+
+				p2, err := clientInfo.ProvisionPod(
+					"wb-ds-ov-2", testNamespace,
+					util.PodTierLabel("wb-ds-ov-2"),
+					entities.PodNetworkSelectionElements(nad2Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying all IPs are unique between the two pods")
+				allIPs := append(ips1, ips2...)
+				ipSet := make(map[string]struct{})
+				for _, ip := range allIPs {
+					_, dup := ipSet[ip]
+					Expect(dup).To(BeFalse(), "duplicate IP across overlapping dual-stack NADs: %s", ip)
+					ipSet[ip] = struct{}{}
+				}
+			})
+		})
+
+		Context("DS: pool exhaustion", func() {
+			It("fails to schedule when dual-stack pool is exhausted", func() {
+				const (
+					networkName     = "wa-ds-exhaust"
+					v4Range         = "10.62.0.0/30"
+					v6Range         = "fd00:62::/126"
+					serviceName     = "web-ds-exhaust"
+					statefulSetName = "wb-ds-exhaust"
+					selector        = "app=" + serviceName
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed())
+				}()
+
+				By("filling the pool with 2 pods (all usable IPs in /30)")
+				_, err = clientInfo.ProvisionStatefulSet(
+					statefulSetName, testNamespace, serviceName, 2, networkName)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+				}()
+
+				By("scaling up by 1 — should fail due to both v4 and v6 exhaustion")
+				Expect(clientInfo.ScaleStatefulSet(serviceName, testNamespace, 1)).To(Succeed())
+				Expect(
+					wbtestclient.WaitForStatefulSetCondition(
+						context.Background(), clientInfo.Client, testNamespace,
+						serviceName, 3, 20*time.Second,
+						wbtestclient.IsStatefulSetReadyPredicate),
+				).To(HaveOccurred(), "should fail because dual-stack pool is exhausted")
+			})
+		})
+
+		Context("DS: concurrent allocation", func() {
+			It("handles concurrent dual-stack allocations without conflicts", func() {
+				const (
+					networkName     = "wa-ds-conc"
+					v4Range         = "10.63.0.0/28"
+					v6Range         = "fd00:63::/124"
+					rsName          = "wb-ds-conc"
+					replicaCount    = 8
+					rsSteadyTimeout = 120 * time.Second
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				rs, err := clientInfo.ProvisionReplicaSet(
+					rsName, testNamespace, 0,
+					util.PodTierLabel(rsName),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					scaled, err := clientInfo.UpdateReplicaSet(
+						entities.ReplicaSetObject(0, rsName, testNamespace,
+							util.PodTierLabel(rsName),
+							entities.PodNetworkSelectionElements(networkName)))
+					Expect(err).NotTo(HaveOccurred())
+					Expect(wbtestclient.WaitForReplicaSetSteadyState(
+						context.Background(), clientInfo.Client, testNamespace,
+						entities.ReplicaSetQuery(rsName), scaled, rsSteadyTimeout)).To(Succeed())
+					Expect(clientInfo.DeleteReplicaSet(rs)).To(Succeed())
+				}()
+
+				By(fmt.Sprintf("scaling to %d replicas simultaneously", replicaCount))
+				rs, err = clientInfo.UpdateReplicaSet(
+					entities.ReplicaSetObject(int32(replicaCount), rsName, testNamespace,
+						util.PodTierLabel(rsName),
+						entities.PodNetworkSelectionElements(networkName)))
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(wbtestclient.WaitForReplicaSetSteadyState(
+					context.Background(), clientInfo.Client, testNamespace,
+					entities.ReplicaSetQuery(rsName), rs, rsSteadyTimeout)).To(Succeed())
+
+				podList, err := wbtestclient.ListPods(context.Background(),
+					clientInfo.Client, testNamespace, entities.ReplicaSetQuery(rsName))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(podList.Items).To(HaveLen(replicaCount))
+
+				v4Set := make(map[string]struct{})
+				v6Set := make(map[string]struct{})
+				for _, p := range podList.Items {
+					ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).To(HaveLen(2), "expected dual-stack (2 IPs) per pod")
+					Expect(util.InRange(v4Range, ips[0])).To(Succeed())
+					Expect(util.InRange(v6Range, ips[1])).To(Succeed())
+
+					_, dupV4 := v4Set[ips[0]]
+					Expect(dupV4).To(BeFalse(), "duplicate IPv4: %s", ips[0])
+					v4Set[ips[0]] = struct{}{}
+
+					_, dupV6 := v6Set[ips[1]]
+					Expect(dupV6).To(BeFalse(), "duplicate IPv6: %s", ips[1])
+					v6Set[ips[1]] = struct{}{}
+				}
+			})
+		})
+
+		Context("DS: multi-interface", func() {
+			It("allocates dual-stack IPs on multiple interfaces", func() {
+				const (
+					networkName   = "wa-ds-multi"
+					v4Range       = "10.64.0.0/24"
+					v6Range       = "fd00:64::/112"
+					singlePodName = "wb-ds-multi"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					singlePodName, testNamespace,
+					util.PodTierLabel(singlePodName),
+					entities.PodNetworkSelectionElements(networkName, networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				allIPs := make(map[string]struct{})
+				for _, ifName := range []string{"net1", "net2"} {
+					ips, err := retrievers.SecondaryIfaceIPValue(p, ifName)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).To(HaveLen(2), "expected dual-stack on %s", ifName)
+					Expect(util.InRange(v4Range, ips[0])).To(Succeed())
+					Expect(util.InRange(v6Range, ips[1])).To(Succeed())
+					for _, ip := range ips {
+						_, dup := allIPs[ip]
+						Expect(dup).To(BeFalse(), "duplicate IP across interfaces: %s", ip)
+						allIPs[ip] = struct{}{}
+					}
+				}
+			})
+		})
+
+		// ────────────────────────────────────────────────────────────────
+		// Multi-pool combination tests
+		// ────────────────────────────────────────────────────────────────
+
+		Context("Multi-pool: pod attached to two different NADs", func() {
+			It("allocates IPs from two separate pools simultaneously", func() {
+				const (
+					nad1Name = "wa-mp-pool1"
+					nad2Name = "wa-mp-pool2"
+					range1   = "10.65.0.0/24"
+					range2   = "10.66.0.0/24"
+					podName  = "wb-multi-pool"
+				)
+
+				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad1Name, testNamespace, range1, []string{}, wbstorage.UnnamedNetwork, true)
+				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad2Name, testNamespace, range2, []string{}, wbstorage.UnnamedNetwork, true)
+
+				_, err := clientInfo.AddNetAttachDef(nad1)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad1)).To(Succeed()) }()
+				_, err = clientInfo.AddNetAttachDef(nad2)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad2)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					podName, testNamespace,
+					util.PodTierLabel(podName),
+					entities.PodNetworkSelectionElements(nad1Name, nad2Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips1).NotTo(BeEmpty())
+				Expect(util.InRange(range1, ips1[0])).To(Succeed())
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p, "net2")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2).NotTo(BeEmpty())
+				Expect(util.InRange(range2, ips2[0])).To(Succeed())
+
+				By("verifying both pools have allocations referencing this pod")
+				verifyAllocations(clientInfo, range1, ips1[0], testNamespace, podName, "net1")
+				verifyAllocations(clientInfo, range2, ips2[0], testNamespace, podName, "net2")
+			})
+		})
+
+		Context("Multi-pool: named networks with same CIDR", func() {
+			It("isolates allocations via network_name even for identical CIDRs", func() {
+				const (
+					nad1Name     = "wa-nn-first"
+					nad2Name     = "wa-nn-second"
+					sharedRange  = "10.67.0.0/28"
+					networkName1 = "net-alpha"
+					networkName2 = "net-beta"
+				)
+
+				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad1Name, testNamespace, sharedRange, []string{}, networkName1, true)
+				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad2Name, testNamespace, sharedRange, []string{}, networkName2, true)
+
+				_, err := clientInfo.AddNetAttachDef(nad1)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad1)).To(Succeed()) }()
+				_, err = clientInfo.AddNetAttachDef(nad2)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad2)).To(Succeed()) }()
+
+				p1, err := clientInfo.ProvisionPod(
+					"wb-nn-pod1", testNamespace,
+					util.PodTierLabel("wb-nn-pod1"),
+					entities.PodNetworkSelectionElements(nad1Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p1) }()
+
+				p2, err := clientInfo.ProvisionPod(
+					"wb-nn-pod2", testNamespace,
+					util.PodTierLabel("wb-nn-pod2"),
+					entities.PodNetworkSelectionElements(nad2Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying separate IPPool CRs exist for each network_name")
+				pool1Name := wbstorage.IPPoolName(wbstorage.PoolIdentifier{
+					IpRange: sharedRange, NetworkName: networkName1})
+				pool2Name := wbstorage.IPPoolName(wbstorage.PoolIdentifier{
+					IpRange: sharedRange, NetworkName: networkName2})
+				Expect(pool1Name).NotTo(Equal(pool2Name),
+					"named networks should produce different pool names")
+
+				_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+					context.Background(), pool1Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+					context.Background(), pool2Name, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("both pods can have the same IP since pools are isolated")
+				// With named networks and lowest-available allocation, both should get the same first IP
+				Expect(ips1[0]).To(Equal(ips2[0]),
+					"isolated named networks should independently assign the same first IP")
+			})
+		})
+
+		Context("Multi-pool: dual-stack pod attached to two different NADs", func() {
+			It("allocates dual-stack IPs from two separate pools", func() {
+				const (
+					nad1Name = "wa-mp-ds-1"
+					nad2Name = "wa-mp-ds-2"
+					v4Range1 = "10.68.0.0/24"
+					v6Range1 = "fd00:68::/112"
+					v4Range2 = "10.69.0.0/24"
+					v6Range2 = "fd00:69::/112"
+					podName  = "wb-mp-ds-pod"
+				)
+
+				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad1Name, testNamespace, v4Range1, []string{v6Range1}, wbstorage.UnnamedNetwork, true)
+				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					nad2Name, testNamespace, v4Range2, []string{v6Range2}, wbstorage.UnnamedNetwork, true)
+
+				_, err := clientInfo.AddNetAttachDef(nad1)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad1)).To(Succeed()) }()
+				_, err = clientInfo.AddNetAttachDef(nad2)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad2)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					podName, testNamespace,
+					util.PodTierLabel(podName),
+					entities.PodNetworkSelectionElements(nad1Name, nad2Name))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				By("verifying net1 has dual-stack from pool 1")
+				ips1, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips1).To(HaveLen(2))
+				Expect(util.InRange(v4Range1, ips1[0])).To(Succeed())
+				Expect(util.InRange(v6Range1, ips1[1])).To(Succeed())
+
+				By("verifying net2 has dual-stack from pool 2")
+				ips2, err := retrievers.SecondaryIfaceIPValue(p, "net2")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2).To(HaveLen(2))
+				Expect(util.InRange(v4Range2, ips2[0])).To(Succeed())
+				Expect(util.InRange(v6Range2, ips2[1])).To(Succeed())
+			})
+		})
+
+		// ────────────────────────────────────────────────────────────────
+		// Failure and edge-case tests
+		// ────────────────────────────────────────────────────────────────
+
+		Context("Failure: fully excluded range leaves no IPs", func() {
+			It("prevents pod from getting an IP when all addresses are excluded", func() {
+				const (
+					networkName     = "wa-full-excl"
+					ipRange         = "10.70.0.0/30"
+					serviceName     = "web-full-excl"
+					statefulSetName = "wb-full-excl"
+					selector        = "app=" + serviceName
+				)
+
+				// /30 = 4 IPs; exclude entire range — no IPs available
+				nad := util.MacvlanNetworkWithWhereaboutsExcludeRange(
+					networkName, testNamespace, ipRange, []string{"10.70.0.0/30"})
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating a statefulset — pod should fail to schedule (no IPs)")
+				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Create(
+					context.Background(),
+					entities.StatefulSetSpec(statefulSetName, testNamespace, serviceName, 1,
+						entities.PodNetworkSelectionElements(networkName)),
+					metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+				}()
+
+				Expect(
+					wbtestclient.WaitForStatefulSetCondition(
+						context.Background(), clientInfo.Client, testNamespace,
+						serviceName, 1, 20*time.Second,
+						wbtestclient.IsStatefulSetReadyPredicate),
+				).To(HaveOccurred(), "should fail because all IPs are excluded")
+			})
+		})
+
+		Context("Failure: allocate-deallocate-reallocate cycle", func() {
+			It("correctly frees and reassigns IPs across allocation cycles", func() {
+				const (
+					networkName = "wa-realloc"
+					ipRange     = "10.71.0.0/30"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("cycle 1: allocate first pod")
+				p1, err := clientInfo.ProvisionPod(
+					"wb-realloc-1", testNamespace,
+					util.PodTierLabel("wb-realloc-1"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				firstIP := ips1[0]
+
+				By("cycle 1: deallocate first pod")
+				Expect(clientInfo.DeletePod(p1)).To(Succeed())
+
+				By("waiting for deallocation to complete")
+				Eventually(func() bool {
+					ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+						context.Background(),
+						wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipRange, NetworkName: wbstorage.UnnamedNetwork}),
+						metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					for _, alloc := range ipPool.Spec.Allocations {
+						if alloc.PodRef == getPodRef(testNamespace, "wb-realloc-1") {
+							return false
+						}
+					}
+					return true
+				}, 30*time.Second, time.Second).Should(BeTrue())
+
+				By("cycle 2: allocate second pod — should get the same first IP (lowest available)")
+				p2, err := clientInfo.ProvisionPod(
+					"wb-realloc-2", testNamespace,
+					util.PodTierLabel("wb-realloc-2"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2[0]).To(Equal(firstIP),
+					"after deallocation, lowest-available should reassign the same IP")
+			})
+		})
+
+		Context("Failure: pool exhaustion and recovery after pod deletion", func() {
+			It("recovers from exhaustion when pods are deleted", func() {
+				const (
+					networkName = "wa-exhaust-recov"
+					ipRange     = "10.72.0.0/30"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("filling the pool with 2 pods")
+				p1, err := clientInfo.ProvisionPod(
+					"wb-er-1", testNamespace,
+					util.PodTierLabel("wb-er-1"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				p2, err := clientInfo.ProvisionPod(
+					"wb-er-2", testNamespace,
+					util.PodTierLabel("wb-er-2"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+				Expect(err).NotTo(HaveOccurred())
+
+				By("deleting first pod to free an IP")
+				Expect(clientInfo.DeletePod(p1)).To(Succeed())
+
+				By("waiting for deallocation")
+				Eventually(func() bool {
+					ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
+						context.Background(),
+						wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipRange, NetworkName: wbstorage.UnnamedNetwork}),
+						metav1.GetOptions{})
+					if err != nil {
+						return false
+					}
+					for _, alloc := range ipPool.Spec.Allocations {
+						if alloc.PodRef == getPodRef(testNamespace, "wb-er-1") {
+							return false
+						}
+					}
+					return true
+				}, 30*time.Second, time.Second).Should(BeTrue())
+
+				By("allocating a new pod — should succeed with the freed IP")
+				p3, err := clientInfo.ProvisionPod(
+					"wb-er-3", testNamespace,
+					util.PodTierLabel("wb-er-3"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p3) }()
+
+				ips3, err := retrievers.SecondaryIfaceIPValue(p3, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips3[0]).To(Equal(ips1[0]),
+					"freed IP should be reassigned as it is the lowest available")
+			})
+		})
+
 		Context("Pod cleanup controller", func() {
 			const singlePodName = "whereabouts-pod-cleanup-controller-test"
 			var err error

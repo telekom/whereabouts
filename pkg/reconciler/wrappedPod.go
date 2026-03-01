@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	k8snetworkplumbingwgv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/storage"
 

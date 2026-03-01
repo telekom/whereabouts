@@ -48,7 +48,7 @@ func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, e
 		return nil, errors.New("netCIDR is not a valid network address")
 	}
 	netMaskSize, _ := ipNet.Mask.Size()
-	if netMaskSize > int(sliceSize) {
+	if netMaskSize > sliceSize {
 		return nil, errors.New("subnetMaskSize must be greater or equal than netMaskSize")
 	}
 
@@ -65,7 +65,7 @@ func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, e
 	for _, sia := range subnetIntAddresses {
 		subnetCIDRs = append(
 			subnetCIDRs,
-			int2ip(sia).String()+"/"+strconv.Itoa(int(sliceSize)),
+			int2ip(sia).String()+"/"+strconv.Itoa(sliceSize),
 		)
 	}
 	return subnetCIDRs, nil

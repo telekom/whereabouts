@@ -222,6 +222,34 @@ func InRange(cidr string, ip string) error {
 	return fmt.Errorf("ip [%s] is NOT in range %s", ip, cidr)
 }
 
+// InIPRange checks that the given IP falls between rangeStart and rangeEnd (inclusive).
+func InIPRange(rangeStart, rangeEnd, ip string) error {
+	parsedIP := net.ParseIP(ip)
+	start := net.ParseIP(rangeStart)
+	end := net.ParseIP(rangeEnd)
+	if parsedIP == nil || start == nil || end == nil {
+		return fmt.Errorf("invalid IP address in range check: start=%s end=%s ip=%s", rangeStart, rangeEnd, ip)
+	}
+	if bytesCompare(parsedIP, start) < 0 || bytesCompare(parsedIP, end) > 0 {
+		return fmt.Errorf("ip [%s] is NOT in range %s-%s", ip, rangeStart, rangeEnd)
+	}
+	return nil
+}
+
+func bytesCompare(a, b net.IP) int {
+	a16 := a.To16()
+	b16 := b.To16()
+	for i := range a16 {
+		if a16[i] < b16[i] {
+			return -1
+		}
+		if a16[i] > b16[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
 func CreateIPRanges(ranges []string) string {
 	formattedRanges := []string{}
 	for _, ipRange := range ranges {
@@ -230,4 +258,79 @@ func CreateIPRanges(ranges []string) string {
 	}
 	ipRanges := "[" + strings.Join(formattedRanges[:], ",") + "]"
 	return ipRanges
+}
+
+// MacvlanNetworkWithWhereaboutsExcludeRange returns a NAD with exclude ranges configured.
+func MacvlanNetworkWithWhereaboutsExcludeRange(networkName, namespaceName, ipRange string, excludeRanges []string) *nettypes.NetworkAttachmentDefinition {
+	excludeJSON := "["
+	for i, r := range excludeRanges {
+		if i > 0 {
+			excludeJSON += ","
+		}
+		excludeJSON += fmt.Sprintf(`"%s"`, r)
+	}
+	excludeJSON += "]"
+	macvlanConfig := fmt.Sprintf(`{
+        "cniVersion": "0.3.0",
+        "disableCheck": true,
+        "plugins": [
+            {
+                "type": "macvlan",
+                "master": "eth0",
+                "mode": "bridge",
+                "ipam": {
+                    "type": "whereabouts",
+                    "leader_lease_duration": 1500,
+                    "leader_renew_deadline": 1000,
+                    "leader_retry_period": 500,
+                    "range": "%s",
+                    "exclude": %s,
+                    "log_level": "debug",
+                    "log_file": "/tmp/wb",
+                    "enable_overlapping_ranges": true
+                }
+            }
+        ]
+    }`, ipRange, excludeJSON)
+	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
+}
+
+// MacvlanNetworkWithWhereaboutsRangeStartEnd returns a NAD with range_start and range_end.
+func MacvlanNetworkWithWhereaboutsRangeStartEnd(networkName, namespaceName, ipRange, rangeStart, rangeEnd string) *nettypes.NetworkAttachmentDefinition {
+	macvlanConfig := fmt.Sprintf(`{
+        "cniVersion": "0.3.0",
+        "disableCheck": true,
+        "plugins": [
+            {
+                "type": "macvlan",
+                "master": "eth0",
+                "mode": "bridge",
+                "ipam": {
+                    "type": "whereabouts",
+                    "leader_lease_duration": 1500,
+                    "leader_renew_deadline": 1000,
+                    "leader_retry_period": 500,
+                    "range": "%s",
+                    "range_start": "%s",
+                    "range_end": "%s",
+                    "log_level": "debug",
+                    "log_file": "/tmp/wb",
+                    "enable_overlapping_ranges": true
+                }
+            }
+        ]
+    }`, ipRange, rangeStart, rangeEnd)
+	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
+}
+
+// IsIPv6 returns true if the given IP string is an IPv6 address.
+func IsIPv6(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() == nil
+}
+
+// IsIPv4 returns true if the given IP string is an IPv4 address.
+func IsIPv4(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() != nil
 }

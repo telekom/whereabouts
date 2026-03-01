@@ -1,4 +1,4 @@
-// Package main contains the beginning of the wereabouts cmd
+// Package main contains the beginning of the whereabouts cmd
 package main
 
 import (
@@ -10,6 +10,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	cniversion "github.com/containernetworking/cni/pkg/version"
+
 	"github.com/telekom/whereabouts/pkg/config"
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/storage/kubernetes"

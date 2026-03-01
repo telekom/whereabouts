@@ -1,7 +1,9 @@
 # whereabouts
-![Travis CI status](https://travis-ci.org/k8snetworkplumbingwg/whereabouts.svg?branch=master) ![Go report card](https://goreportcard.com/badge/github.com/k8snetworkplumbingwg/whereabouts)
+![Travis CI status](https://travis-ci.org/k8snetworkplumbingwg/whereabouts.svg?branch=main) ![Go report card](https://goreportcard.com/badge/github.com/k8snetworkplumbingwg/whereabouts)
 
 ![whereabouts-logo](doc/logo.png)
+
+> **Fork notice:** This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts), maintained by the **Deutsche Telekom T-CAAS team**. It may contain patches, improvements, or configuration changes specific to T-CAAS infrastructure. For the upstream project, see the link above.
 
 An IP Address Management (IPAM) CNI plugin that assigns IP addresses cluster-wide.
 

@@ -1,9 +1,11 @@
 on: 
   pull_request:
+    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "doc/*.{json,png,svg}"
   push: 
+    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "doc/*.{json,png,svg}"

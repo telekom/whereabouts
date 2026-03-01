@@ -10,8 +10,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -386,7 +385,7 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(ipPool.Spec.Allocations).To(HaveLen(initialReplicaNumber))
 				})
 
-				table.DescribeTable("stateful sets scale up / down", func(testSetup func(int), instanceDelta int) {
+				DescribeTable("stateful sets scale up / down", func(testSetup func(int), instanceDelta int) {
 					const scaleTimeout = util.CreatePodTimeout * 6
 
 					testSetup(instanceDelta)
@@ -404,27 +403,27 @@ var _ = Describe("Whereabouts functionality", func() {
 					}, scaleTimeout).Should(
 						HaveLen(initialReplicaNumber), "we should have one allocation for each live pod")
 				},
-					table.Entry("scale up then down 5 replicas", func(deltaInstances int) {
+					Entry("scale up then down 5 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 5),
-					table.Entry("scale up then down 10 replicas", func(deltaInstances int) {
+					Entry("scale up then down 10 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 10),
-					table.Entry("scale up then down 20 replicas", func(deltaInstances int) {
+					Entry("scale up then down 20 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 					}, 20),
-					table.Entry("scale down then up 5 replicas", func(deltaInstances int) {
+					Entry("scale down then up 5 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 5),
-					table.Entry("scale down then up 10 replicas", func(deltaInstances int) {
+					Entry("scale down then up 10 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 10),
-					table.Entry("scale down then up 20 replicas", func(deltaInstances int) {
+					Entry("scale down then up 20 replicas", func(deltaInstances int) {
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -deltaInstances)).To(Succeed())
 						Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, deltaInstances)).To(Succeed())
 					}, 20),
@@ -844,7 +843,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		// ────────────────────────────────────────────────────────────────
 
 		Context("Single pod allocation across address families", func() {
-			table.DescribeTable("allocates and deallocates a single pod",
+			DescribeTable("allocates and deallocates a single pod",
 				func(networkName, ipRange string, expectV6 bool) {
 					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
 						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
@@ -880,13 +879,13 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(clientInfo.DeletePod(p)).To(Succeed())
 					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, podName, ips)
 				},
-				table.Entry("IPv4", "wa-single-v4", "10.50.0.0/24", false),
-				table.Entry("IPv6", "wa-single-v6", "fd00:50::/112", true),
+				Entry("IPv4", "wa-single-v4", "10.50.0.0/24", false),
+				Entry("IPv6", "wa-single-v6", "fd00:50::/112", true),
 			)
 		})
 
 		Context("Multi-interface allocation across address families", func() {
-			table.DescribeTable("allocates multiple interfaces on a single pod",
+			DescribeTable("allocates multiple interfaces on a single pod",
 				func(networkName, ipRange string, expectV6 bool) {
 					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
 						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
@@ -919,13 +918,13 @@ var _ = Describe("Whereabouts functionality", func() {
 					By("verifying each interface got a different IP")
 					Expect(allIPs[0]).NotTo(Equal(allIPs[1]))
 				},
-				table.Entry("IPv4", "wa-multi-v4", "10.51.0.0/24", false),
-				table.Entry("IPv6", "wa-multi-v6", "fd00:51::/112", true),
+				Entry("IPv4", "wa-multi-v4", "10.51.0.0/24", false),
+				Entry("IPv6", "wa-multi-v6", "fd00:51::/112", true),
 			)
 		})
 
 		Context("Exclude ranges across address families", func() {
-			table.DescribeTable("skips excluded IPs",
+			DescribeTable("skips excluded IPs",
 				func(networkName, ipRange string, excludeRanges, forbiddenIPs []string, expectV6 bool) {
 					nad := util.MacvlanNetworkWithWhereaboutsExcludeRange(
 						networkName, testNamespace, ipRange, excludeRanges)
@@ -958,17 +957,17 @@ var _ = Describe("Whereabouts functionality", func() {
 							"IP %s should have been excluded", forbidden)
 					}
 				},
-				table.Entry("IPv4 — exclude first two IPs",
+				Entry("IPv4 — exclude first two IPs",
 					"wa-excl-v4", "10.52.0.0/30",
 					[]string{"10.52.0.0/31"}, []string{"10.52.0.0", "10.52.0.1"}, false),
-				table.Entry("IPv6 — exclude first two IPs",
+				Entry("IPv6 — exclude first two IPs",
 					"wa-excl-v6", "fd00:52::/126",
 					[]string{"fd00:52::/127"}, []string{"fd00:52::", "fd00:52::1"}, true),
 			)
 		})
 
 		Context("Range start/end across address families", func() {
-			table.DescribeTable("allocates within start/end bounds only",
+			DescribeTable("allocates within start/end bounds only",
 				func(networkName, cidr, rangeStart, rangeEnd string, expectV6 bool) {
 					nad := util.MacvlanNetworkWithWhereaboutsRangeStartEnd(
 						networkName, testNamespace, cidr, rangeStart, rangeEnd)
@@ -996,15 +995,15 @@ var _ = Describe("Whereabouts functionality", func() {
 						Expect(util.IsIPv4(ips[0])).To(BeTrue())
 					}
 				},
-				table.Entry("IPv4 — sub-range of /24",
+				Entry("IPv4 — sub-range of /24",
 					"wa-range-v4", "10.53.0.0/24", "10.53.0.100", "10.53.0.105", false),
-				table.Entry("IPv6 — sub-range of /112",
+				Entry("IPv6 — sub-range of /112",
 					"wa-range-v6", "fd00:53::/112", "fd00:53::a0", "fd00:53::af", true),
 			)
 		})
 
 		Context("Overlapping range protection across address families", func() {
-			table.DescribeTable("prevents or allows duplicate IPs based on enable_overlapping_ranges",
+			DescribeTable("prevents or allows duplicate IPs based on enable_overlapping_ranges",
 				func(nad1Name, nad2Name, ipRange string, enableOverlapping, expectV6 bool) {
 					// When overlapping is enabled both NADs share a pool so the
 					// pool's own allocation logic guarantees unique IPs.
@@ -1060,19 +1059,19 @@ var _ = Describe("Whereabouts functionality", func() {
 						Expect(ips1[0]).To(Equal(ips2[0]))
 					}
 				},
-				table.Entry("IPv4 overlapping enabled",
+				Entry("IPv4 overlapping enabled",
 					"wa-ov4-en-1", "wa-ov4-en-2", "10.54.0.0/28", true, false),
-				table.Entry("IPv4 overlapping disabled",
+				Entry("IPv4 overlapping disabled",
 					"wa-ov4-dis-1", "wa-ov4-dis-2", "10.55.0.0/28", false, false),
-				table.Entry("IPv6 overlapping enabled",
+				Entry("IPv6 overlapping enabled",
 					"wa-ov6-en-1", "wa-ov6-en-2", "fd00:54::/124", true, true),
-				table.Entry("IPv6 overlapping disabled",
+				Entry("IPv6 overlapping disabled",
 					"wa-ov6-dis-1", "wa-ov6-dis-2", "fd00:55::/124", false, true),
 			)
 		})
 
 		Context("Pool exhaustion across address families", func() {
-			table.DescribeTable("fails to schedule when pool is exhausted",
+			DescribeTable("fails to schedule when pool is exhausted",
 				func(networkName, ipRange string, numUsable int) {
 					const (
 						serviceName     = "web-exhaust"
@@ -1107,14 +1106,14 @@ var _ = Describe("Whereabouts functionality", func() {
 				},
 				// /30 = 4 addresses total; .0 is skipped → 3 usable; but last is broadcast-ish
 				// in practice whereabouts gives 2 usable IPs from a /30
-				table.Entry("IPv4 /30 pool", "wa-exhaust-v4", "10.56.0.0/30", 2),
+				Entry("IPv4 /30 pool", "wa-exhaust-v4", "10.56.0.0/30", 2),
 				// /126 = 4 addresses; similar behavior for IPv6
-				table.Entry("IPv6 /126 pool", "wa-exhaust-v6", "fd00:56::/126", 2),
+				Entry("IPv6 /126 pool", "wa-exhaust-v6", "fd00:56::/126", 2),
 			)
 		})
 
 		Context("Concurrent allocation across address families", func() {
-			table.DescribeTable("handles concurrent allocations without IP conflicts",
+			DescribeTable("handles concurrent allocations without IP conflicts",
 				func(networkName, ipRange string, replicaCount int, expectV6 bool) {
 					const rsSteadyTimeout = 120 * time.Second
 					rsName := "wb-conc-" + networkName
@@ -1187,8 +1186,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(poolconsistency.NewPoolConsistencyCheck(ipPool, podList.Items).MissingIPs()).To(BeEmpty())
 					Expect(poolconsistency.NewPoolConsistencyCheck(ipPool, podList.Items).StaleIPs()).To(BeEmpty())
 				},
-				table.Entry("IPv4 — 10 pods on /28", "wa-conc-v4", "10.57.0.0/28", 10, false),
-				table.Entry("IPv6 — 10 pods on /124", "wa-conc-v6", "fd00:57::/124", 10, true),
+				Entry("IPv4 — 10 pods on /28", "wa-conc-v4", "10.57.0.0/28", 10, false),
+				Entry("IPv6 — 10 pods on /124", "wa-conc-v6", "fd00:57::/124", 10, true),
 			)
 		})
 
@@ -1307,7 +1306,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		})
 
 		Context("Allocation verification across address families", func() {
-			table.DescribeTable("verifies IPPool allocation matches pod IP",
+			DescribeTable("verifies IPPool allocation matches pod IP",
 				func(networkName, ipRange string, expectV6 bool) {
 					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
 						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
@@ -1348,8 +1347,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					_, ok := ipPool.Spec.Allocations[fmt.Sprintf("%d", offset)]
 					Expect(ok).To(BeTrue(), "allocation for pod IP %s at offset %d should exist", ips[0], offset)
 				},
-				table.Entry("IPv4", "wa-verify-v4", "10.60.0.0/24", false),
-				table.Entry("IPv6", "wa-verify-v6", "fd00:60::/112", true),
+				Entry("IPv4", "wa-verify-v4", "10.60.0.0/24", false),
+				Entry("IPv6", "wa-verify-v6", "fd00:60::/112", true),
 			)
 		})
 

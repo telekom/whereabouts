@@ -63,47 +63,47 @@ linters:
     misspell:
       locale: US
 
-exclusions:
-  generated: lax
-  presets:
-    - comments
-    - common-false-positives
-    - legacy
-    - std-error-handling
-  rules:
-    # Test files: relax error checking and security rules
-    - linters:
-        - errcheck
-        - gosec
-        - bodyclose
-        - nilerr
-        - contextcheck
-      path: _test\.go$
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Test files: relax error checking and security rules
+      - linters:
+          - errcheck
+          - gosec
+          - bodyclose
+          - nilerr
+          - contextcheck
+        path: _test\.go$
 
-    # E2E test helpers: same relaxations as unit tests
-    - linters:
-        - errcheck
-        - gosec
-        - bodyclose
-      path: e2e/
+      # E2E test helpers: same relaxations as unit tests
+      - linters:
+          - errcheck
+          - gosec
+          - bodyclose
+        path: e2e/
 
-    # Generated code (mocks, fakes, deepcopy)
-    - linters:
-        - all
-      path: "(zz_generated|mock_|fake_)"
+      # Generated code (mocks, fakes, deepcopy)
+      - linters:
+          - all
+        path: "(zz_generated|mock_|fake_)"
 
-    # CLI commands often have complex functions
-    - linters:
-        - gocyclo
-        - cyclop
-        - funlen
-      path: cmd/
+      # CLI commands often have complex functions
+      - linters:
+          - gocyclo
+          - cyclop
+          - funlen
+        path: cmd/
 
-  paths:
-    - vendor
-    - testdata
-    - pkg/generated
-    - ".*\\.gen\\.go$"
+    paths:
+      - vendor
+      - testdata
+      - pkg/generated
+      - ".*\\.gen\\.go$"
 
 formatters:
   enable:

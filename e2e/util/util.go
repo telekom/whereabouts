@@ -322,3 +322,15 @@ func MacvlanNetworkWithWhereaboutsRangeStartEnd(networkName, namespaceName, ipRa
     }`, ipRange, rangeStart, rangeEnd)
 	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
 }
+
+// IsIPv6 returns true if the given IP string is an IPv6 address.
+func IsIPv6(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() == nil
+}
+
+// IsIPv4 returns true if the given IP string is an IPv4 address.
+func IsIPv4(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.To4() != nil
+}

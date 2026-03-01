@@ -45,9 +45,6 @@ spec:
               name: cni-net-dir
             - mountPath: /cron-schedule
               name: cron-scheduler-configmap
-            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-              name: kube-api-access-6kd6k
-              readOnly: true
       preemptionPolicy: PreemptLowerPriority
       priority: 0
       restartPolicy: Always
@@ -72,22 +69,4 @@ spec:
                 path: config
             name: {{ include "whereabouts.fullname" . }}-config
           name: cron-scheduler-configmap
-        - name: kube-api-access-6kd6k
-          projected:
-            defaultMode: 420
-            sources:
-              - serviceAccountToken:
-                  expirationSeconds: 3607
-                  path: token
-              - configMap:
-                  items:
-                    - key: ca.crt
-                      path: ca.crt
-                  name: kube-root-ca.crt
-              - downwardAPI:
-                  items:
-                    - fieldRef:
-                        apiVersion: v1
-                        fieldPath: metadata.namespace
-                      path: namespace
 {{- end}}

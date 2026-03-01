@@ -43,7 +43,10 @@ rules:
   resources:
   - leases
   verbs:
-  - '*'
+  - get
+  - create
+  - update
+  - delete
 - apiGroups: [""]
   resources:
   - pods

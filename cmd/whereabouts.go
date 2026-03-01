@@ -10,11 +10,11 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	cniversion "github.com/containernetworking/cni/pkg/version"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/config"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/version"
+	"github.com/telekom/whereabouts/pkg/config"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	"github.com/telekom/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/version"
 )
 
 func cmdAddFunc(args *skel.CmdArgs) error {

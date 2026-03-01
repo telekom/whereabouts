@@ -9,11 +9,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/storage"
+	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 type ReconcileLooper struct {

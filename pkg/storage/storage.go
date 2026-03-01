@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	"net"
 	"time"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 var (

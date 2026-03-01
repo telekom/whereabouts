@@ -9,9 +9,9 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-co-op/gocron/v2"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/config"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/config"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 type ConfigWatcher struct {

@@ -19,11 +19,11 @@ import (
 	nadclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	nadinformers "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/informers/externalversions"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/controlloop"
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	wbinformers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/informers/externalversions"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/reconciler"
+	"github.com/telekom/whereabouts/pkg/controlloop"
+	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	wbinformers "github.com/telekom/whereabouts/pkg/generated/informers/externalversions"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/reconciler"
 )
 
 const (

@@ -23,13 +23,13 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 	fakek8sclient "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/allocate"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/config"
-	wbclientset "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned/fake"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
-	whereaboutstypes "github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/allocate"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/config"
+	wbclientset "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	"github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
+	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	whereaboutstypes "github.com/telekom/whereabouts/pkg/types"
 )
 
 const whereaboutsConfigFile = "whereabouts.kubeconfig"

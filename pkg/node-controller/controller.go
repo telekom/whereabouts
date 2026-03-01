@@ -29,13 +29,13 @@ import (
 	nadinformers "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/informers/externalversions/k8s.cni.cncf.io/v1"
 	nadlisters "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/listers/k8s.cni.cncf.io/v1"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/config"
-	clientset "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	whereaboutsInformers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/informers/externalversions/whereabouts.cni.cncf.io/v1alpha1"
-	whereaboutsListers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/listers/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/iphelpers"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/config"
+	clientset "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	whereaboutsInformers "github.com/telekom/whereabouts/pkg/generated/informers/externalversions/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsListers "github.com/telekom/whereabouts/pkg/generated/listers/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/iphelpers"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 const controllerAgentName = "node-controller"

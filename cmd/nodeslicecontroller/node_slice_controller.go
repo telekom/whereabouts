@@ -13,10 +13,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	clientset "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	informers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/informers/externalversions"
-	node_controller "github.com/k8snetworkplumbingwg/whereabouts/pkg/node-controller"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/node-controller/signals"
+	clientset "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	informers "github.com/telekom/whereabouts/pkg/generated/informers/externalversions"
+	node_controller "github.com/telekom/whereabouts/pkg/node-controller"
+	"github.com/telekom/whereabouts/pkg/node-controller/signals"
 )
 
 var (

@@ -28,7 +28,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: metadata.namespace
-          image: ghcr.io/k8snetworkplumbingwg/whereabouts:latest
+          image: ghcr.io/telekom/whereabouts:latest
           name: whereabouts
           resources:
             limits:

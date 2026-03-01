@@ -7,7 +7,7 @@ import (
 	"context"
 	"net"
 
-	kubeClient "github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
+	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -17,10 +17,10 @@ import (
 	nadclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned"
 	nadinformers "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/informers/externalversions"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	wbinformers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/informers/externalversions"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	wbinformers "github.com/telekom/whereabouts/pkg/generated/informers/externalversions"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 type dummyPodController struct {

@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -290,7 +290,7 @@ var _ = Describe("Allocation operations", func() {
 	})
 
 	// Make sure that the network IP and the broadcast IP are excluded from the range.
-	// According to https://github.com/k8snetworkplumbingwg/whereabouts, we look at a range "... excluding the first
+	// According to https://github.com/telekom/whereabouts, we look at a range "... excluding the first
 	// network address and the last broadcast address".
 	When("no range_end is specified", func() {
 		It("the range start and end must be ignored if they are not within the bounds of the range for IPv4", func() {

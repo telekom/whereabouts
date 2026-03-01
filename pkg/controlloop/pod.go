@@ -28,15 +28,15 @@ import (
 	nadlister "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/listers/k8s.cni.cncf.io/v1"
 	"github.com/pkg/errors"
 
-	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/config"
-	wbclientset "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	wbinformers "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/informers/externalversions"
-	wblister "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/listers/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/iphelpers"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/config"
+	wbclientset "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	wbinformers "github.com/telekom/whereabouts/pkg/generated/informers/externalversions"
+	wblister "github.com/telekom/whereabouts/pkg/generated/listers/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/iphelpers"
+	"github.com/telekom/whereabouts/pkg/logging"
+	wbclient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 const (

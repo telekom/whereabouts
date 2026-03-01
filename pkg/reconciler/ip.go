@@ -1,7 +1,7 @@
 package reconciler
 
 import (
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/logging"
 )
 
 func ReconcileIPs(errorChan chan error) {

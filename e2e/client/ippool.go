@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	kubeClient "github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
+	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )

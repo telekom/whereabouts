@@ -16,8 +16,8 @@ import (
 
 	k8snetplumbersv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/storage"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 func TestIPPoolConsistencyChecker(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/k8snetworkplumbingwg/whereabouts
+module github.com/telekom/whereabouts
 
 go 1.25.5
 

@@ -14,10 +14,10 @@ import (
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 
-	wbtestclient "github.com/k8snetworkplumbingwg/whereabouts/e2e/client"
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/entities"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	wbstorage "github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
+	wbtestclient "github.com/telekom/whereabouts/e2e/client"
+	"github.com/telekom/whereabouts/e2e/entities"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	wbstorage "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 )
 
 const (

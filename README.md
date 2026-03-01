@@ -1,5 +1,5 @@
 # whereabouts
-![Travis CI status](https://travis-ci.org/k8snetworkplumbingwg/whereabouts.svg?branch=main) ![Go report card](https://goreportcard.com/badge/github.com/k8snetworkplumbingwg/whereabouts)
+![Travis CI status](https://travis-ci.org/telekom/whereabouts.svg?branch=main) ![Go report card](https://goreportcard.com/badge/github.com/telekom/whereabouts)
 
 ![whereabouts-logo](doc/logo.png)
 
@@ -43,7 +43,7 @@ Further installation options (including etcd usage) and configuration parameters
 You can install this plugin with a Daemonset, using:
 
 ```
-git clone https://github.com/k8snetworkplumbingwg/whereabouts && cd whereabouts
+git clone https://github.com/telekom/whereabouts && cd whereabouts
 kubectl apply \
     -f doc/crds/daemonset-install.yaml \
     -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
@@ -56,7 +56,7 @@ The daemonset installation requires Kubernetes Version 1.16 or later.
 You can also install whereabouts with helm 3:
 
 ```
-helm template whereabouts oci://ghcr.io/k8snetworkplumbingwg/whereabouts-chart --version <WHEREABOUTS_VERSION>
+helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
 
 ```
 

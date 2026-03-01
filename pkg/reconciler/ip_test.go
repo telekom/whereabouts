@@ -12,8 +12,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	multusv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/types"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,9 +21,9 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 	fakek8sclient "k8s.io/client-go/kubernetes/fake"
 
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
-	fakewbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned/fake"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
+	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
+	fakewbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
+	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
 )
 
 func TestIPReconciler(t *testing.T) {

@@ -16,16 +16,16 @@ import (
 	"k8s.io/client-go/rest"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
-	wbtestclient "github.com/k8snetworkplumbingwg/whereabouts/e2e/client"
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/entities"
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/poolconsistency"
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/retrievers"
-	testenv "github.com/k8snetworkplumbingwg/whereabouts/e2e/testenvironment"
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/util"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage"
-	wbstorage "github.com/k8snetworkplumbingwg/whereabouts/pkg/storage/kubernetes"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	wbtestclient "github.com/telekom/whereabouts/e2e/client"
+	"github.com/telekom/whereabouts/e2e/entities"
+	"github.com/telekom/whereabouts/e2e/poolconsistency"
+	"github.com/telekom/whereabouts/e2e/retrievers"
+	testenv "github.com/telekom/whereabouts/e2e/testenvironment"
+	"github.com/telekom/whereabouts/e2e/util"
+	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/storage"
+	wbstorage "github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 func TestWhereaboutsE2ENodeSlice(t *testing.T) {

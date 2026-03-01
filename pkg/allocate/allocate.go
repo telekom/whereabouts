@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/iphelpers"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/logging"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/iphelpers"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/types"
 )
 
 // AssignmentError defines an IP assignment error.

@@ -33,5 +33,6 @@ jobs:
           ./bin/whereabouts-${{ matrix.arch }}
           ./bin/whereabouts-${{ matrix.arch }}.sha256
         tag_name: ${{ github.event.release.tag_name }}
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

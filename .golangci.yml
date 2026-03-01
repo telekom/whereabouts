@@ -1,0 +1,123 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: Apache-2.0
+
+version: "2"
+
+linters:
+  default: none
+  enable:
+    # === Bug detection ===
+    - bodyclose          # Unclosed HTTP response bodies (resource leak)
+    - durationcheck      # Bad time.Duration multiplication
+    - nilerr             # Returns nil where an error was checked but not returned
+    - sqlclosecheck      # Unclosed sql.Rows / sql.Stmt (resource leak)
+    - contextcheck       # Non-inherited context.Context in goroutines
+
+    # === Security ===
+    - gosec              # Source-code security scanner
+
+    # === Style and readability ===
+    - goimports          # Enforces goimports-style formatting (groups + order)
+    - misspell           # Catches common English misspellings in code and comments
+    - whitespace         # Trailing whitespace, blank lines in blocks
+    - usestdlibvars      # Use constants from stdlib (http.StatusOK, etc.)
+    - unconvert          # Unnecessary type conversions
+    - wastedassign       # Assignments that are never read
+
+    # === Error handling ===
+    - errcheck           # Unchecked errors (stdlib default)
+
+    # === Code correctness ===
+    - govet              # Go vet checks (shadow, printf, etc.)
+    - staticcheck        # Comprehensive static analysis (successor of megacheck)
+    - unused             # Unused code detection
+    - ineffassign        # Detects ineffectual assignments
+    - typecheck          # Type-checking (Go compiler front-end)
+
+  settings:
+    gosec:
+      excludes:
+        - G115  # Integer overflow conversion — too many false positives with int/int64 in K8s API code
+        - G301  # Expect directory permissions to be 0750 or less
+        - G302  # Expect file permissions to be 0600 or less
+        - G304  # File path provided as taint input — necessary for kubeconfig/cert file loading
+        - G306  # Expect WriteFile permissions to be 0600 or less
+
+    staticcheck:
+      checks:
+        - all
+        - -SA1019  # Deprecated API usage — address separately
+        - -ST1000  # Package comments — too restrictive for internal packages
+
+    govet:
+      enable:
+        - shadow      # Variable shadowing (catches subtle bugs)
+        - unusedresult # Unused results of certain function calls
+
+    errcheck:
+      exclude-functions:
+        # These are expected to fail in cleanup/shutdown paths
+        - (io.Closer).Close
+        - (*os.File).Close
+
+    misspell:
+      locale: US
+
+exclusions:
+  generated: lax
+  presets:
+    - comments
+    - common-false-positives
+    - legacy
+    - std-error-handling
+  rules:
+    # Test files: relax error checking and security rules
+    - linters:
+        - errcheck
+        - gosec
+        - bodyclose
+        - nilerr
+        - contextcheck
+      path: _test\.go$
+
+    # E2E test helpers: same relaxations as unit tests
+    - linters:
+        - errcheck
+        - gosec
+        - bodyclose
+      path: e2e/
+
+    # Generated code (mocks, fakes, deepcopy)
+    - linters:
+        - all
+      path: "(zz_generated|mock_|fake_)"
+
+    # CLI commands often have complex functions
+    - linters:
+        - gocyclo
+        - cyclop
+        - funlen
+      path: cmd/
+
+  paths:
+    - vendor
+    - testdata
+    - pkg/generated
+    - ".*\\.gen\\.go$"
+
+formatters:
+  enable:
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/telekom/whereabouts
+
+  exclusions:
+    paths:
+      - vendor
+      - testdata
+      - pkg/generated
+      - ".*\\.gen\\.go$"

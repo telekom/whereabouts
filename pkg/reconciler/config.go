@@ -81,7 +81,7 @@ func determineCronExpression(configPath string) (string, error) {
 		logging.Verbosef("notice: could not read file: %v, defaulting to expression from configuration: %v", err, flatipam.IPAM.ReconcilerCronExpression)
 		return flatipam.IPAM.ReconcilerCronExpression, nil
 	}
-	logging.Verbosef("using expression: %v", strings.TrimSpace(string(fileContents))) // do i need to trim spaces? idk i think the file would JUST be the expression?
+	logging.Verbosef("using expression: %v", strings.TrimSpace(string(fileContents)))
 	return strings.TrimSpace(string(fileContents)), nil
 }
 

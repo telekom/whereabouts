@@ -46,6 +46,7 @@ const (
 
 func main() {
 	logLevel := flag.String("log-level", defaultLogLevel, "Specify the pod controller application logging level")
+	flag.Parse()
 	if logLevel != nil && logging.GetLoggingLevel().String() != *logLevel {
 		logging.SetLogLevel(*logLevel)
 	}
@@ -102,7 +103,7 @@ func main() {
 		case <-stopChan:
 			logging.Verbosef("shutting down network controller")
 			if err := s.Shutdown(); err != nil {
-				_ = logging.Errorf("error shutting : %v", err)
+				_ = logging.Errorf("error shutting down: %v", err)
 			}
 			return
 		case err := <-errorChan:

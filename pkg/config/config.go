@@ -120,6 +120,13 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 		}
 	}
 
+	for i := range n.IPAM.OmitRanges {
+		_, _, err := netutils.ParseCIDRSloppy(n.IPAM.OmitRanges[i])
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid CIDR in exclude list %s: %s", n.IPAM.OmitRanges[i], err)
+		}
+	}
+
 	n.IPAM.OmitRanges = nil
 	n.IPAM.Range = ""
 	n.IPAM.RangeStart = nil
@@ -135,12 +142,6 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 			return nil, "", fmt.Errorf("couldn't parse gateway IP: %s", n.IPAM.GatewayStr)
 		}
 		n.IPAM.Gateway = gwip
-	}
-	for i := range n.IPAM.OmitRanges {
-		_, _, err := netutils.ParseCIDRSloppy(n.IPAM.OmitRanges[i])
-		if err != nil {
-			return nil, "", fmt.Errorf("invalid CIDR in exclude list %s: %s", n.IPAM.OmitRanges[i], err)
-		}
 	}
 
 	if err := configureStatic(&n, args); err != nil {

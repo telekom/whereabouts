@@ -464,7 +464,7 @@ var _ = Describe("Allocation operations", func() {
 	Context("AssignIP idempotency", func() {
 		It("returns the existing IP when podRef and ifName already have an allocation", func() {
 			ipamConf := types.RangeConfiguration{
-				Range:     "192.168.1.0/24",
+				Range:      "192.168.1.0/24",
 				OmitRanges: []string{},
 			}
 			reservelist := []types.IPReservation{
@@ -480,7 +480,7 @@ var _ = Describe("Allocation operations", func() {
 
 		It("allocates a new IP when podRef matches but ifName differs", func() {
 			ipamConf := types.RangeConfiguration{
-				Range:     "192.168.1.0/24",
+				Range:      "192.168.1.0/24",
 				OmitRanges: []string{},
 			}
 			reservelist := []types.IPReservation{

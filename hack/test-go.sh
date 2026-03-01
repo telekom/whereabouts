@@ -20,7 +20,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "Running go vet ..."
-${GO} vet --tags=test ./cmd/... ./pkg/...
+${GO} vet ./cmd/... ./pkg/...
 
 BASEDIR=$(pwd)
 
@@ -31,12 +31,11 @@ else
   echo "Installing golang staticcheck ..."
   GOBIN=${BASEDIR}/bin go install honnef.co/go/tools/cmd/staticcheck@v0.6.0
   echo "Running golang staticcheck ..."
-  ${BASEDIR}/bin/staticcheck --tags=test ./...
+  ${BASEDIR}/bin/staticcheck ./...
 fi
 
 echo "Running go tests..."
 KUBEBUILDER_ASSETS="$(pwd)/bin" ${GO} test \
-    --tags=test \
     -v \
     -covermode=count \
     -coverprofile=coverage.out \

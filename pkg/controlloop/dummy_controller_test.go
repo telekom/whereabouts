@@ -1,6 +1,3 @@
-//go:build test
-// +build test
-
 package controlloop
 
 import (
@@ -37,7 +34,6 @@ func newDummyPodController(
 	stopChannel chan struct{},
 	mountPath string,
 	recorder record.EventRecorder) (*dummyPodController, error) {
-
 	const noResyncPeriod = 0
 	netAttachDefInformerFactory := nadinformers.NewSharedInformerFactory(nadClient, noResyncPeriod)
 	wbInformerFactory := wbinformers.NewSharedInformerFactory(wbClient, noResyncPeriod)

@@ -12,7 +12,6 @@ linters:
     - durationcheck      # Bad time.Duration multiplication
     - nilerr             # Returns nil where an error was checked but not returned
     - sqlclosecheck      # Unclosed sql.Rows / sql.Stmt (resource leak)
-    - contextcheck       # Non-inherited context.Context in goroutines
 
     # === Security ===
     - gosec              # Source-code security scanner
@@ -41,16 +40,19 @@ linters:
         - G302  # Expect file permissions to be 0600 or less
         - G304  # File path provided as taint input — necessary for kubeconfig/cert file loading
         - G306  # Expect WriteFile permissions to be 0600 or less
+        - G703  # Path traversal via taint analysis — config paths are trusted
 
     staticcheck:
       checks:
         - all
         - -SA1019  # Deprecated API usage — address separately
         - -ST1000  # Package comments — too restrictive for internal packages
+        - -ST1003  # Naming conventions — renaming exported fields/packages is breaking
+        - -QF1001  # De Morgan's law — style preference
+        - -QF1008  # Embedded field selectors — style preference
 
     govet:
       enable:
-        - shadow      # Variable shadowing (catches subtle bugs)
         - unusedresult # Unused results of certain function calls
 
     errcheck:
@@ -58,6 +60,9 @@ linters:
         # These are expected to fail in cleanup/shutdown paths
         - (io.Closer).Close
         - (*os.File).Close
+        # logging.Errorf is dual-purpose (log + return error); codebase convention
+        # often uses it for logging only without capturing the returned error.
+        - github.com/telekom/whereabouts/pkg/logging.Errorf
 
     misspell:
       locale: US

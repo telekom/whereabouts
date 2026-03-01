@@ -50,6 +50,7 @@ SPDX-License-Identifier = "Apache-2.0"
 path = [
   "deployment/**/*.yaml",
   "deployment/**/*.txt",
+  "deployment/**/*.tpl",
   "doc/crds/*.yaml",
   "yamls/*.yaml",
   "hack/cni-install.yml",
@@ -66,6 +67,8 @@ path = [
   "doc/**/*.md",
   "doc/proposals/**/*.md",
   "doc/proposals/images/**",
+  "doc/*.png",
+  "doc/*.svg",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]

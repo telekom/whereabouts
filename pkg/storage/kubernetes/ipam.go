@@ -20,6 +20,8 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"gomodules.xyz/jsonpatch/v2"
+
 	"github.com/telekom/whereabouts/pkg/allocate"
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
@@ -27,7 +29,6 @@ import (
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/storage"
 	whereaboutstypes "github.com/telekom/whereabouts/pkg/types"
-	"gomodules.xyz/jsonpatch/v2"
 )
 
 const UnnamedNetwork string = ""
@@ -192,7 +193,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 		return err
 	}
 
-	// update the pool before marshalling once again
+	// update the pool before marshaling once again
 	allocations, err := toAllocationMap(reservations, p.firstIP)
 	if err != nil {
 		return err
@@ -357,7 +358,6 @@ func NormalizeIP(ip net.IP, networkName string) string {
 
 // getNodeName prefers an OS env var of NODENAME, or, uses a file named ./nodename in the whereabouts configuration path.
 func getNodeName(ipam *KubernetesIPAM) (string, error) {
-
 	envName := os.Getenv("NODENAME")
 	if envName != "" {
 		return strings.TrimSpace(envName), nil
@@ -577,7 +577,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			case <-ctx.Done():
 				break RETRYLOOP
 			default:
-				// retry the IPAM loop if the context has not been cancelled
+				// retry the IPAM loop if the context has not been canceled
 			}
 			overlappingrangestore, err = ipam.GetOverlappingRangeStore()
 			if err != nil {

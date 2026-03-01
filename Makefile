@@ -37,6 +37,12 @@ update-deps:
 	go mod vendor
 	go mod verify
 
+lint:
+	golangci-lint run --timeout=5m ./...
+
+lint-fix:
+	golangci-lint run --timeout=5m --fix ./...
+
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)
 

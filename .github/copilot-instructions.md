@@ -18,12 +18,10 @@ This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetwo
 make docker-build                     # Container image
 make test                             # build + install tools + go vet + staticcheck + tests
 make test-skip-static                 # Skip staticcheck (faster iteration)
-go test --tags=test -v ./pkg/allocate/ # Single package (--tags=test required!)
+go test -v ./pkg/allocate/             # Single package
 make kind                             # Local kind cluster with whereabouts installed
 make kind COMPUTE_NODES=3             # Custom worker count
 ```
-
-**Critical**: Tests MUST be run with `--tags=test` — some test helper files use `//go:build test` (e.g., `pkg/controlloop/entity_generators.go`). The `make test` target handles this automatically.
 
 ## Code Conventions
 

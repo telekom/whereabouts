@@ -112,7 +112,7 @@ func newPodController(k8sCoreClient kubernetes.Interface, wbClient wbclientset.I
 	queue := workqueue.NewTypedRateLimitingQueue[*v1.Pod](
 		workqueue.DefaultTypedControllerRateLimiter[*v1.Pod]())
 
-	podsInformer.AddEventHandler(
+	_, _ = podsInformer.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
 				onPodDelete(queue, obj)

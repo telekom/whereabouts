@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"time"
 
-	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 )
 
 func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string) wait.ConditionWithContextFunc {

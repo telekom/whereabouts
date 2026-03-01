@@ -66,10 +66,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: standard
-            test-args: "$(go list ./... | grep -v /e2e_node_slice)"
+          - suite: core
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Single pod tests|DualStack|Replicaset|stateful set|OverlappingRangeIPReservation|Named ranges|Pod cleanup"
+          - suite: v4v6
+            test-dir: e2e
+            test-pkg: "."
+            focus: "across address families|Reconciler stale"
+          - suite: dualstack-ext
+            test-dir: e2e
+            test-pkg: "."
+            focus: "DualStack (exclude|range_start|overlapping|pool exhaustion|concurrent|multi-interface)|Multi-pool|Failure"
           - suite: node-slice
-            test-args: "./e2e_node_slice/..."
+            test-dir: e2e
+            test-pkg: "./e2e_node_slice/..."
+            focus: ""
     env:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
@@ -95,4 +107,53 @@ jobs:
           KUBECONFIG: /home/runner/.kube/config
           NUMBER_OF_THRASH_ITER: 20
           FILL_PERCENT_CAPACITY: 20
-        run: pushd e2e; go test -v ${{ matrix.test-args }} -timeout 1h; popd
+        run: |
+          cd ${{ matrix.test-dir }}
+          if [ -n "${{ matrix.focus }}" ]; then
+            go test -v ${{ matrix.test-pkg }} -timeout 1h -ginkgo.focus="${{ matrix.focus }}"
+          else
+            go test -v ${{ matrix.test-pkg }} -timeout 1h
+          fi
+
+      - name: Collect cluster diagnostics
+        if: failure()
+        run: |
+          echo "=== Node status ==="
+          kubectl get nodes -o wide || true
+          echo ""
+          echo "=== All pods ==="
+          kubectl get pods -A -o wide || true
+          echo ""
+          echo "=== Whereabouts pods ==="
+          kubectl -n kube-system get pods -l app=whereabouts -o wide || true
+          echo ""
+          echo "=== Whereabouts pod logs ==="
+          for p in $(kubectl -n kube-system get pods -l app=whereabouts -o name 2>/dev/null); do
+            echo "--- $p ---"
+            kubectl -n kube-system logs "$p" --tail=200 || true
+          done
+          echo ""
+          echo "=== IPPool resources ==="
+          kubectl get ippools.whereabouts.cni.cncf.io -A -o yaml || true
+          echo ""
+          echo "=== OverlappingRangeIPReservation resources ==="
+          kubectl get overlappingrangeipreservations.whereabouts.cni.cncf.io -A -o yaml || true
+          echo ""
+          echo "=== NetworkAttachmentDefinitions ==="
+          kubectl get net-attach-def -A -o yaml || true
+          echo ""
+          echo "=== Events (last 100) ==="
+          kubectl get events -A --sort-by='.lastTimestamp' | tail -100 || true
+
+      - name: Export KinD logs
+        if: failure()
+        run: |
+          kind export logs /tmp/kind-logs --name whereabouts || true
+
+      - name: Upload cluster diagnostics
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: e2e-diagnostics-${{ matrix.suite }}
+          path: /tmp/kind-logs/
+          retention-days: 7

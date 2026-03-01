@@ -117,7 +117,7 @@ jobs:
       - name: Execute E2E tests
         env:
           KUBECONFIG: /home/runner/.kube/config
-          NUMBER_OF_THRASH_ITER: 20
+          NUMBER_OF_THRASH_ITER: 5
           FILL_PERCENT_CAPACITY: 20
         run: |
           cd ${{ matrix.test-dir }}

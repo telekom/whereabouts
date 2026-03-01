@@ -1006,10 +1006,18 @@ var _ = Describe("Whereabouts functionality", func() {
 		Context("Overlapping range protection across address families", func() {
 			table.DescribeTable("prevents or allows duplicate IPs based on enable_overlapping_ranges",
 				func(nad1Name, nad2Name, ipRange string, enableOverlapping, expectV6 bool) {
+					// When overlapping is enabled both NADs share a pool so the
+					// pool's own allocation logic guarantees unique IPs.
+					// When disabled each NAD gets its own pool so both
+					// independently assign the first available IP (.1).
+					poolName1, poolName2 := nad1Name, nad2Name
+					if enableOverlapping {
+						poolName1, poolName2 = wbstorage.UnnamedNetwork, wbstorage.UnnamedNetwork
+					}
 					nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-						nad1Name, testNamespace, ipRange, []string{}, nad1Name, enableOverlapping)
+						nad1Name, testNamespace, ipRange, []string{}, poolName1, enableOverlapping)
 					nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-						nad2Name, testNamespace, ipRange, []string{}, nad2Name, enableOverlapping)
+						nad2Name, testNamespace, ipRange, []string{}, poolName2, enableOverlapping)
 
 					_, err := clientInfo.AddNetAttachDef(nad1)
 					Expect(err).NotTo(HaveOccurred())

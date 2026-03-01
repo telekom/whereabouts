@@ -1,0 +1,120 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# See https://reuse.software/spec-3.2/#reusetoml for specification
+version = 1
+SPDX-PackageName = "Whereabouts"
+SPDX-PackageSupplier = "Deutsche Telekom AG <opensource@telekom.de>"
+SPDX-PackageDownloadLocation = "https://github.com/telekom/whereabouts"
+
+# Go source files — Apache-2.0
+[[annotations]]
+path = [
+  "cmd/**/*.go",
+  "pkg/**/*.go",
+  "e2e/**/*.go",
+  "tools.go",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# Generated Go code (clientsets, deepcopy)
+[[annotations]]
+path = [
+  "pkg/generated/**/*.go",
+  "pkg/api/**/zz_generated.deepcopy.go",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# Build & hack scripts — Apache-2.0
+[[annotations]]
+path = [
+  "hack/**/*.sh",
+  "hack/release/*.sh",
+  "script/*.sh",
+  "hack/boilerplate.go.txt",
+  "Makefile",
+  "Dockerfile",
+  "Dockerfile.arm64",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# Kubernetes / Helm configuration — Apache-2.0
+[[annotations]]
+path = [
+  "deployment/**/*.yaml",
+  "deployment/**/*.txt",
+  "doc/crds/*.yaml",
+  "yamls/*.yaml",
+  "hack/cni-install.yml",
+  "doc/sample_config.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
+SPDX-License-Identifier = "Apache-2.0"
+
+# Documentation — CC-BY-4.0
+[[annotations]]
+path = [
+  "*.md",
+  "doc/**/*.md",
+  "doc/proposals/**/*.md",
+  "doc/proposals/images/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
+SPDX-License-Identifier = "CC-BY-4.0"
+
+# CI workflows — CC0-1.0
+[[annotations]]
+path = [
+  ".github/workflows/*.yml",
+  ".github/**/*.md",
+  ".github/ISSUE_TEMPLATE/**",
+  ".github/CODEOWNERS",
+  ".github/dependabot.yml",
+  ".github/copilot-instructions.md",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Configuration and metadata files — CC0-1.0
+[[annotations]]
+path = [
+  ".golangci.yml",
+  ".dockerignore",
+  ".gitignore",
+  "go.mod",
+  "go.sum",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"
+
+# REUSE config itself — CC0-1.0
+[[annotations]]
+path = ["REUSE.toml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"
+
+# License and notice files
+[[annotations]]
+path = ["LICENSE", "NOTICE"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2019 k8snetworkplumbingwg"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Vendor directory — third-party code
+[[annotations]]
+path = ["vendor/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "NOASSERTION"

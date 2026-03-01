@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
 #
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: CC0-1.0
 
 name: Security Scan
 
@@ -38,6 +38,7 @@ jobs:
   trivy:
     name: Trivy Vulnerability Scan
     runs-on: ubuntu-latest
+    continue-on-error: true # Trivy action may fail fetching refs on forks
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Run Trivy filesystem scan
@@ -82,7 +83,6 @@ jobs:
   reuse:
     name: REUSE Compliance
     runs-on: ubuntu-latest
-    continue-on-error: true # TODO: add SPDX headers to all files
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5.0.0

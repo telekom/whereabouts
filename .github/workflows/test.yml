@@ -106,6 +106,14 @@ jobs:
       - name: Clear test-cache
         run: go clean -testcache
 
+      - name: Configure reconciler for e2e testing
+        run: |
+          kubectl -n kube-system create configmap whereabouts-config \
+            --from-literal=cron-expression="*/1 * * * *" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n kube-system rollout restart deployment whereabouts-controller || true
+          kubectl -n kube-system wait --for=condition=ready -l app=whereabouts-controller pod --timeout=120s
+
       - name: Execute E2E tests
         env:
           KUBECONFIG: /home/runner/.kube/config

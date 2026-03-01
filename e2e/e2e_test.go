@@ -1007,9 +1007,9 @@ var _ = Describe("Whereabouts functionality", func() {
 			table.DescribeTable("prevents or allows duplicate IPs based on enable_overlapping_ranges",
 				func(nad1Name, nad2Name, ipRange string, enableOverlapping, expectV6 bool) {
 					nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-						nad1Name, testNamespace, ipRange, []string{}, "", enableOverlapping)
+						nad1Name, testNamespace, ipRange, []string{}, nad1Name, enableOverlapping)
 					nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-						nad2Name, testNamespace, ipRange, []string{}, "", enableOverlapping)
+						nad2Name, testNamespace, ipRange, []string{}, nad2Name, enableOverlapping)
 
 					_, err := clientInfo.AddNetAttachDef(nad1)
 					Expect(err).NotTo(HaveOccurred())
@@ -1420,11 +1420,10 @@ var _ = Describe("Whereabouts functionality", func() {
 					v6Range  = "fd00:61::/124"
 				)
 
-				ipRanges := util.CreateIPRanges([]string{v6Range})
 				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					nad1Name, testNamespace, v4Range, []string{ipRanges}, wbstorage.UnnamedNetwork, true)
+					nad1Name, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
 				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					nad2Name, testNamespace, v4Range, []string{ipRanges}, wbstorage.UnnamedNetwork, true)
+					nad2Name, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
 
 				_, err := clientInfo.AddNetAttachDef(nad1)
 				Expect(err).NotTo(HaveOccurred())
@@ -1474,9 +1473,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					selector        = "app=" + serviceName
 				)
 
-				ipRanges := util.CreateIPRanges([]string{v6Range})
 				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					networkName, testNamespace, v4Range, []string{ipRanges}, wbstorage.UnnamedNetwork, true)
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
 				_, err := clientInfo.AddNetAttachDef(nad)
 				Expect(err).NotTo(HaveOccurred())
 				defer func() {
@@ -1513,9 +1511,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					rsSteadyTimeout = 120 * time.Second
 				)
 
-				ipRanges := util.CreateIPRanges([]string{v6Range})
 				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					networkName, testNamespace, v4Range, []string{ipRanges}, wbstorage.UnnamedNetwork, true)
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
 				_, err := clientInfo.AddNetAttachDef(nad)
 				Expect(err).NotTo(HaveOccurred())
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
@@ -1582,9 +1579,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					singlePodName = "wb-ds-multi"
 				)
 
-				ipRanges := util.CreateIPRanges([]string{v6Range})
 				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					networkName, testNamespace, v4Range, []string{ipRanges}, wbstorage.UnnamedNetwork, true)
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
 				_, err := clientInfo.AddNetAttachDef(nad)
 				Expect(err).NotTo(HaveOccurred())
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
@@ -1736,12 +1732,10 @@ var _ = Describe("Whereabouts functionality", func() {
 					podName  = "wb-mp-ds-pod"
 				)
 
-				ipRanges1 := util.CreateIPRanges([]string{v6Range1})
 				nad1 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					nad1Name, testNamespace, v4Range1, []string{ipRanges1}, wbstorage.UnnamedNetwork, true)
-				ipRanges2 := util.CreateIPRanges([]string{v6Range2})
+					nad1Name, testNamespace, v4Range1, []string{v6Range1}, wbstorage.UnnamedNetwork, true)
 				nad2 := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					nad2Name, testNamespace, v4Range2, []string{ipRanges2}, wbstorage.UnnamedNetwork, true)
+					nad2Name, testNamespace, v4Range2, []string{v6Range2}, wbstorage.UnnamedNetwork, true)
 
 				_, err := clientInfo.AddNetAttachDef(nad1)
 				Expect(err).NotTo(HaveOccurred())
@@ -1795,8 +1789,11 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("creating a statefulset — pod should fail to schedule (no IPs)")
-				_, err = clientInfo.ProvisionStatefulSet(
-					statefulSetName, testNamespace, serviceName, 1, networkName)
+				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Create(
+					context.Background(),
+					entities.StatefulSetSpec(statefulSetName, testNamespace, serviceName, 1,
+						entities.PodNetworkSelectionElements(networkName)),
+					metav1.CreateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 				defer func() {
 					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())

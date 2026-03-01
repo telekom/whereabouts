@@ -1184,7 +1184,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			)
 		})
 
-		Context("DualStack exclude ranges", func() {
+		Context("DS: exclude ranges", func() {
 			It("applies exclude ranges to both address families in dual-stack config", func() {
 				const (
 					networkName   = "wa-ds-excl"
@@ -1244,7 +1244,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DualStack range_start/range_end", func() {
+		Context("DS: range_start/range_end", func() {
 			It("respects range bounds for both address families", func() {
 				const (
 					networkName   = "wa-ds-range"
@@ -1411,7 +1411,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		// DualStack combination tests
 		// ────────────────────────────────────────────────────────────────
 
-		Context("DualStack overlapping range protection", func() {
+		Context("DS: overlapping range protection", func() {
 			It("prevents duplicate IPs across two dual-stack NADs with overlapping enabled", func() {
 				const (
 					nad1Name = "wa-ds-ov-1"
@@ -1463,7 +1463,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DualStack pool exhaustion", func() {
+		Context("DS: pool exhaustion", func() {
 			It("fails to schedule when dual-stack pool is exhausted", func() {
 				const (
 					networkName     = "wa-ds-exhaust"
@@ -1502,7 +1502,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DualStack concurrent allocation", func() {
+		Context("DS: concurrent allocation", func() {
 			It("handles concurrent dual-stack allocations without conflicts", func() {
 				const (
 					networkName     = "wa-ds-conc"
@@ -1573,7 +1573,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DualStack multi-interface", func() {
+		Context("DS: multi-interface", func() {
 			It("allocates dual-stack IPs on multiple interfaces", func() {
 				const (
 					networkName   = "wa-ds-multi"

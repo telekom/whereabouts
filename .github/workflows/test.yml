@@ -70,14 +70,18 @@ jobs:
             test-dir: e2e
             test-pkg: "."
             focus: "Single pod tests|DualStack|Replicaset|stateful set|OverlappingRangeIPReservation|Named ranges|Pod cleanup"
-          - suite: v4v6
+          - suite: v4
             test-dir: e2e
             test-pkg: "."
-            focus: "across address families|Reconciler stale"
+            focus: "across address families.*IPv4|Reconciler stale"
+          - suite: v6
+            test-dir: e2e
+            test-pkg: "."
+            focus: "across address families.*IPv6"
           - suite: dualstack-ext
             test-dir: e2e
             test-pkg: "."
-            focus: "DualStack (exclude|range_start|overlapping|pool exhaustion|concurrent|multi-interface)|Multi-pool|Failure"
+            focus: "DS:|Multi-pool|Failure"
           - suite: node-slice
             test-dir: e2e
             test-pkg: "./e2e_node_slice/..."

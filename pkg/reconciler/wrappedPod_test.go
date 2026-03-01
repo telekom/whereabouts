@@ -178,4 +178,74 @@ var _ = Describe("Pod Wrapper operations", func() {
 					namespace: "secretns",
 				}))
 	})
+
+	Context("isPodMarkedForDeletion", func() {
+		It("returns true when DisruptionTarget condition is True with DeletionByTaintManager reason", func() {
+			conditions := []v1.PodCondition{
+				{
+					Type:   v1.DisruptionTarget,
+					Status: v1.ConditionTrue,
+					Reason: "DeletionByTaintManager",
+				},
+			}
+			Expect(isPodMarkedForDeletion(conditions)).To(BeTrue())
+		})
+
+		It("returns false when conditions are empty", func() {
+			Expect(isPodMarkedForDeletion(nil)).To(BeFalse())
+			Expect(isPodMarkedForDeletion([]v1.PodCondition{})).To(BeFalse())
+		})
+
+		It("returns false when DisruptionTarget is present but status is not True", func() {
+			conditions := []v1.PodCondition{
+				{
+					Type:   v1.DisruptionTarget,
+					Status: v1.ConditionFalse,
+					Reason: "DeletionByTaintManager",
+				},
+			}
+			Expect(isPodMarkedForDeletion(conditions)).To(BeFalse())
+		})
+
+		It("returns false when DisruptionTarget is True but reason is different", func() {
+			conditions := []v1.PodCondition{
+				{
+					Type:   v1.DisruptionTarget,
+					Status: v1.ConditionTrue,
+					Reason: "EvictionByEvictionAPI",
+				},
+			}
+			Expect(isPodMarkedForDeletion(conditions)).To(BeFalse())
+		})
+
+		It("returns false when condition type does not match", func() {
+			conditions := []v1.PodCondition{
+				{
+					Type:   v1.PodReady,
+					Status: v1.ConditionTrue,
+					Reason: "DeletionByTaintManager",
+				},
+			}
+			Expect(isPodMarkedForDeletion(conditions)).To(BeFalse())
+		})
+
+		It("finds the matching condition among multiple conditions", func() {
+			conditions := []v1.PodCondition{
+				{
+					Type:   v1.PodReady,
+					Status: v1.ConditionTrue,
+				},
+				{
+					Type:   v1.PodScheduled,
+					Status: v1.ConditionTrue,
+				},
+				{
+					Type:   v1.DisruptionTarget,
+					Status: v1.ConditionTrue,
+					Reason: "DeletionByTaintManager",
+				},
+			}
+			Expect(isPodMarkedForDeletion(conditions)).To(BeTrue())
+		})
+	})
 })

@@ -652,6 +652,9 @@ func TestUpdateNoImpactfulChange(t *testing.T) {
 	f.nadObjects = append(f.nadObjects, nad)
 	f.nodeSlicePoolLister = append(f.nodeSlicePoolLister, nodeSlicePool)
 	f.whereaboutsObjects = append(f.whereaboutsObjects, nodeSlicePool)
+
+	f.expectNodeSlicePoolUpdateAction(nodeSlicePool)
+	f.run(context.TODO(), getKey(nad, t))
 }
 
 // TestUpdateRangeChangeAndSliceChange tests update where range and slice changes
@@ -711,6 +714,8 @@ func TestUpdateRangeChangeAndSliceChange(t *testing.T) {
 	f.whereaboutsObjects = append(f.whereaboutsObjects, nodeSlicePool)
 
 	f.expectNodeSlicePoolUpdateAction(expectedNodeSlicePool)
+
+	f.run(context.TODO(), getKey(nad, t))
 }
 
 // TestUpdateRangeChangeChange tests update where range changes
@@ -770,6 +775,8 @@ func TestUpdateRangeChangeChange(t *testing.T) {
 	f.whereaboutsObjects = append(f.whereaboutsObjects, nodeSlicePool)
 
 	f.expectNodeSlicePoolUpdateAction(expectedNodeSlicePool)
+
+	f.run(context.TODO(), getKey(nad, t))
 }
 
 // TestUpdateChangeSliceChange tests update where slice changes
@@ -845,6 +852,8 @@ func TestUpdateChangeSliceChange(t *testing.T) {
 	f.whereaboutsObjects = append(f.whereaboutsObjects, nodeSlicePool)
 
 	f.expectNodeSlicePoolUpdateAction(expectedNodeSlicePool)
+
+	f.run(context.TODO(), getKey(nad, t))
 }
 
 // TestMultipleNadsSameNetworkName tests that if nad and node slice already exist and new nad with same network name is

@@ -80,6 +80,10 @@ var _ = Describe("IPControlLoop", func() {
 			os.Setenv("NODENAME", nodeName)
 		})
 
+		AfterEach(func() {
+			os.Unsetenv("NODENAME")
+		})
+
 		When("NODENAME is set to an invalid value", func() {
 			var (
 				wbClient           wbclient.Interface

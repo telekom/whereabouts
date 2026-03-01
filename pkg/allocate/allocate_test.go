@@ -415,4 +415,82 @@ var _ = Describe("Allocation operations", func() {
 			})
 		})
 	})
+
+	Context("DeallocateIP", func() {
+		It("removes the matching reservation and returns its IP", func() {
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.1"), ContainerID: "aaa", PodRef: "default/pod1", IfName: "eth0"},
+				{IP: net.ParseIP("192.168.1.2"), ContainerID: "bbb", PodRef: "default/pod2", IfName: "eth0"},
+				{IP: net.ParseIP("192.168.1.3"), ContainerID: "ccc", PodRef: "default/pod3", IfName: "net1"},
+			}
+			updatedList, ip := DeallocateIP(reservelist, "bbb", "eth0")
+			Expect(ip).To(Equal(net.ParseIP("192.168.1.2")))
+			Expect(updatedList).To(HaveLen(2))
+			// Swap-remove: last element replaces removed one
+			Expect(fmt.Sprint(updatedList[0].IP)).To(Equal("192.168.1.1"))
+			Expect(fmt.Sprint(updatedList[1].IP)).To(Equal("192.168.1.3"))
+		})
+
+		It("returns nil IP and unchanged list when containerID is not found", func() {
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.1"), ContainerID: "aaa", PodRef: "default/pod1", IfName: "eth0"},
+			}
+			updatedList, ip := DeallocateIP(reservelist, "zzz", "eth0")
+			Expect(ip).To(BeNil())
+			Expect(updatedList).To(HaveLen(1))
+		})
+
+		It("matches on both containerID and ifName", func() {
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.1"), ContainerID: "aaa", PodRef: "default/pod1", IfName: "eth0"},
+				{IP: net.ParseIP("192.168.1.2"), ContainerID: "aaa", PodRef: "default/pod1", IfName: "net1"},
+			}
+			updatedList, ip := DeallocateIP(reservelist, "aaa", "net1")
+			Expect(ip).To(Equal(net.ParseIP("192.168.1.2")))
+			Expect(updatedList).To(HaveLen(1))
+			Expect(updatedList[0].IfName).To(Equal("eth0"))
+		})
+
+		It("handles single-element list", func() {
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.1"), ContainerID: "aaa", PodRef: "default/pod1", IfName: "eth0"},
+			}
+			updatedList, ip := DeallocateIP(reservelist, "aaa", "eth0")
+			Expect(ip).To(Equal(net.ParseIP("192.168.1.1")))
+			Expect(updatedList).To(BeEmpty())
+		})
+	})
+
+	Context("AssignIP idempotency", func() {
+		It("returns the existing IP when podRef and ifName already have an allocation", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:     "192.168.1.0/24",
+				OmitRanges: []string{},
+			}
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.5"), ContainerID: "old-id", PodRef: "default/mypod", IfName: "eth0"},
+			}
+			result, updatedList, err := AssignIP(ipamConf, reservelist, "new-id", "default/mypod", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(fmt.Sprint(result.IP)).To(Equal("192.168.1.5"))
+			Expect(updatedList).To(HaveLen(1))
+			// containerID should be updated to the new one
+			Expect(updatedList[0].ContainerID).To(Equal("new-id"))
+		})
+
+		It("allocates a new IP when podRef matches but ifName differs", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:     "192.168.1.0/24",
+				OmitRanges: []string{},
+			}
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.5"), ContainerID: "aaa", PodRef: "default/mypod", IfName: "eth0"},
+			}
+			result, updatedList, err := AssignIP(ipamConf, reservelist, "bbb", "default/mypod", "net1")
+			Expect(err).NotTo(HaveOccurred())
+			// Should get a different IP (192.168.1.1 as the lowest available)
+			Expect(fmt.Sprint(result.IP)).To(Equal("192.168.1.1"))
+			Expect(updatedList).To(HaveLen(2))
+		})
+	})
 })

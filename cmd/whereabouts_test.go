@@ -1414,27 +1414,27 @@ func ipamConfig(podName, namespace, networkName, ipRange, gw, kubeconfigPath str
 		IPAM:       ipamConf,
 	})
 	if err != nil {
-		return nil
+		Fail(fmt.Sprintf("failed to marshal IPAM config: %s", err))
 	}
 
 	tmpDir, err := os.MkdirTemp("", "whereabouts")
 	if err != nil {
-		return nil
+		Fail(fmt.Sprintf("failed to create temp dir: %s", err))
 	}
 	confPath := filepath.Join(tmpDir, "wherebouts.conf")
 	err = os.WriteFile(confPath, bytes, 0755)
 	if err != nil {
-		return nil
+		Fail(fmt.Sprintf("failed to write config file: %s", err))
 	}
 
 	ipamConfWithDefaults, _, err := config.LoadIPAMConfig(bytes, cniArgs(namespace, podName), confPath)
 	if err != nil {
-		return nil
+		Fail(fmt.Sprintf("failed to load IPAM config: %s", err))
 	}
 
 	err = os.RemoveAll(tmpDir)
 	if err != nil {
-		return nil
+		Fail(fmt.Sprintf("failed to clean up temp dir: %s", err))
 	}
 
 	return ipamConfWithDefaults

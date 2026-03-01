@@ -1,5 +1,5 @@
 # whereabouts
-![Travis CI status](https://travis-ci.org/telekom/whereabouts.svg?branch=main) ![Go report card](https://goreportcard.com/badge/github.com/telekom/whereabouts)
+[![Build](https://github.com/telekom/whereabouts/actions/workflows/build.yml/badge.svg)](https://github.com/telekom/whereabouts/actions/workflows/build.yml) [![Test](https://github.com/telekom/whereabouts/actions/workflows/test.yml/badge.svg)](https://github.com/telekom/whereabouts/actions/workflows/test.yml) ![Go report card](https://goreportcard.com/badge/github.com/telekom/whereabouts)
 
 ![whereabouts-logo](doc/logo.png)
 

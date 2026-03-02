@@ -99,6 +99,7 @@ spec:
             memory: "200Mi"
         securityContext:
           privileged: true
+          runAsUser: 0
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin

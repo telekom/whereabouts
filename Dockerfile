@@ -19,10 +19,18 @@ RUN VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VER
 
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 LABEL org.opencontainers.image.source=https://github.com/telekom/whereabouts
+# Create a non-root user for the operator and webhook containers.
+# The DaemonSet (CNI installer) still runs as root (privileged) via its
+# pod securityContext, but the operator/webhook containers reference this
+# user through runAsUser/runAsGroup in their deployment specs.
+RUN addgroup -g 65532 -S whereabouts && \
+    adduser -u 65532 -S -G whereabouts -s /sbin/nologin whereabouts
 WORKDIR /
 COPY --from=builder /go/src/github.com/telekom/whereabouts/bin/whereabouts .
 COPY --from=builder /go/src/github.com/telekom/whereabouts/bin/whereabouts-operator .
 COPY script/install-cni.sh .
 COPY script/lib.sh .
 COPY script/token-watcher.sh .
+# Default to non-root; the DaemonSet overrides this via securityContext.privileged.
+USER 65532:65532
 CMD ["/install-cni.sh"]

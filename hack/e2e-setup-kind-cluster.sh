@@ -112,8 +112,11 @@ for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whe
   # by the daemonset is the one loaded into KinD and not one pulled from a repo
   awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
 done
-# operator deployment uses different indentation for its image field
+# operator and webhook deployments use same indentation for their image field
 awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/operator-install.yaml" | retry kubectl apply -f -
+awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/webhook-install.yaml" | retry kubectl apply -f -
+retry kubectl apply -f "$ROOT/doc/crds/validatingwebhookconfiguration.yaml"
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-operator pod --timeout=$TIMEOUT_K8
+retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-webhook pod --timeout=$TIMEOUT_K8
 echo "## done"

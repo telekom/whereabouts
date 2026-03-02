@@ -3,6 +3,7 @@ package whereabouts_e2e
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"math/rand"
 	"net"
 	"sort"
@@ -603,7 +604,7 @@ var _ = Describe("Whereabouts functionality", func() {
 						offset, err := iphelpers.IPGetOffset(net.ParseIP(ip), firstIP)
 						Expect(err).NotTo(HaveOccurred())
 
-						updatedPool.Spec.Allocations[fmt.Sprintf("%d", offset)] = originalAllocations[i]
+						updatedPool.Spec.Allocations[offset.String()] = originalAllocations[i]
 					}
 
 					_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Update(context.Background(), updatedPool, metav1.UpdateOptions{})
@@ -1344,8 +1345,8 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(err).NotTo(HaveOccurred())
 					offset, err := iphelpers.IPGetOffset(net.ParseIP(ips[0]), firstIP)
 					Expect(err).NotTo(HaveOccurred())
-					_, ok := ipPool.Spec.Allocations[fmt.Sprintf("%d", offset)]
-					Expect(ok).To(BeTrue(), "allocation for pod IP %s at offset %d should exist", ips[0], offset)
+					_, ok := ipPool.Spec.Allocations[offset.String()]
+					Expect(ok).To(BeTrue(), "allocation for pod IP %s at offset %s should exist", ips[0], offset)
 				},
 				Entry("IPv4", "wa-verify-v4", "10.60.0.0/24", false),
 				Entry("IPv6", "wa-verify-v6", "fd00:60::/112", true),
@@ -1972,11 +1973,11 @@ var _ = Describe("Whereabouts functionality", func() {
 					metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(ipPool.Spec.Allocations).To(HaveKey(fmt.Sprintf("%d", offset)))
+				Expect(ipPool.Spec.Allocations).To(HaveKey(offset.String()))
 
-				newOffset := int(offset) + rand.Intn(100)
+				newOffset := new(big.Int).Add(offset, big.NewInt(int64(rand.Intn(100))))
 
-				ipPool.Spec.Allocations[fmt.Sprintf("%d", newOffset)] = ipPool.Spec.Allocations[fmt.Sprintf("%d", offset)]
+				ipPool.Spec.Allocations[newOffset.String()] = ipPool.Spec.Allocations[offset.String()]
 				_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Update(context.Background(), ipPool, metav1.UpdateOptions{})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -1985,7 +1986,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("checking that all IP allocations are removed")
-				ip = append(ip, iphelpers.IPAddOffset(firstIP, uint64(newOffset)).String())
+				ip = append(ip, iphelpers.IPAddOffset(firstIP, newOffset).String())
 				verifyNoAllocationsForPodRef(clientInfo, ipv4TestRange, testNamespace, pod.Name, ip)
 			})
 		})
@@ -2022,7 +2023,7 @@ func verifyAllocations(clientInfo *wbtestclient.ClientInfo, ipv4TestRange, ip, t
 	offset, err := iphelpers.IPGetOffset(net.ParseIP(ip), firstIP)
 	Expect(err).NotTo(HaveOccurred())
 
-	allocation, ok := ipPool.Spec.Allocations[fmt.Sprintf("%d", offset)]
+	allocation, ok := ipPool.Spec.Allocations[offset.String()]
 	Expect(ok).To(BeTrue())
 	Expect(allocation.PodRef).To(Equal(getPodRef(testNamespace, podName)))
 	Expect(allocation.IfName).To(Equal(ifName))

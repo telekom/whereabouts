@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"net"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -309,5 +310,65 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 			Expect(updated.Spec.Allocations).To(BeEmpty())
 		})
+	})
+})
+
+var _ = Describe("allocationKeyToIP", func() {
+	pool := func(cidr string) *whereaboutsv1alpha1.IPPool {
+		return &whereaboutsv1alpha1.IPPool{
+			Spec: whereaboutsv1alpha1.IPPoolSpec{Range: cidr},
+		}
+	}
+
+	It("converts a small IPv4 offset to the correct IP", func() {
+		ip := allocationKeyToIP(pool("10.0.0.0/24"), "5")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("10.0.0.5"))).To(BeTrue())
+	})
+
+	It("converts offset 0 to the network address", func() {
+		ip := allocationKeyToIP(pool("192.168.1.0/24"), "0")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("192.168.1.0"))).To(BeTrue())
+	})
+
+	It("converts a small IPv6 offset to the correct IP", func() {
+		ip := allocationKeyToIP(pool("fd00::/120"), "10")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("fd00::a"))).To(BeTrue())
+	})
+
+	It("handles an offset larger than int64 max for IPv6", func() {
+		// Offset = 2^63 (9223372036854775808) — would overflow int64 but fits in big.Int.
+		ip := allocationKeyToIP(pool("fd00::/64"), "9223372036854775808")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("fd00::8000:0:0:0"))).To(BeTrue())
+	})
+
+	It("handles an offset larger than uint64 max for IPv6", func() {
+		// Offset = 2^64 (18446744073709551616) — exceeds uint64 entirely, only big.Int works.
+		ip := allocationKeyToIP(pool("::/48"), "18446744073709551616")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("::1:0:0:0:0"))).To(BeTrue())
+	})
+
+	It("returns nil for a negative offset", func() {
+		ip := allocationKeyToIP(pool("10.0.0.0/24"), "-1")
+		Expect(ip).To(BeNil())
+	})
+
+	It("returns nil for a non-numeric key", func() {
+		ip := allocationKeyToIP(pool("10.0.0.0/24"), "notanumber")
+		Expect(ip).To(BeNil())
+	})
+
+	It("returns nil for an invalid CIDR range", func() {
+		ip := allocationKeyToIP(pool("not-a-cidr"), "5")
+		Expect(ip).To(BeNil())
+	})
+
+	It("returns nil for an empty key", func() {
+		ip := allocationKeyToIP(pool("10.0.0.0/24"), "")
+		Expect(ip).To(BeNil())
 	})
 })

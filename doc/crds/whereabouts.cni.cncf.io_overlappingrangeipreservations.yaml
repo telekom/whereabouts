@@ -17,10 +17,16 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.podref
+    - description: Namespace/name of the owning pod
+      jsonPath: .spec.podref
       name: PodRef
       type: string
-    - jsonPath: .spec.containerid
+    - description: Network interface name
+      jsonPath: .spec.ifname
+      name: IfName
+      type: string
+    - description: Container identifier
+      jsonPath: .spec.containerid
       name: ContainerID
       priority: 1
       type: string

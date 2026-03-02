@@ -1,7 +1,7 @@
 package iphelpers
 
 import (
-	"fmt"
+	"math/big"
 	"net"
 	"testing"
 
@@ -557,8 +557,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.21.101"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.21.102"))
+		Expect(firstip.Equal(net.ParseIP("192.168.21.101"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.21.102"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address with different range start", func() {
@@ -567,8 +567,8 @@ var _ = Describe("GetIPRange operations", func() {
 		ip := net.ParseIP("192.168.2.23") // range start
 		firstip, lastip, err := GetIPRange(*ipnet, ip, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.23"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.254"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.23"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.254"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 27 bits network address", func() {
@@ -576,8 +576,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.193"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.222"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.193"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.222"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address", func() {
@@ -585,8 +585,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.254"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.254"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address with endRange", func() {
@@ -595,8 +595,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("192.168.2.100")
 		firstip, lastip, err := GetIPRange(*ipnet, nil, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.100"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.100"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address with startRange and endRange", func() {
@@ -606,8 +606,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("192.168.2.100")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.50"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.100"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.50"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.100"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address with startRange and endRange outside of ipnet", func() {
@@ -617,8 +617,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("192.168.3.100")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.254"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.254"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 range properly for 24 bits network address with startRange and endRange inverted", func() {
@@ -628,8 +628,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("192.168.2.50")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.100"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.254"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.100"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.254"))).To(BeTrue())
 	})
 
 	It("creates an IPv4 single range properly", func() {
@@ -639,8 +639,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("192.168.2.50")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("192.168.2.50"))
-		Expect(fmt.Sprint(lastip)).To(Equal("192.168.2.50"))
+		Expect(firstip.Equal(net.ParseIP("192.168.2.50"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("192.168.2.50"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 116 bits network address", func() {
@@ -648,8 +648,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001::ffe"))
+		Expect(firstip.Equal(net.ParseIP("2001::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001::ffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range when the first hextet has leading zeroes", func() {
@@ -657,8 +657,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("fd:db8:abcd:12::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("fd:db8:abcd:12::ffff:fffe"))
+		Expect(firstip.Equal(net.ParseIP("fd:db8:abcd:12::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("fd:db8:abcd:12::ffff:fffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 96 bits network address", func() {
@@ -666,8 +666,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12::ffff:fffe"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12::ffff:fffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 64 bits network address", func() {
@@ -675,8 +675,8 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstip, lastip, err := GetIPRange(*ipnet, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 64 bits network address with endRange", func() {
@@ -685,8 +685,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2001:db8:abcd:0012::100")
 		firstip, lastip, err := GetIPRange(*ipnet, nil, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12::100"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12::100"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 64 bits network address with startRange and endRange", func() {
@@ -696,8 +696,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2001:db8:abcd:0012::100")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::50"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12::100"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::50"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12::100"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 64 bits network address with startRange and endRange outside of ipnet", func() {
@@ -707,8 +707,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2003:db8:abcd:0012::100")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::1"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::1"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 range properly for 64 bits network address with startRange and endRange inverted", func() {
@@ -718,8 +718,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2001:db8:abcd:0012::50")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::100"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::100"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12:ffff:ffff:ffff:fffe"))).To(BeTrue())
 	})
 
 	It("creates an IPv6 single range properly", func() {
@@ -729,8 +729,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2001:db8:abcd:0012::100")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:abcd:12::100"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:abcd:12::100"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:abcd:12::100"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:abcd:12::100"))).To(BeTrue())
 	})
 
 	It("creates a complex IPv6 single range properly", func() {
@@ -740,8 +740,8 @@ var _ = Describe("GetIPRange operations", func() {
 		endRange := net.ParseIP("2001:db8:480:603d:304:403:0:4")
 		firstip, lastip, err := GetIPRange(*ipnet, startRange, endRange)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(firstip)).To(Equal("2001:db8:480:603d:304:403::"))
-		Expect(fmt.Sprint(lastip)).To(Equal("2001:db8:480:603d:304:403:0:4"))
+		Expect(firstip.Equal(net.ParseIP("2001:db8:480:603d:304:403::"))).To(BeTrue())
+		Expect(lastip.Equal(net.ParseIP("2001:db8:480:603d:304:403:0:4"))).To(BeTrue())
 	})
 
 	It("do not fail when the mask meets minimum required", func() {
@@ -765,7 +765,7 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.1.0")
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(1)))
+		Expect(offset.Int64()).To(Equal(int64(1)))
 	})
 
 	It("correctly calculates the offset between two IPv4 IPs in different notations when the first value is in To4", func() {
@@ -773,13 +773,13 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.1.0").To16()
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(1)))
+		Expect(offset.Int64()).To(Equal(int64(1)))
 
 		ip1 = net.ParseIP("192.168.4.0").To4()
 		ip2 = net.ParseIP("192.168.3.0").To16()
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(256)))
+		Expect(offset.Int64()).To(Equal(int64(256)))
 	})
 
 	It("correctly calculates the offset between two IPv4 IPs in different notations when the second value in in To4", func() {
@@ -787,7 +787,7 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.1.0").To4()
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(1)))
+		Expect(offset.Int64()).To(Equal(int64(1)))
 	})
 
 	It("correctly calculates the offset between two IPv4 IPs inverted", func() {
@@ -795,13 +795,13 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.1.1").To4()
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(1)))
+		Expect(offset.Int64()).To(Equal(int64(1)))
 
 		ip1 = net.ParseIP("192.168.1.0").To16()
 		ip2 = net.ParseIP("192.168.2.255").To4()
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(511)))
+		Expect(offset.Int64()).To(Equal(int64(511)))
 	})
 
 	It("confirms the IPGetOffset normal case", func() {
@@ -809,13 +809,13 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.2.1")
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(254)))
+		Expect(offset.Int64()).To(Equal(int64(254)))
 
 		ip1 = net.ParseIP("ff02::ff")
 		ip2 = net.ParseIP("ff02::1")
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(254)))
+		Expect(offset.Int64()).To(Equal(int64(254)))
 	})
 
 	It("confirms the IPGetOffset carry case", func() {
@@ -823,19 +823,19 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("192.168.2.1")
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(255)))
+		Expect(offset.Int64()).To(Equal(int64(255)))
 
 		ip1 = net.ParseIP("ff02::100")
 		ip2 = net.ParseIP("ff02::1")
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(255)))
+		Expect(offset.Int64()).To(Equal(int64(255)))
 
 		ip1 = net.ParseIP("ff02::1:0")
 		ip2 = net.ParseIP("ff02::1")
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(offset).To(Equal(uint64(0xffff)))
+		Expect(offset.Int64()).To(Equal(int64(0xffff)))
 	})
 
 	It("confirms the IPGetOffset error case", func() {
@@ -844,14 +844,24 @@ var _ = Describe("IPGetOffset operations", func() {
 		ip2 := net.ParseIP("ff02::1")
 		offset, err := IPGetOffset(ip1, ip2)
 		Expect(err).To(MatchError("cannot calculate offset between IPv4 (192.168.3.0) and IPv6 address (ff02::1)"))
-		Expect(offset).To(Equal(uint64(0)))
+		Expect(offset).To(BeNil())
 
 		// cannot get offset from v6/v4
 		ip1 = net.ParseIP("ff02::1")
 		ip2 = net.ParseIP("192.168.3.0")
 		offset, err = IPGetOffset(ip1, ip2)
 		Expect(err).To(MatchError("cannot calculate offset between IPv6 (ff02::1) and IPv4 address (192.168.3.0)"))
-		Expect(offset).To(Equal(uint64(0)))
+		Expect(offset).To(BeNil())
+	})
+
+	It("handles offsets larger than uint64 for wide IPv6 ranges", func() {
+		ip1 := net.ParseIP("fd00::1:0:0:0:0")
+		ip2 := net.ParseIP("fd00::")
+		offset, err := IPGetOffset(ip1, ip2)
+		Expect(err).NotTo(HaveOccurred())
+		// 2^64, which exceeds uint64 max — only possible with big.Int
+		expected, _ := new(big.Int).SetString("18446744073709551616", 10)
+		Expect(offset.Cmp(expected)).To(Equal(0))
 	})
 })
 
@@ -861,14 +871,23 @@ var _ = Describe("IPGetOffset operations", func() {
 var _ = Describe("IPAddOffset operations", func() {
 	It("correctly calculates the offset between two IPv4 IPs", func() {
 		ip := net.ParseIP("192.168.1.1")
-		newIP := IPAddOffset(ip, 256)
-		Expect(fmt.Sprint(newIP)).To(Equal("192.168.2.1"))
+		newIP := IPAddOffset(ip, big.NewInt(256))
+		Expect(newIP.Equal(net.ParseIP("192.168.2.1"))).To(BeTrue())
 	})
 
 	It("correctly calculates the offset between two IPv6 IPs", func() {
 		ip := net.ParseIP("2000::1")
-		newIP := IPAddOffset(ip, 65535)
-		Expect(fmt.Sprint(newIP)).To(Equal("2000::1:0"))
+		newIP := IPAddOffset(ip, big.NewInt(65535))
+		Expect(newIP.Equal(net.ParseIP("2000::1:0"))).To(BeTrue())
+	})
+
+	It("handles offsets larger than uint64 for wide IPv6 ranges", func() {
+		ip := net.ParseIP("::")
+		// 2^64, which exceeds uint64 max
+		offset, _ := new(big.Int).SetString("18446744073709551616", 10)
+		newIP := IPAddOffset(ip, offset)
+		Expect(newIP.Equal(net.ParseIP("::1:0:0:0:0"))).To(BeTrue(),
+			"expected ::1:0:0:0:0 but got %s", newIP)
 	})
 })
 

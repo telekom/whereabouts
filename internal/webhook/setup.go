@@ -67,6 +67,6 @@ func (s *Setup) ReadyCheck() healthz.Checker {
 		if s.ready.Load() {
 			return nil
 		}
-		return fmt.Errorf("webhooks not yet registered")
+		return fmt.Errorf("webhooks not yet registered: waiting for TLS certificates or webhook registration to complete")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"strings"
 	"time"
@@ -179,17 +180,16 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 	logger := log.FromContext(ctx)
 	var lastErr error
 
+	// List all overlapping reservations in the pool namespace once and reuse for all keys.
+	var reservations whereaboutsv1alpha1.OverlappingRangeIPReservationList
+	if err := r.client.List(ctx, &reservations, client.InNamespace(pool.Namespace)); err != nil {
+		logger.V(1).Info("failed to list overlapping reservations", "error", err)
+		return err
+	}
+
 	for _, key := range keys {
 		ip := allocationKeyToIP(pool, key)
 		if ip == nil {
-			continue
-		}
-
-		// Try to find matching overlapping reservation by listing with podRef.
-		var reservations whereaboutsv1alpha1.OverlappingRangeIPReservationList
-		if err := r.client.List(ctx, &reservations, client.InNamespace(pool.Namespace)); err != nil {
-			logger.V(1).Info("failed to list overlapping reservations", "error", err)
-			lastErr = err
 			continue
 		}
 
@@ -212,23 +212,21 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 }
 
 // allocationKeyToIP converts an allocation map key (decimal offset) to an IP
-// address using the pool's CIDR range.
+// address using the pool's CIDR range. Supports arbitrarily large offsets via
+// big.Int to handle wide IPv6 ranges (e.g. /64 or wider).
 func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
 	_, ipNet, err := net.ParseCIDR(pool.Spec.Range)
 	if err != nil {
 		return nil
 	}
 
-	// Parse offset — must be non-negative for a valid allocation key.
-	var offset int64
-	if _, err := fmt.Sscanf(key, "%d", &offset); err != nil {
-		return nil
-	}
-	if offset < 0 {
+	// Parse offset as big.Int — must be non-negative for a valid allocation key.
+	offset, ok := new(big.Int).SetString(key, 10)
+	if !ok || offset.Sign() < 0 {
 		return nil
 	}
 
-	return iphelpers.IPAddOffset(ipNet.IP, uint64(offset))
+	return iphelpers.IPAddOffset(ipNet.IP, offset)
 }
 
 // denormalizeIPName converts a normalized IP name (dashes for colons) back to

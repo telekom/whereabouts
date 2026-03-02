@@ -26,6 +26,8 @@ type NodeSlicePoolSpecApplyConfiguration struct {
 	// This refers to the entire range where the node is allocated a subset.
 	Range *string `json:"range,omitempty"`
 	// SliceSize is the size of subnets or slices of the range that each node will be assigned.
+	// The value must be a numeric prefix length, optionally preceded by a slash (e.g. "24" or "/24").
+	// Semantic validation is performed by the validating webhook.
 	SliceSize *string `json:"sliceSize,omitempty"`
 }
 

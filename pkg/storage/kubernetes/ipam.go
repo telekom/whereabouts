@@ -464,6 +464,9 @@ func IPManagement(ctx context.Context, mode int, ipamConf whereaboutstypes.IPAMC
 
 	// setup leader election
 	le, leader, deposed := newLeaderElector(ctx, client.clientSet, client.Namespace, client)
+	if le == nil {
+		return newips, fmt.Errorf("failed to create leader elector")
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -555,13 +558,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 
 	var overlappingrangestore storage.OverlappingRangeStore
 	var pool storage.IPPool
-	var err error
 
-	requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-	defer requestCancel()
+	statusCtx, statusCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+	defer statusCancel()
 
 	// Check our connectivity first
-	if err := ipam.Status(requestCtx); err != nil {
+	if err := ipam.Status(statusCtx); err != nil {
 		logging.Errorf("IPAM connectivity error: %v", err)
 		return newips, err
 	}
@@ -569,12 +571,15 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	// handle the ip add/del until successful
 	var overlappingrangeallocations []whereaboutstypes.IPReservation
 	var ipforoverlappingrangeupdate net.IP
-	skipOverlappingRangeUpdate := false
 	for _, ipRange := range ipamConf.IPRanges {
+		var err error
+		skipOverlappingRangeUpdate := false
 	RETRYLOOP:
 		for j := 0; j < storage.DatastoreRetries; j++ {
+			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			select {
 			case <-ctx.Done():
+				requestCancel()
 				break RETRYLOOP
 			default:
 				// retry the IPAM loop if the context has not been canceled
@@ -582,6 +587,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			overlappingrangestore, err = ipam.GetOverlappingRangeStore()
 			if err != nil {
 				logging.Errorf("IPAM error getting OverlappingRangeStore: %v", err)
+				requestCancel()
 				return newips, err
 			}
 			poolIdentifier := PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
@@ -589,27 +595,32 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				hostname, err := getNodeName(ipam)
 				if err != nil {
 					logging.Errorf("Failed to get node hostname: %v", err)
+					requestCancel()
 					return newips, err
 				}
 				poolIdentifier.NodeName = hostname
 				nodeSliceRange, err := GetNodeSlicePoolRange(ctx, ipam, hostname)
 				if err != nil {
+					requestCancel()
 					return newips, err
 				}
 				_, ipNet, err := net.ParseCIDR(nodeSliceRange)
 				if err != nil {
 					logging.Errorf("Error parsing node slice cidr to net.IPNet: %v", err)
+					requestCancel()
 					return newips, err
 				}
 				poolIdentifier.IpRange = nodeSliceRange
 				rangeStart, err := iphelpers.FirstUsableIP(*ipNet)
 				if err != nil {
 					logging.Errorf("Error parsing node slice cidr to range start: %v", err)
+					requestCancel()
 					return newips, err
 				}
 				rangeEnd, err := iphelpers.LastUsableIP(*ipNet)
 				if err != nil {
 					logging.Errorf("Error parsing node slice cidr to range start: %v", err)
+					requestCancel()
 					return newips, err
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
@@ -623,8 +634,10 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			if err != nil {
 				logging.Errorf("IPAM error reading pool allocations (attempt: %d): %v", j, err)
 				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+					requestCancel()
 					continue
 				}
+				requestCancel()
 				return newips, err
 			}
 
@@ -636,6 +649,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				newip, updatedreservelist, err = allocate.AssignIP(ipRange, reservelist, ipam.ContainerID, ipamConf.GetPodRef(), ipam.IfName)
 				if err != nil {
 					logging.Errorf("Error assigning IP: %v", err)
+					requestCancel()
 					return newips, err
 				}
 				// Now check if this is allocated overlappingrange wide
@@ -646,6 +660,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 						ipamConf.GetPodRef(), ipamConf.NetworkName)
 					if err != nil {
 						logging.Errorf("Error getting cluster wide IP allocation: %v", err)
+						requestCancel()
 						return newips, err
 					}
 
@@ -654,6 +669,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 							logging.Debugf("Continuing loop, IP is already allocated (possibly from another range): %v", newip)
 							// We create "dummy" records here for evaluation, but, we need to filter those out later.
 							overlappingrangeallocations = append(overlappingrangeallocations, whereaboutstypes.IPReservation{IP: newip.IP, IsAllocated: true})
+							requestCancel()
 							continue
 						}
 
@@ -668,6 +684,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				if ipforoverlappingrangeupdate == nil {
 					// Do not fail if allocation was not found.
 					logging.Debugf("Failed to find allocation for container ID: %s", ipam.ContainerID)
+					requestCancel()
 					return nil, nil
 				}
 			}
@@ -689,17 +706,26 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			if err != nil {
 				logging.Errorf("IPAM error updating pool (attempt: %d): %v", j, err)
 				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+					requestCancel()
 					continue
 				}
+				requestCancel()
 				break RETRYLOOP
 			}
+			requestCancel()
 			break RETRYLOOP
+		}
+
+		if err != nil {
+			return newips, logging.Errorf("IP allocation failed for range %s after %d retries: %s", ipRange.Range, storage.DatastoreRetries, err)
 		}
 
 		if ipamConf.OverlappingRanges {
 			if !skipOverlappingRangeUpdate {
-				err = overlappingrangestore.UpdateOverlappingRangeAllocation(requestCtx, mode, ipforoverlappingrangeupdate,
+				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
 					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName)
+				overlappingCancel()
 				if err != nil {
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation: %v", err)
 					return newips, err
@@ -709,7 +735,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 
 		newips = append(newips, newip)
 	}
-	return newips, err
+	return newips, nil
 }
 
 func wbNamespaceFromCtx(ctx *clientcmdapi.Context) string {

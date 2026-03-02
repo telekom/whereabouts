@@ -57,9 +57,12 @@ spec:
                 minLength: 1
                 type: string
               sliceSize:
-                description: SliceSize is the size of subnets or slices of the range
-                  that each node will be assigned.
+                description: |-
+                  SliceSize is the size of subnets or slices of the range that each node will be assigned.
+                  The value must be a numeric prefix length, optionally preceded by a slash (e.g. "24" or "/24").
+                  Semantic validation is performed by the validating webhook.
                 minLength: 1
+                pattern: ^/?[0-9]+$
                 type: string
             required:
             - range

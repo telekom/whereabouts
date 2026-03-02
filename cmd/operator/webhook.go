@@ -56,7 +56,8 @@ func newWebhookCommand() *cobra.Command {
 			// Set up certificate rotation; blocks webhook registration until
 			// certs are ready.
 			certReady := make(chan struct{})
-			if err := certrotator.Enable(mgr, certrotator.Options{
+			ctx := cmd.Context()
+			if err := certrotator.Enable(ctx, mgr, certrotator.Options{
 				Namespace:   namespace,
 				CertDir:     certDir,
 				DNSName:     fmt.Sprintf("whereabouts-webhook.%s.svc", namespace),

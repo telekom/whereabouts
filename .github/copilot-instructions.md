@@ -8,8 +8,9 @@ This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetwo
 - **Allocation engine** (`pkg/allocate/`): `AssignIP` / `IterateForAssignment` find the lowest free IP, skipping `.0` addresses and exclude ranges. Idempotent — existing `podRef+ifName` allocations are returned as-is.
 - **Storage layer** (`pkg/storage/`): `Store` and `IPPool` interfaces in `storage.go`; sole production implementation in `pkg/storage/kubernetes/` using IPPool CRDs with JSON Patch + optimistic locking (up to 100 retries).
 - **Config** (`pkg/config/`): Merges inline IPAM JSON → flat file (`whereabouts.conf`) → defaults using `mergo.Merge`. JSON tags are **snake_case** (`range_start`, `enable_overlapping_ranges`).
-- **Reconciler** (`pkg/reconciler/`): CronJob-driven cleanup of orphaned IP allocations by comparing IPPool entries against live pods.
-- **Controllers** (`cmd/controlloop/`, `cmd/nodeslicecontroller/`): Pod watcher for reconciliation; experimental Fast IPAM node-slice pre-allocation.
+- **Operator** (`cmd/operator/`): Cobra-based entry point with `controller` and `webhook` subcommands. Built on controller-runtime v0.23.
+- **Reconcilers** (`internal/controller/`): `IPPoolReconciler` (orphaned allocation cleanup), `NodeSliceReconciler` (NAD+Node → NodeSlicePool), `OverlappingRangeReconciler` (orphaned reservation cleanup).
+- **Webhooks** (`internal/webhook/`): Typed `admission.Validator[T]` implementations for IPPool, NodeSlicePool, OverlappingRangeIPReservation with matchConditions CEL bypass for CNI ServiceAccount.
 
 ## Build & Test Commands
 
@@ -37,9 +38,10 @@ make kind COMPUTE_NODES=3             # Custom worker count
 - `logging.Errorf` returns `error` — it's dual-purpose (log + return)
 
 ### Testing
-- **Ginkgo v1** + Gomega with dot-imports: `. "github.com/onsi/ginkgo"`, `. "github.com/onsi/gomega"`
+- **Ginkgo v2** + Gomega with dot-imports: `. "github.com/onsi/ginkgo/v2"`, `. "github.com/onsi/gomega"`
 - Suite bootstrap: `RegisterFailHandler(Fail); RunSpecs(t, "Suite Name")`
 - K8s fakes: `fake.NewSimpleClientset(...)` from `client-go/kubernetes/fake` and generated `versioned/fake`
+- controller-runtime `envtest` used for reconciler and webhook tests
 - Some tests use standard `testing.T` table-driven style (e.g., `TestIPPoolName` in `pkg/storage/kubernetes/`)
 - Test entity helpers live alongside production code with `//go:build test` tag
 
@@ -58,4 +60,4 @@ make kind COMPUTE_NODES=3             # Custom worker count
 2. **Optimistic concurrency**: IPPool updates use K8s resource version checks with retry (100 attempts, exponential backoff)
 3. **Overlapping range protection**: `OverlappingRangeIPReservation` CRDs prevent duplicate IPs across ranges (enabled by default)
 4. **Idempotent ADD**: Re-running CNI ADD for the same pod+interface returns the existing allocation
-5. **Three binaries**: `whereabouts` (CNI plugin), `ip-control-loop` (reconciler), `node-slice-controller` (Fast IPAM)
+5. **Two binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconciler + webhooks, via `controller` and `webhook` subcommands)

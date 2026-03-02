@@ -83,6 +83,27 @@ make kind COMPUTE_NODES=3
 - `cmdDelFunc`: Releases an IP address when a pod interface is deleted
 - Loads IPAM configuration from stdin and creates a Kubernetes IPAM client
 
+**Operator** (`cmd/operator/`)
+- Built on controller-runtime v0.23 with Cobra subcommands
+- `controller` subcommand: leader-elected Deployment running reconcilers
+- `webhook` subcommand: webhook server with cert-controller TLS rotation
+- Replaces the old `ip-control-loop` and `node-slice-controller` binaries
+
+**Reconcilers** (`internal/controller/`)
+- `IPPoolReconciler`: Watches IPPool CRDs, removes orphaned allocations by checking podRef against live pods. Uses MergePatch for atomic updates. Handles DisruptionTarget eviction, pending pods (RequeueAfter), IPv6 normalization (net.IP.Equal).
+- `NodeSliceReconciler`: Watches NADs (primary) + Nodes (secondary), manages NodeSlicePool CRDs. Uses SSA for status updates. Parses IPAM config from NAD spec.config JSON.
+- `OverlappingRangeReconciler`: Watches OverlappingRangeIPReservation CRDs, deletes orphaned reservations by checking podRef against live pods.
+
+**Validating Webhooks** (`internal/webhook/`)
+- `IPPoolValidator`: Validates Range CIDR format, podRef "namespace/name" format in allocations
+- `NodeSlicePoolValidator`: Validates Range CIDR, SliceSize as integer 1-128
+- `OverlappingRangeValidator`: Validates podRef "namespace/name" format
+- Uses controller-runtime v0.23 typed `admission.Validator[T]` API
+- Deployment manifests include matchConditions CEL bypass for CNI ServiceAccount
+
+**Cert Rotation** (`internal/webhook/certrotator/`)
+- Wraps `open-policy-agent/cert-controller` rotator for automatic TLS certificate management
+
 **IP Allocation Logic** (`pkg/allocate/`)
 - `AssignIP`: Main allocation function that assigns IPs from a range
 - Iterates through the IP range to find the lowest available IP
@@ -90,7 +111,7 @@ make kind COMPUTE_NODES=3
 - Respects exclude ranges and avoids IPs ending in `.0`
 
 **Storage Backend** (`pkg/storage/`)
-- Abstract interface for IP pool management (currently Kubernetes CRDs primary, etcd legacy)
+- Abstract interface for IP pool management (Kubernetes CRDs)
 - `Store` interface: GetIPPool, GetOverlappingRangeStore, Status, Close
 - `IPPool` interface: Allocations, Update
 - Kubernetes implementation in `pkg/storage/kubernetes/` handles:
@@ -102,16 +123,6 @@ make kind COMPUTE_NODES=3
 - Parses CNI configuration from JSON
 - Supports both inline config and flat-file configuration (`/etc/cni/net.d/whereabouts.d/whereabouts.conf`)
 - Handles range specifications: single CIDR, range with start/end, ipRanges for multi-IP/dual-stack
-
-**IP Reconciler** (`pkg/reconciler/`)
-- Runs as a Kubernetes CronJob to clean up stranded IP allocations
-- Compares allocated IPs against running pods
-- Deallocates IPs for pods that no longer exist (handles node failures, force deletes)
-- Reconciler cron expression configurable via ConfigMap or environment variable
-
-**Controllers**
-- **IP Reconciliation Controller** (`cmd/controlloop/`): Watches pods and reconciles IP allocations
-- **Node Slice Controller** (`cmd/nodeslicecontroller/`): Experimental "Fast IPAM" feature that pre-allocates IP slices per node to reduce contention
 
 ### Custom Resource Definitions
 
@@ -154,20 +165,27 @@ make kind COMPUTE_NODES=3
 
 ### Key Packages
 
+- `cmd/operator`: Cobra-based operator entry point (controller + webhook subcommands)
+- `internal/controller`: controller-runtime reconcilers (IPPool, NodeSlice, OverlappingRange)
+- `internal/webhook`: Validating webhook handlers + cert-controller wrapper
 - `pkg/allocate`: IP assignment algorithms, iteration logic
 - `pkg/iphelpers`: IP address arithmetic, range calculations, CIDR parsing
-- `pkg/storage/kubernetes`: Kubernetes CRD-based storage implementation
+- `pkg/storage/kubernetes`: Kubernetes CRD-based storage implementation (used by CNI binary)
 - `pkg/types`: Core data structures (RangeConfiguration, IPReservation, IPAMConfig)
 - `pkg/config`: Configuration parsing and validation
-- `pkg/reconciler`: Cleanup and reconciliation logic
-- `pkg/controlloop`: Kubernetes controllers (pod watcher, node slice management)
 - `pkg/generated`: Auto-generated Kubernetes clientsets, informers, listers
+
+### Binaries
+
+- `whereabouts`: CNI plugin binary (called by container runtime via Multus)
+- `whereabouts-operator`: Operator binary with `controller` and `webhook` subcommands
 
 ## Testing Strategy
 
-**Unit Tests**: Ginkgo/Gomega framework used extensively
+**Unit Tests**: Ginkgo v2 / Gomega framework used extensively
 - Test files colocated with implementation: `*_test.go`
 - Use fake Kubernetes clients for testing without cluster
+- controller-runtime `envtest` used for reconciler and webhook tests
 - Run with `make test` which includes `go vet` and `staticcheck`
 
 **E2E Tests**: Located in `e2e/` directory
@@ -185,8 +203,7 @@ make kind COMPUTE_NODES=3
 
 ### Fast IPAM (Experimental)
 - Enabled by adding `node_slice_size` field to IPAM config
-- Requires running the node slice controller: `doc/crds/node-slice-controller.yaml`
-- Controller and daemonset must run in same namespace as NetworkAttachmentDefinitions
+- Managed by the operator's NodeSliceReconciler (deployed via `doc/crds/operator-install.yaml`)
 - Pre-allocates IP slices per node to reduce allocation contention in large clusters
 
 ### Configuration Hierarchy
@@ -200,8 +217,7 @@ The plugin checks for existing allocations by `podRef` and `ifName` before alloc
 
 ### Storage Backend Considerations
 - Default and recommended: Kubernetes CRDs (no additional infrastructure)
-- Legacy: etcd (deprecated, requires separate etcd cluster)
-- Overlapping range protection only works with Kubernetes backend
+- Overlapping range protection uses OverlappingRangeIPReservation CRDs (enabled by default)
 
 ### Network Names
 Use `network_name` parameter to allow multiple independent allocations from the same CIDR in multi-tenant scenarios. This creates separate IPPool CRs per network name.

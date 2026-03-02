@@ -101,6 +101,7 @@ func (r *OverlappingRangeReconciler) deleteReservation(ctx context.Context, rese
 		}
 		return ctrl.Result{}, fmt.Errorf("deleting OverlappingRangeIPReservation %s: %s", reservation.Name, err)
 	}
+	overlappingReservationsCleaned.Inc()
 	return ctrl.Result{}, nil
 }
 

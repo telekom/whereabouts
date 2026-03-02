@@ -83,6 +83,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	// Report current allocation count.
+	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
+
 	if len(pool.Spec.Allocations) == 0 {
 		return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
 	}
@@ -146,6 +149,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if err := r.removeAllocations(ctx, &pool, orphanedKeys); err != nil {
 			return ctrl.Result{}, fmt.Errorf("removing orphaned allocations: %s", err)
 		}
+		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedKeys)))
 		logger.Info("cleaned up orphaned allocations",
 			"pool", pool.Name, "count", len(orphanedKeys))
 
@@ -160,6 +164,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if hasPending {
 		return ctrl.Result{RequeueAfter: pendingPodRequeueInterval}, nil
 	}
+
+	// Update allocation gauge after cleanup.
+	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
 }
@@ -211,7 +218,8 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 					logger.Error(err, "failed to delete overlapping reservation",
 						"name", res.Name)
 					lastErr = err
-				} else {
+				} else if err == nil {
+					overlappingReservationsCleaned.Inc()
 					logger.V(1).Info("deleted overlapping reservation", "name", res.Name)
 				}
 			}

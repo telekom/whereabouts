@@ -178,6 +178,7 @@ func (r *NodeSliceReconciler) createPool(ctx context.Context, nad *nadv1.Network
 
 	logger.Info("created NodeSlicePool", "name", name, "range", rangeStr,
 		"sliceSize", sliceSize, "nodes", len(nodes))
+	recordNodeSliceMetrics(name, allocations)
 	return ctrl.Result{}, nil
 }
 
@@ -202,6 +203,7 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 
 	logger.Info("updated NodeSlicePool spec and re-sliced", "name", pool.Name,
 		"range", rangeStr, "sliceSize", sliceSize)
+	recordNodeSliceMetrics(pool.Name, allocations)
 	return ctrl.Result{}, nil
 }
 
@@ -254,6 +256,7 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 		}
 	}
 
+	recordNodeSliceMetrics(pool.Name, pool.Status.Allocations)
 	return ctrl.Result{}, nil
 }
 

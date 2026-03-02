@@ -80,7 +80,6 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		Name                     string
 		Type                     string               `json:"type"`
 		Routes                   []*cnitypes.Route    `json:"routes"`
-		Datastore                string               `json:"datastore"`
 		Addresses                []Address            `json:"addresses,omitempty"`
 		IPRanges                 []RangeConfiguration `json:"ipRanges"`
 		NodeSliceSize            string               `json:"node_slice_size"`
@@ -90,12 +89,6 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		RangeStart               string               `json:"range_start,omitempty"`
 		RangeEnd                 string               `json:"range_end,omitempty"`
 		GatewayStr               string               `json:"gateway"`
-		EtcdHost                 string               `json:"etcd_host,omitempty"`
-		EtcdUsername             string               `json:"etcd_username,omitempty"`
-		EtcdPassword             string               `json:"etcd_password,omitempty"`
-		EtcdKeyFile              string               `json:"etcd_key_file,omitempty"`
-		EtcdCertFile             string               `json:"etcd_cert_file,omitempty"`
-		EtcdCACertFile           string               `json:"etcd_ca_cert_file,omitempty"`
 		LeaderLeaseDuration      int                  `json:"leader_lease_duration,omitempty"`
 		LeaderRenewDeadline      int                  `json:"leader_renew_deadline,omitempty"`
 		LeaderRetryPeriod        int                  `json:"leader_retry_period,omitempty"`

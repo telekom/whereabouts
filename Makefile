@@ -14,10 +14,10 @@ build:
 	hack/build-go.sh
 
 docker-build:
-	$(OCI_BIN) build -t ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -f Dockerfile .
+	$(OCI_BIN) build --build-arg VERSION=$(IMAGE_TAG) --build-arg GIT_SHA=$$(git rev-parse --short HEAD) -t ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -f Dockerfile .
 
 generate-api:
-	hack/verify-codegen.sh
+	hack/update-codegen.sh
 	rm -rf github.com
 
 install-tools:
@@ -49,7 +49,8 @@ $(BIN_DIR):
 YQ=$(BIN_DIR)/yq
 YQ_VERSION=v4.44.1
 $(YQ): | $(BIN_DIR); $(info installing yq)
-	@curl -fsSL -o $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_linux_amd64 && chmod +x $(YQ)
+	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]') && ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/' | sed 's/arm64/arm64/') && \
+	curl -fsSL -o $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$${OS}_$${ARCH} && chmod +x $(YQ)
 
 .PHONY: chart-prepare-release
 chart-prepare-release: | $(YQ) ; ## prepare chart for release

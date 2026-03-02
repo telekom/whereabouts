@@ -58,7 +58,11 @@ func ensureSecret(ctx context.Context, c client.Client, key types.NamespacedName
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
-	return c.Create(ctx, secret)
+	if err := c.Create(ctx, secret); apierrors.IsAlreadyExists(err) {
+		return nil
+	} else {
+		return err
+	}
 }
 
 // Enable adds a certificate rotator runnable to the manager.

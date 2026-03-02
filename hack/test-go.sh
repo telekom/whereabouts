@@ -13,7 +13,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Invalid arguement: $1"
+      echo "Invalid argument: $1"
       echo "Usage: $0 [-s|--skip-static-check]"
       exit 1
   esac
@@ -37,6 +37,7 @@ fi
 echo "Running go tests..."
 KUBEBUILDER_ASSETS="$(pwd)/bin" ${GO} test \
     -v \
-    -covermode=count \
+    -race \
+    -covermode=atomic \
     -coverprofile=coverage.out \
     $(${GO} list ./... | grep -v e2e | tr "\n" " ")

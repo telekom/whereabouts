@@ -66,7 +66,7 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	// NB: Don't try to do any initialization before this point or it won't account for merged flat file.
 	var OverlappingRanges = n.IPAM.OverlappingRanges
 	if err := mergo.Merge(&n, flatipam); err != nil {
-		logging.Errorf("Merge error with flat file: %s", err)
+		return nil, "", logging.Errorf("merge error with flat file: %s", err)
 	}
 	n.IPAM.OverlappingRanges = OverlappingRanges
 

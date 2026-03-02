@@ -108,13 +108,16 @@ kind load image-archive --name "$KIND_CLUSTER_NAME" /tmp/whereabouts-img.tar
 
 echo "## install whereabouts"
 for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml" "whereabouts.cni.cncf.io_nodeslicepools.yaml"; do
-  # insert 'imagePullPolicy: Never' under the container 'image' so it is certain that the image used
-  # by the daemonset is the one loaded into KinD and not one pulled from a repo
-  awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
+  # replace pinned image tag with locally built image, and insert imagePullPolicy: Never
+  # so it is certain that the image used by the daemonset is the one loaded into KinD
+  sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" "$ROOT/doc/crds/$file" | \
+  awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' | retry kubectl apply -f -
 done
 # operator and webhook deployments use same indentation for their image field
-awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/operator-install.yaml" | retry kubectl apply -f -
-awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/webhook-install.yaml" | retry kubectl apply -f -
+sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" "$ROOT/doc/crds/operator-install.yaml" | \
+awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' | retry kubectl apply -f -
+sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" "$ROOT/doc/crds/webhook-install.yaml" | \
+awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' | retry kubectl apply -f -
 retry kubectl apply -f "$ROOT/doc/crds/validatingwebhookconfiguration.yaml"
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-operator pod --timeout=$TIMEOUT_K8

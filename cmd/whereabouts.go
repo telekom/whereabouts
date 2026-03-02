@@ -23,8 +23,7 @@ import (
 func cmdAddFunc(args *skel.CmdArgs) error {
 	ipamConf, confVersion, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
-		logging.Errorf("IPAM configuration load failed: %s", err)
-		return err
+		return logging.Errorf("IPAM configuration load failed: %s", err)
 	}
 	logging.Debugf("ADD - IPAM configuration successfully read: %+v", *ipamConf)
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
@@ -159,8 +158,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 
 	newips, err := kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
 	if err != nil {
-		logging.Errorf("Error at storage engine: %s", err)
-		return fmt.Errorf("error at storage engine: %s", err)
+		return logging.Errorf("error at storage engine: %s", err)
 	}
 
 	for _, newip := range newips {

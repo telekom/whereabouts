@@ -86,7 +86,7 @@ spec:
       serviceAccountName: whereabouts-operator
       containers:
       - name: controller
-        image: ghcr.io/telekom/whereabouts:latest
+        image: ghcr.io/telekom/whereabouts:v0.8.0
         command:
         - /whereabouts-operator
         - controller

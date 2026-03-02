@@ -12,7 +12,7 @@ import (
 
 func TestAllocate(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "cmd")
+	RunSpecs(t, "Allocate Suite")
 }
 
 var _ = Describe("Allocation operations", func() {

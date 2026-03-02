@@ -23,48 +23,7 @@ The daemonset installation as shown on the README is for use with Kubernetes ver
 
 You can compile from this repo (with `./hack/build-go.sh`) and copy the resulting binary onto each node in the `/opt/cni/bin` directory (by default).
 
-Not that we're also including a Custom Resource Definition (CRD) to use the `kubernetes` datastore option. This installs the kubernetes CRD specification for the `ippools.whereabouts.cni.k8s.io/v1alpha1` type.
-
-### Example etcd datastore configuration
-
-If you'll use the etcd datastore option, you'll likely want to install etcd first. Etcd installation suggestions follow below.
-
-*NOTE*: You'll almost certainly want to change `etcd_host`.
-
-```
-{
-      "cniVersion": "0.3.0",
-      "name": "whereaboutsexample",
-      "type": "macvlan",
-      "master": "eth0",
-      "mode": "bridge",
-      "ipam": {
-        "type": "whereabouts",
-        "etcd_host": "example-etcd-cluster-client.cluster.local:2379",
-        "range": "192.168.2.225/28",
-        "exclude": [
-           "192.168.2.229/30",
-           "192.168.2.236/32"
-        ],
-        "log_file" : "/tmp/whereabouts.log",
-        "log_level" : "debug",
-        "gateway": "192.168.2.1"
-      }
-}
-```
-
-
-### etcd Parameters
-
-**Required:**
-* `etcd_host`: This is a connection string for your etcd hosts. It can take a single address or a list, or any other valid etcd connection string.
-
-**Optional:**
-* `etcd_username`: Basic Auth username to use when accessing the etcd API.
-* `etcd_password`: Basic Auth password to use when accessing the etcd API.
-* `etcd_key_file`: Path to the file containing the etcd private key matching the CNI plugin’s client certificate.
-* `etcd_cert_file`: Path to the file containing the etcd client certificate issued to the CNI plugin.
-* `etcd_ca_cert_file`: Path to the file containing the root certificate of the certificate authority (CA) that issued the etcd server certificate.
+Note that we're also including a Custom Resource Definition (CRD) to use the `kubernetes` datastore option. This installs the kubernetes CRD specification for the `ippools.whereabouts.cni.cncf.io/v1alpha1` type.
 
 ### Logging Parameters
 

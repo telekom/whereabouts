@@ -17,7 +17,7 @@ const (
 
 func TestIPHelpers(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "cmd")
+	RunSpecs(t, "IP Helpers Suite")
 }
 
 var _ = Describe("CompareIPs operations", func() {

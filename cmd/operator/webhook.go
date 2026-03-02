@@ -36,7 +36,12 @@ func newWebhookCommand() *cobra.Command {
 				return fmt.Errorf("--namespace is required")
 			}
 
-			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+			cfg, err := ctrl.GetConfig()
+			if err != nil {
+				return fmt.Errorf("loading kubeconfig: %s", err)
+			}
+
+			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: scheme,
 				Metrics: server.Options{
 					BindAddress: metricsAddr,

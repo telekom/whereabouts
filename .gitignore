@@ -21,3 +21,6 @@ bin/
 #Claude 
 CLAUDE.local.md
 ./claude
+
+# Build artifacts
+operator

@@ -71,7 +71,7 @@ webhooks:
     apiVersions: [v1alpha1]
     operations: [CREATE, UPDATE]
     resources: [overlappingrangeipreservations]
-    scope: Cluster
+    scope: Namespaced
   matchConditions:
   - name: bypass-cni-plugin
     expression: >-

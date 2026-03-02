@@ -69,14 +69,15 @@ func newWebhookCommand() *cobra.Command {
 			}
 
 			// Register webhooks after cert bootstrap.
-			if err := mgr.Add(webhook.NewSetup(mgr, certReady)); err != nil {
+			webhookSetup := webhook.NewSetup(mgr, certReady)
+			if err := mgr.Add(webhookSetup); err != nil {
 				return err
 			}
 
 			if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 				return err
 			}
-			if err := mgr.AddReadyzCheck("readyz", webhook.ReadyCheck(certReady)); err != nil {
+			if err := mgr.AddReadyzCheck("readyz", webhookSetup.ReadyCheck()); err != nil {
 				return err
 			}
 

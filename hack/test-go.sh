@@ -20,7 +20,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "Running go vet ..."
-${GO} vet ./cmd/... ./pkg/...
+${GO} vet ./cmd/... ./pkg/... ./internal/...
 
 BASEDIR=$(pwd)
 

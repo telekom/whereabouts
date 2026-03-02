@@ -78,7 +78,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 	})
 
 	Context("ValidateUpdate", func() {
-		It("should accept a valid update", func() {
+		It("should accept an update with identical spec", func() {
 			oldRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "10.0.0.1",
@@ -90,20 +90,67 @@ var _ = Describe("OverlappingRangeValidator", func() {
 					IfName:      "eth0",
 				},
 			}
-			newRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+			newRes := oldRes.DeepCopy()
+			warnings, err := validator.ValidateUpdate(ctx, oldRes, newRes)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should reject a PodRef change", func() {
+			oldRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "10.0.0.1",
 					Namespace: "default",
 				},
 				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
-					ContainerID: "def456",
-					PodRef:      "default/other-pod",
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
 					IfName:      "eth0",
 				},
 			}
-			warnings, err := validator.ValidateUpdate(ctx, oldRes, newRes)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(warnings).To(BeNil())
+			newRes := oldRes.DeepCopy()
+			newRes.Spec.PodRef = "default/other-pod"
+			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.podref is immutable"))
+		})
+
+		It("should reject an IfName change", func() {
+			oldRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.1",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
+					IfName:      "eth0",
+				},
+			}
+			newRes := oldRes.DeepCopy()
+			newRes.Spec.IfName = "net1"
+			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.ifname is immutable"))
+		})
+
+		It("should reject a ContainerID change", func() {
+			oldRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.1",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
+					IfName:      "eth0",
+				},
+			}
+			newRes := oldRes.DeepCopy()
+			newRes.Spec.ContainerID = "def456"
+			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.containerid is immutable"))
 		})
 	})
 

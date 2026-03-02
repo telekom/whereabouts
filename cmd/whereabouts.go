@@ -38,14 +38,18 @@ func cmdAddFunc(args *skel.CmdArgs) error {
 func cmdDelFunc(args *skel.CmdArgs) error {
 	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
-		logging.Errorf("IPAM configuration load failed: %s", err)
-		return err
+		// CNI spec: DEL should be lenient about missing/invalid config.
+		// Log the error but do not return it — the container is already gone.
+		logging.Errorf("IPAM configuration load failed (DEL tolerant): %s", err)
+		return nil
 	}
 	logging.Debugf("DEL - IPAM configuration successfully read: %+v", *ipamConf)
 
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 	if err != nil {
-		return logging.Errorf("IPAM client initialization error: %v", err)
+		// Lenient: if we can't even build the client, log and succeed.
+		logging.Errorf("IPAM client initialization error (DEL tolerant): %v", err)
+		return nil
 	}
 	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
 
@@ -69,9 +73,9 @@ func safeCloseKubernetesBackendConnection(ipam *kubernetes.KubernetesIPAM) {
 	}
 }
 
-func cmdCheck(args *skel.CmdArgs) error {
-	// TODO
-	return fmt.Errorf("CNI CHECK method is not implemented")
+func cmdCheck(_ *skel.CmdArgs) error {
+	// CNI CHECK: return nil (no-op). The reconciler handles drift detection.
+	return nil
 }
 
 func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
@@ -88,7 +92,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	newips, err := kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
 	if err != nil {
 		logging.Errorf("Error at storage engine: %s", err)
-		return fmt.Errorf("error at storage engine: %w", err)
+		return fmt.Errorf("error at storage engine: %s", err)
 	}
 
 	for _, newip := range newips {
@@ -104,6 +108,10 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 			Gateway: v.Gateway})
 	}
 
+	if len(result.IPs) == 0 {
+		return fmt.Errorf("no IP addresses allocated — check IPAM configuration (ipRanges may be empty)")
+	}
+
 	return cnitypes.PrintResult(result, cniVersion)
 }
 
@@ -111,7 +119,9 @@ func cmdDel(client *kubernetes.KubernetesIPAM) error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.DelTimeLimit)
 	defer cancel()
 
-	_, _ = kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
-
+	_, err := kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
+	if err != nil {
+		return logging.Errorf("error deallocating IP: %s", err)
+	}
 	return nil
 }

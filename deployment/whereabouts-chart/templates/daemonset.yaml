@@ -45,8 +45,7 @@ spec:
             - -c
             - |
               SLEEP=false source /install-cni.sh
-              /token-watcher.sh &
-              /ip-control-loop -log-level debug
+              /token-watcher.sh
           env:
           - name: NODENAME
             valueFrom:

@@ -20,7 +20,9 @@ spec:
       {{- end }}
       containers:
         - command:
-            - /node-slice-controller
+            - /whereabouts-operator
+            - controller
+            - --leader-elect=true
           env:
             - name: NODENAME
               valueFrom:

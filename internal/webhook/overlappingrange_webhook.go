@@ -35,7 +35,19 @@ func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *where
 }
 
 // ValidateUpdate validates an OverlappingRangeIPReservation on update.
-func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, _, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
+// Spec fields are immutable once created.
+func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
+	if oldRes != nil {
+		if oldRes.Spec.PodRef != res.Spec.PodRef {
+			return nil, fmt.Errorf("spec.podref is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
+		}
+		if oldRes.Spec.IfName != res.Spec.IfName {
+			return nil, fmt.Errorf("spec.ifname is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
+		}
+		if oldRes.Spec.ContainerID != res.Spec.ContainerID {
+			return nil, fmt.Errorf("spec.containerid is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
+		}
+	}
 	return validateOverlappingRange(res)
 }
 

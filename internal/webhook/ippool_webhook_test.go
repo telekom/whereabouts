@@ -137,7 +137,7 @@ var _ = Describe("IPPoolValidator", func() {
 	})
 
 	Context("ValidateUpdate", func() {
-		It("should accept a valid update", func() {
+		It("should accept a valid update with same range", func() {
 			oldPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -167,6 +167,64 @@ var _ = Describe("IPPoolValidator", func() {
 			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(warnings).To(BeEmpty())
+		})
+
+		It("should reject a range change", func() {
+			oldPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.1.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.range is immutable"))
+		})
+
+		It("should reject an update with invalid podRef", func() {
+			oldPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range: "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+						"1": {
+							ContainerID: "abc123",
+							PodRef:      "invalid",
+							IfName:      "eth0",
+						},
+					},
+				},
+			}
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid podRef"))
 		})
 	})
 

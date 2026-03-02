@@ -26,8 +26,6 @@ import (
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
 
-
-
 // NodeSliceReconciler reconciles NetworkAttachmentDefinition resources by
 // managing the corresponding NodeSlicePool CRDs. It assigns IP range slices
 // to nodes and ensures node join/leave events are reflected in the allocations.

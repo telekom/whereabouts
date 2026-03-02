@@ -138,6 +138,79 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 		})
 	})
 
+	Context("ValidateUpdate", func() {
+		It("should accept a valid update with same spec", func() {
+			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+			}
+			newPool := oldPool.DeepCopy()
+			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should accept an update with changed range", func() {
+			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+			}
+			newPool := oldPool.DeepCopy()
+			newPool.Spec.Range = "10.1.0.0/16"
+			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should reject an update with invalid range", func() {
+			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+			}
+			newPool := oldPool.DeepCopy()
+			newPool.Spec.Range = "not-a-cidr"
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid spec.range"))
+		})
+
+		It("should reject an update with invalid sliceSize", func() {
+			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+			}
+			newPool := oldPool.DeepCopy()
+			newPool.Spec.SliceSize = "abc"
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid spec.sliceSize"))
+		})
+	})
+
 	Context("ValidateDelete", func() {
 		It("should always succeed", func() {
 			pool := &whereaboutsv1alpha1.NodeSlicePool{

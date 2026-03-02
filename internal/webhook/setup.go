@@ -6,6 +6,7 @@ package webhook
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 
@@ -40,10 +41,15 @@ func (s *setup) Start(ctx context.Context) error {
 		log.Info("certificates ready, registering webhooks")
 	}
 
-	// TODO(step-13): Register validating webhooks here:
-	// - IPPool
-	// - NodeSlicePool
-	// - OverlappingRangeIPReservation
+	if err := SetupIPPoolWebhook(s.mgr); err != nil {
+		return fmt.Errorf("registering IPPool webhook: %s", err)
+	}
+	if err := SetupNodeSlicePoolWebhook(s.mgr); err != nil {
+		return fmt.Errorf("registering NodeSlicePool webhook: %s", err)
+	}
+	if err := SetupOverlappingRangeWebhook(s.mgr); err != nil {
+		return fmt.Errorf("registering OverlappingRangeIPReservation webhook: %s", err)
+	}
 
 	s.ready.Store(true)
 	log.Info("webhooks registered")

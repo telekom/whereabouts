@@ -32,7 +32,9 @@ func SetupOverlappingRangeWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates an OverlappingRangeIPReservation on creation.
 func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
-	return validateOverlappingRange(res)
+	w, err := validateOverlappingRange(res)
+	recordValidation("overlappingrange", "create", err)
+	return w, err
 }
 
 // ValidateUpdate validates an OverlappingRangeIPReservation on update.
@@ -40,20 +42,29 @@ func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *where
 func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
 	if oldRes != nil {
 		if oldRes.Spec.PodRef != res.Spec.PodRef {
-			return nil, fmt.Errorf("spec.podref is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
+			err := fmt.Errorf("spec.podref is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
+			recordValidation("overlappingrange", "update", err)
+			return nil, err
 		}
 		if oldRes.Spec.IfName != res.Spec.IfName {
-			return nil, fmt.Errorf("spec.ifname is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
+			err := fmt.Errorf("spec.ifname is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
+			recordValidation("overlappingrange", "update", err)
+			return nil, err
 		}
 		if oldRes.Spec.ContainerID != res.Spec.ContainerID {
-			return nil, fmt.Errorf("spec.containerid is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
+			err := fmt.Errorf("spec.containerid is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
+			recordValidation("overlappingrange", "update", err)
+			return nil, err
 		}
 	}
-	return validateOverlappingRange(res)
+	w, err := validateOverlappingRange(res)
+	recordValidation("overlappingrange", "update", err)
+	return w, err
 }
 
 // ValidateDelete is a no-op.
 func (v *OverlappingRangeValidator) ValidateDelete(_ context.Context, _ *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
+	recordValidation("overlappingrange", "delete", nil)
 	return nil, nil
 }
 

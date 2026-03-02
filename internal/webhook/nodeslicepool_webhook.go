@@ -32,7 +32,9 @@ func SetupNodeSlicePoolWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates a NodeSlicePool on creation.
 func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
-	return validateNodeSlicePool(pool)
+	w, err := validateNodeSlicePool(pool)
+	recordValidation("nodeslicepool", "create", err)
+	return w, err
 }
 
 // ValidateUpdate validates a NodeSlicePool on update.
@@ -45,11 +47,13 @@ func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool
 		warnings = append(warnings, fmt.Sprintf("spec.sliceSize changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.SliceSize, pool.Spec.SliceSize))
 	}
 	w, err := validateNodeSlicePool(pool)
+	recordValidation("nodeslicepool", "update", err)
 	return append(warnings, w...), err
 }
 
 // ValidateDelete is a no-op.
 func (v *NodeSlicePoolValidator) ValidateDelete(_ context.Context, _ *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
+	recordValidation("nodeslicepool", "delete", nil)
 	return nil, nil
 }
 

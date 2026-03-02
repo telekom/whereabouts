@@ -32,7 +32,9 @@ func SetupIPPoolWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates an IPPool on creation.
 func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	return validateIPPool(pool)
+	w, err := validateIPPool(pool)
+	recordValidation("ippool", "create", err)
+	return w, err
 }
 
 // ValidateUpdate validates an IPPool on update.
@@ -45,11 +47,13 @@ func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *where
 			oldPool.Spec.Range, pool.Spec.Range))
 	}
 	w, err := validateIPPool(pool)
+	recordValidation("ippool", "update", err)
 	return append(warnings, w...), err
 }
 
 // ValidateDelete is a no-op — deletes are always allowed.
 func (v *IPPoolValidator) ValidateDelete(_ context.Context, _ *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+	recordValidation("ippool", "delete", nil)
 	return nil, nil
 }
 

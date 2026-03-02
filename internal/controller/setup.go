@@ -22,7 +22,9 @@ func SetupWithManager(mgr ctrl.Manager, reconcileInterval time.Duration) error {
 		return err
 	}
 
-	// TODO(step-11): register OverlappingRangeReconciler
+	if err := SetupOverlappingRangeReconciler(mgr, reconcileInterval); err != nil {
+		return err
+	}
 
 	return nil
 }

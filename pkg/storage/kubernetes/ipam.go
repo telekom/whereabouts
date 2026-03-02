@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -244,14 +244,13 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 func toIPReservationList(allocations map[string]whereaboutsv1alpha1.IPAllocation, firstip net.IP) []whereaboutstypes.IPReservation {
 	reservelist := []whereaboutstypes.IPReservation{}
 	for offset, a := range allocations {
-		numOffset, err := strconv.ParseInt(offset, 10, 64)
-		if err != nil {
-			// allocations that are invalid int64s should be ignored
-			// toAllocationMap should be the only writer of offsets, via `fmt.Sprintf("%d", ...)``
-			logging.Errorf("Error decoding ip offset (backend: kubernetes): %v", err)
+		numOffset, ok := new(big.Int).SetString(offset, 10)
+		if !ok || numOffset.Sign() < 0 {
+			// allocations that are not valid non-negative integers should be ignored
+			logging.Errorf("Error decoding ip offset (backend: kubernetes): invalid offset %q", offset)
 			continue
 		}
-		ip := iphelpers.IPAddOffset(firstip, uint64(numOffset))
+		ip := iphelpers.IPAddOffset(firstip, numOffset)
 		reservelist = append(reservelist, whereaboutstypes.IPReservation{IP: ip, ContainerID: a.ContainerID, PodRef: a.PodRef, IfName: a.IfName})
 	}
 	return reservelist
@@ -264,7 +263,7 @@ func toAllocationMap(reservelist []whereaboutstypes.IPReservation, firstip net.I
 		if err != nil {
 			return nil, err
 		}
-		allocations[fmt.Sprintf("%d", index)] = whereaboutsv1alpha1.IPAllocation{ContainerID: r.ContainerID, PodRef: r.PodRef, IfName: r.IfName}
+		allocations[index.String()] = whereaboutsv1alpha1.IPAllocation{ContainerID: r.ContainerID, PodRef: r.PodRef, IfName: r.IfName}
 	}
 	return allocations, nil
 }
@@ -344,7 +343,7 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 // NormalizeIP normalizes the IP. This is important for IPv6 which doesn't make for valid CR names. It also allows us
 // to add the network-name when it's different from the unnamed network.
 func NormalizeIP(ip net.IP, networkName string) string {
-	ipStr := fmt.Sprint(ip)
+	ipStr := ip.String()
 	if ipStr[len(ipStr)-1] == ':' {
 		ipStr += "0"
 		logging.Debugf("modified: %s", ipStr)
@@ -741,6 +740,9 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		if err != nil {
+			if attempts == 0 {
+				return newips, logging.Errorf("IP allocation failed for range %s before any attempt completed: %s", configuredRange, err)
+			}
 			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %s", configuredRange, attempts, err)
 		}
 

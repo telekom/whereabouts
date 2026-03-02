@@ -172,58 +172,38 @@ func DecIP(ip net.IP) net.IP {
 	return addrToNetIP(prev, ip)
 }
 
-// IPGetOffset returns the absolute offset between ip1 and ip2.
+// IPGetOffset returns the absolute offset between ip1 and ip2 as a *big.Int.
 // The result is always non-negative. Uses k8s.io/utils/net for IP arithmetic.
-func IPGetOffset(ip1, ip2 net.IP) (uint64, error) {
+func IPGetOffset(ip1, ip2 net.IP) (*big.Int, error) {
 	addr1, ok1 := toAddr(ip1)
 	addr2, ok2 := toAddr(ip2)
 	if !ok1 || !ok2 {
-		return 0, fmt.Errorf("invalid IP address(es): ip1=%v, ip2=%v", ip1, ip2)
+		return nil, fmt.Errorf("invalid IP address(es): ip1=%v, ip2=%v", ip1, ip2)
 	}
 	if addr1.Is4() && !addr2.Is4() {
-		return 0, fmt.Errorf("cannot calculate offset between IPv4 (%s) and IPv6 address (%s)", ip1, ip2)
+		return nil, fmt.Errorf("cannot calculate offset between IPv4 (%s) and IPv6 address (%s)", ip1, ip2)
 	}
 	if !addr1.Is4() && addr2.Is4() {
-		return 0, fmt.Errorf("cannot calculate offset between IPv6 (%s) and IPv4 address (%s)", ip1, ip2)
+		return nil, fmt.Errorf("cannot calculate offset between IPv6 (%s) and IPv4 address (%s)", ip1, ip2)
 	}
 
 	a := netutils.BigForIP(ip1)
 	b := netutils.BigForIP(ip2)
 	diff := new(big.Int).Sub(a, b)
 	diff.Abs(diff)
-
-	if !diff.IsUint64() {
-		return 0, fmt.Errorf("offset between %s and %s exceeds uint64", ip1, ip2)
-	}
-	return diff.Uint64(), nil
+	return diff, nil
 }
 
 // IPAddOffset returns ip + offset. Uses k8s.io/utils/net for IP arithmetic.
-func IPAddOffset(ip net.IP, offset uint64) net.IP {
+// The offset must be non-negative.
+func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
 	if ip == nil {
 		return nil
 	}
 
 	base := netutils.BigForIP(ip)
-	off := new(big.Int).SetUint64(offset)
-	resultInt := new(big.Int).Add(base, off)
-
-	// Reconstruct net.IP from the big.Int, preserving original length.
-	b := resultInt.Bytes()
-	if len(ip) == net.IPv4len {
-		result := make(net.IP, net.IPv4len)
-		if len(b) > net.IPv4len {
-			b = b[len(b)-net.IPv4len:]
-		}
-		copy(result[net.IPv4len-len(b):], b)
-		return result
-	}
-	result := make(net.IP, net.IPv6len)
-	if len(b) > net.IPv6len {
-		b = b[len(b)-net.IPv6len:]
-	}
-	copy(result[net.IPv6len-len(b):], b)
-	return result
+	resultInt := new(big.Int).Add(base, offset)
+	return bigIntToIP(resultInt, len(ip) != net.IPv4len)
 }
 
 // IsIPv4 checks if an IP is v4.
@@ -266,22 +246,25 @@ func GetIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP) (net.IP, ne
 }
 
 // bigIntToIP converts a *big.Int to a net.IP of the appropriate length.
+// Uses netip.Addr for canonical representation.
 func bigIntToIP(i *big.Int, is6 bool) net.IP {
 	b := i.Bytes()
 	if is6 {
-		result := make(net.IP, net.IPv6len)
+		var arr [net.IPv6len]byte
 		if len(b) > net.IPv6len {
 			b = b[len(b)-net.IPv6len:]
 		}
-		copy(result[net.IPv6len-len(b):], b)
-		return result
+		copy(arr[net.IPv6len-len(b):], b)
+		addr := netip.AddrFrom16(arr)
+		return addr.AsSlice()
 	}
-	result := make(net.IP, net.IPv4len)
+	var arr [net.IPv4len]byte
 	if len(b) > net.IPv4len {
 		b = b[len(b)-net.IPv4len:]
 	}
-	copy(result[net.IPv4len-len(b):], b)
-	return result
+	copy(arr[net.IPv4len-len(b):], b)
+	addr := netip.AddrFrom4(arr)
+	return addr.AsSlice()
 }
 
 // addrToNetIP converts a netip.Addr back to net.IP, preserving the slice length of origIP.

@@ -43,8 +43,8 @@ func (i NodeSlicePool) ParseCIDR() (net.IP, *net.IPNet, error) {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=nsp
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`
-// +kubebuilder:printcolumn:name="SliceSize",type=string,JSONPath=`.spec.sliceSize`
+// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`,description="CIDR range of the node slice pool"
+// +kubebuilder:printcolumn:name="SliceSize",type=string,JSONPath=`.spec.sliceSize`,description="Size of each node slice"
 
 // NodeSlicePool is the Schema for the nodeslicepools API.
 type NodeSlicePool struct {

@@ -4,16 +4,18 @@ Should you need to further configure Whereabouts, you might find these options v
 
 ## IP Reconciliation
 
-Whereabouts includes a tool which is intended be run as a k8s `CronJob`. This
-utility scans the currently allocated IP addresses, and reconciles them against
-the currently running pods, and deallocates IP addresses which have been left
-stranded.
+Whereabouts includes an IP reconciliation mechanism that continuously scans
+allocated IP addresses, reconciles them against currently running pods, and
+deallocates IP addresses which have been left stranded.
+
 Stranded IP addresses can occur due to node failures (e.g. a sudden power off /
 reboot event) or potentially from pods that have been force deleted
 (e.g. `kubectl delete pod foo --grace-period=0 --force`)
 
-A reference deployment of this tool is available in the
-`/docs/ip-reconcilier-job.yaml` file.
+The reconciler runs as part of the **whereabouts-operator** (see
+`doc/crds/operator-install.yaml`). The reconciliation interval is configured
+via the `--reconcile-interval` flag on the operator's `controller` subcommand
+(default: `30s`).
 
 ## Installation options
 
@@ -73,7 +75,7 @@ There are two optional parameters for logging, they are:
 
 ## Flatfile configuration
 
-During installation using the daemonset-style install, Whereabouts creates a configuration file @ `/etc/cni/net.d/whereabouts.d/whereabouts.conf`. Any parameter that you do not wish to repeatly put into the `ipam` section of a CNI configuration can be put into this file (such as etcd and Kubernetes configuration parameters, or logging).
+During installation using the daemonset-style install, Whereabouts creates a configuration file @ `/etc/cni/net.d/whereabouts.d/whereabouts.conf`. Any parameter that you do not wish to repeatedly put into the `ipam` section of a CNI configuration can be put into this file (such as Kubernetes configuration parameters or logging).
 
 There is one option for flat file configuration:
 
@@ -100,7 +102,6 @@ Create a file named `/etc/cni/net.d/whereabouts.d/whereabouts.conf`, with the co
 
 ```
 {
-  "datastore": "kubernetes",
   "kubernetes": {
     "kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
   },
@@ -134,39 +135,18 @@ spec:
 
 You'll note that in the `ipam` section there's a lot less parameters than are used in the previous examples.
 
-## Reconciler Cron Expression configuration for clusters via flatfile (optional)
+## Reconciler Interval Configuration (optional)
 
-You may want to provide a cron expression to configure how frequently the ip-reconciler runs. For clusters that have not yet been launched, this can be configured via the flatfile.
+The IP reconciler runs as part of the whereabouts-operator. The reconciliation
+interval can be configured via the `--reconcile-interval` flag on the operator's
+`controller` subcommand. The default interval is `30s`.
 
-You can speficy the `WHEREABOUTS_RECONCILER_CRON` environment variable in your daemonset definition file to override the default cron expression:
+To change it, edit the operator Deployment's command args:
 ```yaml
-       env:
-        - name: WHEREABOUTS_RECONCILER_CRON
-          value: 30 * * * *
+        command:
+        - /whereabouts-operator
+        - controller
+        - --reconcile-interval=60s
 ```
 
-## Reconciler Cron Expression Configuration for live clusters via configmap (optional)
 
-You may want to provide a cron expression to configure how frequently the ip-reconciler runs.
-
-You can check that the whereabouts-config is present by running `kubectl get configmaps` in the namespace used for Whereabouts.
-
-To update the whereabouts-config, run `kubectl edit configmap whereabouts-config` and adjust the value to a valid cron expression of your liking. Shortly after, the reconciler schedule will update.
-
-## Installing etcd. (optional)
-
-etcd installation is optional. By default, we recommend the custom resource backend (given in the first example configuration).
-
-We recommend that you if you're trying it out in a lab, that you use the [etcd-operator](https://github.com/coreos/etcd-operator), the [installation guide](https://github.com/coreos/etcd-operator/blob/master/doc/user/install_guide.md) is just a few steps. 
-
-*NOTE*: The etcd operator is deprecated.
-
-Once you've got etcd running -- all you'll need to provide Whereabouts is the endpoint(s) for it. In the etcd-operator style installation, you'd find those with:
-
-```
-kubectl get svc | grep "etcd-cluster-client"
-```
-
-This will give you the service name and the port to use, in this case you'll specify it in the configuration in a `service-name:port` format, the default port for etcd clients is `2379`.
-
-*Note*: It's important to remember that CNI plugins (typically) run directly on the host and not inside pods. This means that if you use the DNS name (which might look something like `example-etcd-cluster-client.default.svc.cluster.local`) for the service (recommended) make sure that you can resolve those hostnames directly from your hosts. You may find some tips regarding that [here](https://blog.heptio.com/configuring-your-linux-host-to-resolve-a-local-kubernetes-clusters-service-urls-a8c7bdb212a7).

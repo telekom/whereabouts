@@ -3,6 +3,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -55,7 +56,8 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	flatipam, foundflatfile, err := GetFlatIPAM(false, n.IPAM, extraConfigPaths...)
 	if err != nil {
 		// Config file not found is non-fatal — inline IPAM config may be sufficient.
-		if _, ok := err.(*ConfigFileNotFoundError); !ok {
+		var notFoundErr *ConfigFileNotFoundError
+		if !errors.As(err, &notFoundErr) {
 			return nil, "", err
 		}
 	}

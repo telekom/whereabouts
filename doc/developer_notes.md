@@ -21,8 +21,6 @@ CNI_PATH=$CNI_PATH ./docker-run.sh --rm busybox:latest ifconfig
 
 ## Running in Kube
 
-...Remember to replace with your etcd host.
-
 Create the config...
 
 ```
@@ -41,7 +39,6 @@ spec:
       "ipam": {
         "type": "whereabouts",
         "range": "192.168.2.225/28",
-        "etcd_host": "10.107.83.18:2379",
         "log_file" : "/tmp/whereabouts.log",
         "log_level" : "debug",
         "gateway": "192.168.2.1"

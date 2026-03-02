@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts), maintained by the **Deutsche Telekom T-CAAS team**.
 
-Whereabouts is an IP Address Management (IPAM) CNI plugin for Kubernetes that assigns IP addresses cluster-wide. Unlike host-local which only works per-node, Whereabouts provides cluster-wide IP assignment by tracking allocations in either Kubernetes Custom Resources (CRDs) or etcd.
+Whereabouts is an IP Address Management (IPAM) CNI plugin for Kubernetes that assigns IP addresses cluster-wide. Unlike host-local which only works per-node, Whereabouts provides cluster-wide IP assignment by tracking allocations in Kubernetes Custom Resources (CRDs).
 
 The plugin assigns IPs from a specified range (CIDR notation), always allocating the lowest available address. It supports both IPv4 and IPv6, and is commonly used with Multus CNI for multi-network configurations.
 

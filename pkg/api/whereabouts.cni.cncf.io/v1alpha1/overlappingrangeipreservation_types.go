@@ -18,8 +18,9 @@ type OverlappingRangeIPReservationSpec struct {
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=orip
-// +kubebuilder:printcolumn:name="PodRef",type=string,JSONPath=`.spec.podref`
-// +kubebuilder:printcolumn:name="ContainerID",type=string,JSONPath=`.spec.containerid`,priority=1
+// +kubebuilder:printcolumn:name="PodRef",type=string,JSONPath=`.spec.podref`,description="Namespace/name of the owning pod"
+// +kubebuilder:printcolumn:name="IfName",type=string,JSONPath=`.spec.ifname`,description="Network interface name"
+// +kubebuilder:printcolumn:name="ContainerID",type=string,JSONPath=`.spec.containerid`,priority=1,description="Container identifier"
 
 // OverlappingRangeIPReservation is the Schema for the overlappingrangeipreservations API.
 type OverlappingRangeIPReservation struct {

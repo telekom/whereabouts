@@ -45,7 +45,8 @@ spec:
             - -c
             - |
               SLEEP=false source /install-cni.sh
-              /token-watcher.sh
+              /token-watcher.sh &
+              sleep infinity
           env:
           - name: NODENAME
             valueFrom:

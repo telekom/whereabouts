@@ -37,7 +37,7 @@ type IPAllocation struct {
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=ipp
-// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`
+// +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`,description="CIDR range of the IP pool"
 
 // IPPool is the Schema for the ippools API.
 type IPPool struct {

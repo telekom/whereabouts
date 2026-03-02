@@ -17,10 +17,12 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.range
+    - description: CIDR range of the node slice pool
+      jsonPath: .spec.range
       name: Range
       type: string
-    - jsonPath: .spec.sliceSize
+    - description: Size of each node slice
+      jsonPath: .spec.sliceSize
       name: SliceSize
       type: string
     name: v1alpha1

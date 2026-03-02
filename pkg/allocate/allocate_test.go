@@ -1,7 +1,6 @@
 package allocate
 
 import (
-	"fmt"
 	"net"
 	"testing"
 
@@ -29,7 +28,7 @@ var _ = Describe("Allocation operations", func() {
 		var exrange []string
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("192.168.1.1"))
+		Expect(newip.Equal(net.ParseIP("192.168.1.1"))).To(BeTrue())
 
 	})
 
@@ -45,7 +44,7 @@ var _ = Describe("Allocation operations", func() {
 		var exrange []string
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("caa5::1"))
+		Expect(newip.Equal(net.ParseIP("caa5::1"))).To(BeTrue())
 
 	})
 
@@ -61,7 +60,7 @@ var _ = Describe("Allocation operations", func() {
 		var exrange []string
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("::1"))
+		Expect(newip.Equal(net.ParseIP("::1"))).To(BeTrue())
 
 	})
 
@@ -79,7 +78,7 @@ var _ = Describe("Allocation operations", func() {
 		var exrange []string
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("fd::1"))
+		Expect(newip.Equal(net.ParseIP("fd::1"))).To(BeTrue())
 
 	})
 
@@ -95,7 +94,7 @@ var _ = Describe("Allocation operations", func() {
 		var exrange []string
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("100::2:1"))
+		Expect(newip.Equal(net.ParseIP("100::2:1"))).To(BeTrue())
 	})
 
 	It("can IterateForAssignment on an IPv4 address excluding a range", func() {
@@ -109,7 +108,7 @@ var _ = Describe("Allocation operations", func() {
 		var ipres []types.IPReservation
 		exrange := []string{"192.168.0.0/30"}
 		newip, _, _ := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("192.168.0.4"))
+		Expect(newip.Equal(net.ParseIP("192.168.0.4"))).To(BeTrue())
 
 	})
 
@@ -124,7 +123,7 @@ var _ = Describe("Allocation operations", func() {
 		exrange := []string{"192.168.0.1"}
 		newip, _, err := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fmt.Sprint(newip)).To(Equal("192.168.0.2"))
+		Expect(newip.Equal(net.ParseIP("192.168.0.2"))).To(BeTrue())
 	})
 
 	It("correctly handles invalid syntax for an exclude range with IPv4", func() {
@@ -151,7 +150,7 @@ var _ = Describe("Allocation operations", func() {
 		var ipres []types.IPReservation
 		exrange := []string{"100::2:1/126"}
 		newip, _, _ := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("100::2:4"))
+		Expect(newip.Equal(net.ParseIP("100::2:4"))).To(BeTrue())
 
 	})
 
@@ -165,7 +164,7 @@ var _ = Describe("Allocation operations", func() {
 		var ipres []types.IPReservation
 		exrange := []string{"100::2:1"}
 		newip, _, _ := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("100::2:2"))
+		Expect(newip.Equal(net.ParseIP("100::2:2"))).To(BeTrue())
 	})
 
 	It("correctly handles invalid syntax for an exclude range with IPv6", func() {
@@ -192,7 +191,7 @@ var _ = Describe("Allocation operations", func() {
 		var ipres []types.IPReservation
 		exrange := []string{"2001:db8::0/32"}
 		newip, _, _ := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("2001:db9::"))
+		Expect(newip.Equal(net.ParseIP("2001:db9::"))).To(BeTrue())
 
 	})
 
@@ -207,11 +206,11 @@ var _ = Describe("Allocation operations", func() {
 		var ipres []types.IPReservation
 		exrange := []string{"192.168.0.0/30", "192.168.0.6/31", "192.168.0.8/31", "192.168.0.4/30"}
 		newip, _, _ := IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("192.168.0.10"))
+		Expect(newip.Equal(net.ParseIP("192.168.0.10"))).To(BeTrue())
 
 		exrange = []string{"192.168.0.0/30", "192.168.0.14/31", "192.168.0.4/30", "192.168.0.6/31", "192.168.0.8/31"}
 		newip, _, _ = IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "")
-		Expect(fmt.Sprint(newip)).To(Equal("192.168.0.10"))
+		Expect(newip.Equal(net.ParseIP("192.168.0.10"))).To(BeTrue())
 	})
 
 	It("can IterateForAssignment on an IPv4 address excluding a range and respect the requested range", func() {
@@ -299,7 +298,7 @@ var _ = Describe("Allocation operations", func() {
 			rangeStart := net.ParseIP("192.168.0.0") // Network address, out of bounds.
 			newip, _, err := IterateForAssignment(*ipnet, rangeStart, nil, nil, nil, "0xdeadbeef", "", "")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(fmt.Sprint(newip)).To(Equal("192.168.0.1"))
+			Expect(newip.Equal(net.ParseIP("192.168.0.1"))).To(BeTrue())
 		})
 	})
 
@@ -311,7 +310,7 @@ var _ = Describe("Allocation operations", func() {
 			rangeEnd := net.ParseIP("192.168.0.8")   // Broadcast address, out of bounds.
 			newip, _, err := IterateForAssignment(*ipnet, rangeStart, rangeEnd, nil, nil, "0xdeadbeef", "", "")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(fmt.Sprint(newip)).To(Equal("192.168.0.1"))
+			Expect(newip.Equal(net.ParseIP("192.168.0.1"))).To(BeTrue())
 		})
 	})
 
@@ -353,7 +352,7 @@ var _ = Describe("Allocation operations", func() {
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(ipres)).To(Equal(1))
-				Expect(fmt.Sprint(ipres[0].IP)).To(Equal("192.168.0.1"))
+				Expect(ipres[0].IP.Equal(net.ParseIP("192.168.0.1"))).To(BeTrue())
 			})
 		})
 
@@ -382,7 +381,7 @@ var _ = Describe("Allocation operations", func() {
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(ipres)).To(Equal(4))
-				Expect(fmt.Sprint(ipres[3].IP)).To(Equal("192.168.0.4"))
+				Expect(ipres[3].IP.Equal(net.ParseIP("192.168.0.4"))).To(BeTrue())
 			})
 		})
 
@@ -411,7 +410,7 @@ var _ = Describe("Allocation operations", func() {
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(ipres)).To(Equal(4))
-				Expect(fmt.Sprint(ipres[3].IP)).To(Equal("192.168.0.3"))
+				Expect(ipres[3].IP.Equal(net.ParseIP("192.168.0.3"))).To(BeTrue())
 			})
 		})
 	})
@@ -427,8 +426,8 @@ var _ = Describe("Allocation operations", func() {
 			Expect(ip).To(Equal(net.ParseIP("192.168.1.2")))
 			Expect(updatedList).To(HaveLen(2))
 			// Swap-remove: last element replaces removed one
-			Expect(fmt.Sprint(updatedList[0].IP)).To(Equal("192.168.1.1"))
-			Expect(fmt.Sprint(updatedList[1].IP)).To(Equal("192.168.1.3"))
+			Expect(updatedList[0].IP.Equal(net.ParseIP("192.168.1.1"))).To(BeTrue())
+			Expect(updatedList[1].IP.Equal(net.ParseIP("192.168.1.3"))).To(BeTrue())
 		})
 
 		It("returns nil IP and unchanged list when containerID is not found", func() {
@@ -472,7 +471,7 @@ var _ = Describe("Allocation operations", func() {
 			}
 			result, updatedList, err := AssignIP(ipamConf, reservelist, "new-id", "default/mypod", "eth0")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(fmt.Sprint(result.IP)).To(Equal("192.168.1.5"))
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.5"))).To(BeTrue())
 			Expect(updatedList).To(HaveLen(1))
 			// containerID should be updated to the new one
 			Expect(updatedList[0].ContainerID).To(Equal("new-id"))
@@ -489,7 +488,7 @@ var _ = Describe("Allocation operations", func() {
 			result, updatedList, err := AssignIP(ipamConf, reservelist, "bbb", "default/mypod", "net1")
 			Expect(err).NotTo(HaveOccurred())
 			// Should get a different IP (192.168.1.1 as the lowest available)
-			Expect(fmt.Sprint(result.IP)).To(Equal("192.168.1.1"))
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.1"))).To(BeTrue())
 			Expect(updatedList).To(HaveLen(2))
 		})
 	})

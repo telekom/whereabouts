@@ -17,7 +17,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.range
+    - description: CIDR range of the IP pool
+      jsonPath: .spec.range
       name: Range
       type: string
     name: v1alpha1

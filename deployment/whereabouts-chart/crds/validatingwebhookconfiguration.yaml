@@ -1,0 +1,75 @@
+# Whereabouts Validating Webhook Configuration
+#
+# IMPORTANT: The caBundle field is automatically managed by cert-controller.
+# It will be populated with the CA certificate when the webhook server starts.
+#
+# matchConditions use CEL expressions to bypass validation for the CNI plugin's
+# own ServiceAccount, which must write to CRDs without webhook interference.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: whereabouts-validating-webhooks
+  annotations:
+    # cert-controller injects the CA bundle into this webhook configuration
+    cert-controller.io/inject-ca-from: kube-system/whereabouts-webhook-cert
+webhooks:
+- name: validate-ippool.whereabouts.cni.cncf.io
+  admissionReviewVersions: [v1]
+  sideEffects: None
+  failurePolicy: Fail
+  clientConfig:
+    service:
+      name: whereabouts-webhook
+      namespace: kube-system
+      path: /validate-whereabouts-cni-cncf-io-v1alpha1-ippool
+  rules:
+  - apiGroups: [whereabouts.cni.cncf.io]
+    apiVersions: [v1alpha1]
+    operations: [CREATE, UPDATE]
+    resources: [ippools]
+    scope: Namespaced
+  matchConditions:
+  - name: bypass-cni-plugin
+    expression: >-
+      !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts")
+
+- name: validate-nodeslicepool.whereabouts.cni.cncf.io
+  admissionReviewVersions: [v1]
+  sideEffects: None
+  failurePolicy: Fail
+  clientConfig:
+    service:
+      name: whereabouts-webhook
+      namespace: kube-system
+      path: /validate-whereabouts-cni-cncf-io-v1alpha1-nodeslicepool
+  rules:
+  - apiGroups: [whereabouts.cni.cncf.io]
+    apiVersions: [v1alpha1]
+    operations: [CREATE, UPDATE]
+    resources: [nodeslicepools]
+    scope: Namespaced
+  matchConditions:
+  - name: bypass-cni-plugin
+    expression: >-
+      !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts")
+
+- name: validate-overlappingrangeipreservation.whereabouts.cni.cncf.io
+  admissionReviewVersions: [v1]
+  sideEffects: None
+  failurePolicy: Fail
+  clientConfig:
+    service:
+      name: whereabouts-webhook
+      namespace: kube-system
+      path: /validate-whereabouts-cni-cncf-io-v1alpha1-overlappingrangeipreservation
+  rules:
+  - apiGroups: [whereabouts.cni.cncf.io]
+    apiVersions: [v1alpha1]
+    operations: [CREATE, UPDATE]
+    resources: [overlappingrangeipreservations]
+    scope: Namespaced
+  matchConditions:
+  - name: bypass-cni-plugin
+    expression: >-
+      !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts")

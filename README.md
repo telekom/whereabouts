@@ -3,7 +3,7 @@
 
 ![whereabouts-logo](doc/logo.png)
 
-> **Fork notice:** This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts), maintained by the **Deutsche Telekom T-CAAS team**. It may contain patches, improvements, or configuration changes specific to T-CAAS infrastructure. For the upstream project, see the link above.
+> **Fork notice:** This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts), maintained by the **Deutsche Telekom T-CAAS team**. At this point, this fork is effectively an API-compatible rewrite — the operator, reconciliation, webhook validation, storage backend, and overall architecture have been redesigned from scratch to address a number of fundamental design and implementation shortcomings in the upstream project. These changes are unlikely to be backported, as they would constitute a near-complete replacement of the original codebase. For the upstream project, see the link above.
 
 An IP Address Management (IPAM) CNI plugin that assigns IP addresses cluster-wide.
 
@@ -25,18 +25,19 @@ The original inspiration for Whereabouts comes from when users have tried to use
 
 Whereabouts is designed with Kubernetes in mind, but, isn't limited to use in just Kubernetes.
 
-To track which IP addresses are in use between nodes, Whereabouts uses [etcd](https://github.com/etcd-io/etcd) or a Kubernetes [Custom Resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-resources) as a backend. The goal is to make Whereabouts more flexible and to use additional storage backends, we welcome any contributions towards this goal.
+To track which IP addresses are in use between nodes, Whereabouts uses Kubernetes [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-resources) (CRDs) as its storage backend — no external dependencies like etcd are required.
 
 Issues and PRs are welcome! Some of the known limitations are found at the bottom of the README.
 
 ## Installation
 
-There's two steps to installing Whereabouts:
+There's three steps to installing Whereabouts:
 
 * Installing Whereabouts itself (it's just a binary on disk).
+* Installing the Whereabouts operator (handles IP reconciliation, node-slice management, and webhooks).
 * Creating IPAM CNI configurations.
 
-Further installation options (including etcd usage) and configuration parameters can be found in the [extended configuration document](doc/extended-configuration.md).
+Further installation options and configuration parameters can be found in the [extended configuration document](doc/extended-configuration.md).
 
 ### Installing Whereabouts.
 
@@ -47,8 +48,22 @@ git clone https://github.com/telekom/whereabouts && cd whereabouts
 kubectl apply \
     -f doc/crds/daemonset-install.yaml \
     -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml
+    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_nodeslicepools.yaml
 ```
+
+### Installing the Whereabouts Operator
+
+The operator handles IP reconciliation (cleaning up orphaned allocations), node-slice management (for Fast IPAM), and validating webhooks. Install it with:
+
+```
+kubectl apply \
+    -f doc/crds/operator-install.yaml \
+    -f doc/crds/webhook-install.yaml \
+    -f doc/crds/validatingwebhookconfiguration.yaml
+```
+
+The operator runs as a Deployment with leader election, while webhooks run as a separate Deployment with automatic TLS certificate rotation.
 
 The daemonset installation requires Kubernetes Version 1.16 or later.
 
@@ -219,9 +234,9 @@ spec:
   }'
 ```
 
-This setup enables the fast IPAM feature to optimize IP allocation for nodes, improving network performance in clusters with high pod density. 
-Please note, you must run a whereabouts controller for this to work. Manifest can be found in doc/crds/node-slice-controller.yaml. 
-You must run your whereabouts daemonset, whereabouts controller in the same namespaces as your network-attachment-definitions. 
+This setup enables the fast IPAM feature to optimize IP allocation for nodes, improving network performance in clusters with high pod density.
+Please note, you must run the whereabouts operator for this to work. Install manifests can be found in `doc/crds/operator-install.yaml`.
+You must run your whereabouts daemonset and whereabouts operator in the same namespaces as your network-attachment-definitions.
 The field in the example `node_slice_size` determines how large of a CIDR to allocate per node and the existence of the field is what triggers
 `Fast IPAM` mode.
 
@@ -361,9 +376,4 @@ The typeface used in the logo is [AZONIX](https://www.dafont.com/azonix.font), b
 
 ## Known limitations
 
-* A hard system crash on a node might leave behind stranded IP allocations, so if you have a trashing system, this might exhaust IPs.
-  - Potentially we need an operator to ensure data is clean, even if just at some kind of interval (e.g. with a cron job)
-* There's probably a lot of comparison of IP addresses that could be optimized, lots of string conversion.
-* The etcd method has a number of limitations, in that it uses an all ASCII methodology. If this was binary, it could probably store more and have more efficient IP address comparison.
 * Unlikely to work in Canada, apparently it would have to be "where aboots?" for Canadians to be able to operate it.
-* In case of wide IPv6 CIDRs (`range`≤/64) only the first /65 range is addressable by Whereabouts due to uint64 offset calculation.

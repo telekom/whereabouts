@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,10 +26,7 @@ import (
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
 
-const (
-	// fieldOwnerNodeSlice is the SSA field manager for node slice status updates.
-	fieldOwnerNodeSlice = "whereabouts-nodeslice"
-)
+
 
 // NodeSliceReconciler reconciles NetworkAttachmentDefinition resources by
 // managing the corresponding NodeSlicePool CRDs. It assigns IP range slices
@@ -261,8 +257,10 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 	return ctrl.Result{}, nil
 }
 
-// ensureOwnerRef adds a non-controller OwnerReference for multui-NAD scenarios.
+// ensureOwnerRef adds a non-controller OwnerReference for multi-NAD scenarios.
 func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nad *nadv1.NetworkAttachmentDefinition) {
+	logger := log.FromContext(ctx)
+
 	for _, ref := range pool.OwnerReferences {
 		if ref.UID == nad.UID {
 			return // Already has this OwnerReference.
@@ -276,7 +274,10 @@ func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereabo
 		Name:       nad.Name,
 		UID:        nad.UID,
 	})
-	_ = r.client.Patch(ctx, pool, patch)
+	if err := r.client.Patch(ctx, pool, patch); err != nil {
+		logger.Error(err, "failed to add OwnerReference to NodeSlicePool",
+			"pool", pool.Name, "nad", nad.Name)
+	}
 }
 
 // mapNodeToNADs maps a Node event to reconciliation of all NADs.
@@ -423,12 +424,6 @@ func parseNADIPAMConfig(specConfig string) (*nadIPAMConfig, error) {
 	}
 
 	return nil, fmt.Errorf("no whereabouts IPAM config found")
-}
-
-// ipRangeFromConfig extracts the first IP range from the config, handling
-// both single range and ipRanges formats.
-func ipRangeFromConfig(conf *nadIPAMConfig) string {
-	return strings.TrimSpace(conf.Range)
 }
 
 var _ reconcile.Reconciler = &NodeSliceReconciler{}

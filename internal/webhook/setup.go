@@ -15,9 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-// setup is a manager.Runnable that waits for certs to be ready before
-// registering validating webhooks.
-type setup struct {
+// Setup is a manager.Runnable that waits for certs to be ready before
+// registering validating webhooks. Use ReadyCheck as the readyz checker
+// to block readiness until webhooks are fully registered.
+type Setup struct {
 	mgr       manager.Manager
 	certReady <-chan struct{}
 	ready     atomic.Bool
@@ -25,12 +26,12 @@ type setup struct {
 
 // NewSetup returns a Runnable that registers validating webhooks after the
 // certificate is provisioned.
-func NewSetup(mgr manager.Manager, certReady <-chan struct{}) manager.Runnable {
-	return &setup{mgr: mgr, certReady: certReady}
+func NewSetup(mgr manager.Manager, certReady <-chan struct{}) *Setup {
+	return &Setup{mgr: mgr, certReady: certReady}
 }
 
 // Start blocks until certs are ready, then registers webhooks.
-func (s *setup) Start(ctx context.Context) error {
+func (s *Setup) Start(ctx context.Context) error {
 	log := ctrl.Log.WithName("webhook-setup")
 
 	// Wait for cert-controller to signal readiness.
@@ -60,14 +61,12 @@ func (s *setup) Start(ctx context.Context) error {
 }
 
 // ReadyCheck returns a healthz.Checker that reports ready only after webhooks
-// have been registered.
-func ReadyCheck(certReady <-chan struct{}) healthz.Checker {
+// have been registered (not just after certs are provisioned).
+func (s *Setup) ReadyCheck() healthz.Checker {
 	return func(_ *http.Request) error {
-		select {
-		case <-certReady:
+		if s.ready.Load() {
 			return nil
-		default:
-			return http.ErrAbortHandler
 		}
+		return fmt.Errorf("webhooks not yet registered")
 	}
 }

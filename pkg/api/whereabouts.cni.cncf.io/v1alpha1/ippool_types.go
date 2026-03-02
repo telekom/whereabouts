@@ -38,7 +38,6 @@ type IPAllocation struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=ipp
 // +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`
-// +kubebuilder:printcolumn:name="Allocations",type=integer,JSONPath=`.spec.allocations`,priority=1
 
 // IPPool is the Schema for the ippools API.
 type IPPool struct {

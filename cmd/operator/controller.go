@@ -10,7 +10,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/telekom/whereabouts/internal/controller"
 )
@@ -40,8 +39,6 @@ func newControllerCommand() *cobra.Command {
 				LeaderElection:          leaderElect,
 				LeaderElectionID:        "whereabouts-controller",
 				LeaderElectionNamespace: leaderElectNamespace,
-				// Disable the webhook server — the webhook subcommand handles that.
-				WebhookServer: webhook.NewServer(webhook.Options{Port: 0}),
 			})
 			if err != nil {
 				return err

@@ -740,9 +740,6 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		if err != nil {
-			if attempts == 0 {
-				return newips, logging.Errorf("IP allocation failed for range %s before any attempt completed: %s", configuredRange, err)
-			}
 			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %s", configuredRange, attempts, err)
 		}
 

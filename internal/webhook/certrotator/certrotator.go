@@ -62,7 +62,7 @@ func ensureSecret(ctx context.Context, c client.Client, key types.NamespacedName
 }
 
 // Enable adds a certificate rotator runnable to the manager.
-func Enable(mgr manager.Manager, opts Options) error {
+func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 	log := ctrl.Log.WithName("certrotator")
 	log.Info("enabling certificate rotation",
 		"namespace", opts.Namespace,
@@ -84,7 +84,7 @@ func Enable(mgr manager.Manager, opts Options) error {
 
 	// Ensure the secret exists before the rotator starts, because
 	// cert-controller only updates existing secrets (never creates them).
-	if err := ensureSecret(context.Background(), directClient, secretKey); err != nil {
+	if err := ensureSecret(ctx, directClient, secretKey); err != nil {
 		return err
 	}
 	log.Info("TLS secret ensured", "secret", secretKey)

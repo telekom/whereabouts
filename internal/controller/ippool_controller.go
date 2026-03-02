@@ -34,6 +34,16 @@ type IPPoolReconciler struct {
 	reconcileInterval time.Duration
 }
 
+const (
+	// retryRequeueInterval is the interval to retry when transient errors
+	// occur (e.g. overlapping reservation cleanup failure).
+	retryRequeueInterval = 5 * time.Second
+
+	// pendingPodRequeueInterval is the interval to recheck allocations for
+	// pods still in the Pending phase.
+	pendingPodRequeueInterval = 5 * time.Second
+)
+
 // SetupIPPoolReconciler creates and registers the IPPoolReconciler with the
 // manager. The reconcileInterval controls the periodic re-queue interval.
 func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration) error {
@@ -142,13 +152,13 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// Also clean up any corresponding OverlappingRangeIPReservation CRDs.
 		if err := r.cleanupOverlappingReservations(ctx, &pool, orphanedKeys); err != nil {
 			logger.Error(err, "failed to clean up some overlapping reservations, will retry")
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: retryRequeueInterval}, nil
 		}
 	}
 
 	// Requeue sooner if pending pods exist.
 	if hasPending {
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		return ctrl.Result{RequeueAfter: pendingPodRequeueInterval}, nil
 	}
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
@@ -248,10 +258,7 @@ func denormalizeIPName(name string) net.IP {
 	// Iteratively strip leading dash-separated prefix segments.
 	// e.g. "mynet-10.0.0.5" → try "10.0.0.5",
 	// "mynet-fd00--1" → try "fd00--1" → replace → "fd00::1".
-	for i := 0; i < len(name); i++ {
-		if name[i] != '-' {
-			continue
-		}
+	for i := strings.IndexByte(name, '-'); i >= 0; i = strings.IndexByte(name[i+1:], '-') + i + 1 {
 		suffix := name[i+1:]
 		if ip := net.ParseIP(suffix); ip != nil {
 			return ip

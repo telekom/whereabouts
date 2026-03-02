@@ -1,4 +1,8 @@
-# Dont'forget to update deployment/whereabouts-chart/templates/node-slice-controller.yaml as well
+# DEPRECATED: This standalone node-slice controller is superseded by the
+# whereabouts-operator (see operator-install.yaml). The operator handles
+# node-slice management alongside IP reconciliation and webhooks.
+#
+# Don't forget to update deployment/whereabouts-chart/templates/node-slice-controller.yaml as well
 apiVersion: apps/v1
 kind: Deployment
 metadata:

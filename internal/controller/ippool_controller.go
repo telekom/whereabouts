@@ -73,6 +73,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	var pool whereaboutsv1alpha1.IPPool
 	if err := r.client.Get(ctx, req.NamespacedName, &pool); err != nil {
 		if errors.IsNotFound(err) {
+			ippoolAllocationsGauge.DeleteLabelValues(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("getting IPPool: %s", err)

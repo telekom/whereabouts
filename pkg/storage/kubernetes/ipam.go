@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -32,6 +33,27 @@ import (
 )
 
 const UnnamedNetwork string = ""
+
+const (
+	// retryInitialBackoff is the starting backoff duration between retries.
+	retryInitialBackoff = 5 * time.Millisecond
+	// retryMaxBackoff caps the exponential backoff to avoid excessive waits.
+	retryMaxBackoff = 1 * time.Second
+)
+
+// retryBackoff sleeps for a jittered duration, respecting context cancellation.
+func retryBackoff(ctx context.Context, d time.Duration) {
+	// Apply ±50% jitter: sleep for d/2 + rand(d/2)
+	half := int64(d / 2)
+	if half <= 0 {
+		half = 1
+	}
+	jittered := time.Duration(half + rand.Int63n(half))
+	select {
+	case <-time.After(jittered):
+	case <-ctx.Done():
+	}
+}
 
 // KubernetesIPAM manages ip blocks in an kubernetes CRD backend
 type KubernetesIPAM struct {
@@ -123,6 +145,9 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 }
 
 func normalizeRange(ipRange string) string {
+	if len(ipRange) == 0 {
+		return ""
+	}
 	// v6 filter
 	if ipRange[len(ipRange)-1] == ':' {
 		ipRange = ipRange + "0"
@@ -594,6 +619,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		var err error
 		var attempts int
 		skipOverlappingRangeUpdate := false
+		backoff := retryInitialBackoff
 	RETRYLOOP:
 		for j := 0; j < storage.DatastoreRetries; j++ {
 			attempts = j + 1
@@ -656,6 +682,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				logging.Errorf("IPAM error reading pool allocations (attempt: %d): %v", j, err)
 				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
 					requestCancel()
+					retryBackoff(ctx, backoff)
+					backoff = min(backoff*2, retryMaxBackoff)
 					continue
 				}
 				requestCancel()
@@ -730,6 +758,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				logging.Errorf("IPAM error updating pool (attempt: %d): %v", j, err)
 				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
 					requestCancel()
+					retryBackoff(ctx, backoff)
+					backoff = min(backoff*2, retryMaxBackoff)
 					continue
 				}
 				requestCancel()

@@ -1574,10 +1574,10 @@ func mutateK8sIPAM(containerID, ifName string, ipamConf *whereaboutstypes.IPAMCo
 
 func mustCIDR(s string) net.IPNet {
 	ip, n, err := net.ParseCIDR(s)
-	n.IP = ip
 	if err != nil {
 		Fail(err.Error())
 	}
+	n.IP = ip
 	return *n
 }
 
@@ -1613,8 +1613,8 @@ func ipamConfig(podName, namespace, networkName, ipRange, gw, kubeconfigPath str
 	if err != nil {
 		Fail(fmt.Sprintf("failed to create temp dir: %s", err))
 	}
-	confPath := filepath.Join(tmpDir, "wherebouts.conf")
-	err = os.WriteFile(confPath, bytes, 0755)
+	confPath := filepath.Join(tmpDir, "whereabouts.conf")
+	err = os.WriteFile(confPath, bytes, 0644)
 	if err != nil {
 		Fail(fmt.Sprintf("failed to write config file: %s", err))
 	}

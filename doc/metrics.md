@@ -93,15 +93,17 @@ groups:
   - name: whereabouts
     rules:
       # Alert when an IP pool is more than 90% full.
-      - alert: IPPoolNearlyFull
-        expr: |
-          whereabouts_ippool_allocations / on(pool) group_left
-          whereabouts_ippool_capacity > 0.9
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "IPPool {{ $labels.pool }} is {{ $value | humanizePercentage }} full"
+      # TODO: This alert requires a whereabouts_ippool_capacity metric that
+      # is not yet implemented. Uncomment once the metric is available.
+      # - alert: IPPoolNearlyFull
+      #   expr: |
+      #     whereabouts_ippool_allocations / on(pool) group_left
+      #     whereabouts_ippool_capacity > 0.9
+      #   for: 5m
+      #   labels:
+      #     severity: warning
+      #   annotations:
+      #     summary: "IPPool {{ $labels.pool }} is {{ $value | humanizePercentage }} full"
 
       # Alert on sustained orphan cleanup — may indicate pod churn issues.
       - alert: HighOrphanCleanupRate

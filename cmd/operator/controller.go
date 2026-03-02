@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -30,7 +31,12 @@ func newControllerCommand() *cobra.Command {
 			setupLogger(cmd)
 			log := ctrl.Log.WithName("controller")
 
-			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+			cfg, err := ctrl.GetConfig()
+			if err != nil {
+				return fmt.Errorf("loading kubeconfig: %s", err)
+			}
+
+			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: scheme,
 				Metrics: server.Options{
 					BindAddress: metricsAddr,

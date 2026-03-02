@@ -32,6 +32,10 @@ func SetupIPPoolWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates an IPPool on creation.
 func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+	if pool.Spec.Range == "" {
+		recordValidation("ippool", "create", fmt.Errorf("spec.range is required"))
+		return nil, fmt.Errorf("spec.range is required")
+	}
 	w, err := validateIPPool(pool)
 	recordValidation("ippool", "create", err)
 	return w, err

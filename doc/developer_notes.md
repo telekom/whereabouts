@@ -81,7 +81,7 @@ EOF
    run `go install github.com/joho/godotenv/cmd/godotenv@latest`
    godot env allows you to pass an env file to go test
 2. In the whereabouts dir, run 'make kind' -> this will create a kind cluster running whereabouts
-3. cd to the /e2e dir and create a .env file with this value `KUBECONFIG: $HOME/.kube/config` -> this is where kind writes the kubeconfig by default
+3. cd to the /e2e dir and create a .env file with this value `KUBECONFIG=$HOME/.kube/config` -> this is where kind writes the kubeconfig by default
 4. run [[ ! -z "$KUBECONFIG" ]] && echo "$KUBECONFIG" || echo "$HOME/.kube/config" to find the location of your kubeconfig 
-5. add KUBECONFIG: <path/to/kubeconfig> to your .env
+5. add KUBECONFIG=<path/to/kubeconfig> to your .env
 6. run godotenv -f <path/to/.env> go test -v . -timeout=1h

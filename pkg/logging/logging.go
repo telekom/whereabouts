@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -39,6 +40,7 @@ const (
 var loggingStderr bool
 var loggingFp *os.File
 var loggingLevel Level
+var mu sync.RWMutex
 
 const defaultTimestampFormat = time.RFC3339
 
@@ -58,22 +60,22 @@ func (l Level) String() string {
 
 // Printf provides basic Printf functionality for logs
 func Printf(level Level, format string, a ...interface{}) {
-	header := "%s [%s] "
-	t := time.Now()
+	mu.RLock()
+	defer mu.RUnlock()
+
 	if level > loggingLevel {
 		return
 	}
 
+	t := time.Now()
+	line := fmt.Sprintf("%s [%s] %s\n", t.Format(defaultTimestampFormat), level, fmt.Sprintf(format, a...))
+
 	if loggingStderr {
-		fmt.Fprintf(os.Stderr, header, t.Format(defaultTimestampFormat), level)
-		fmt.Fprintf(os.Stderr, format, a...)
-		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprint(os.Stderr, line)
 	}
 
 	if loggingFp != nil {
-		fmt.Fprintf(loggingFp, header, t.Format(defaultTimestampFormat), level)
-		fmt.Fprintf(loggingFp, format, a...)
-		fmt.Fprintf(loggingFp, "\n")
+		fmt.Fprint(loggingFp, line)
 	}
 }
 
@@ -99,6 +101,7 @@ func Panicf(format string, a ...interface{}) {
 	Printf(PanicLevel, "========= Stack trace output ========")
 	Printf(PanicLevel, "%+v", errors.New("Whereabouts Panic"))
 	Printf(PanicLevel, "========= Stack trace output end ========")
+	panic(fmt.Sprintf(format, a...))
 }
 
 // GetLoggingLevel returns loggingLevel
@@ -125,13 +128,17 @@ func getLoggingLevel(levelStr string) Level {
 func SetLogLevel(levelStr string) {
 	level := getLoggingLevel(levelStr)
 	if level < MaxLevel {
+		mu.Lock()
 		loggingLevel = level
+		mu.Unlock()
 	}
 }
 
 // SetLogStderr enables logging to stderr
 func SetLogStderr(enable bool) {
+	mu.Lock()
 	loggingStderr = enable
+	mu.Unlock()
 }
 
 // SetLogFile defines which log file we'll log to
@@ -140,12 +147,18 @@ func SetLogFile(filename string) {
 		return
 	}
 
-	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
-		loggingFp = nil
 		fmt.Fprintf(os.Stderr, "Whereabouts logging: cannot open %s", filename)
+		return
+	}
+
+	mu.Lock()
+	if loggingFp != nil {
+		loggingFp.Close()
 	}
 	loggingFp = fp
+	mu.Unlock()
 }
 
 func init() {

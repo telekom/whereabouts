@@ -1,74 +1,80 @@
-# Dont'forget to update doc/crds/node-slice-controller.yaml as well
-{{- if .Values.nodeSliceController.enabled }}
+# Don't forget to update doc/crds/operator-install.yaml as well
+{{- if .Values.operator.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "whereabouts.fullname" . }}-controller
+  name: {{ include "whereabouts.fullname" . }}-operator
   {{- include "whereabouts.namespace" . | nindent 2 }}
+  labels:
+    {{- include "whereabouts.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.operator.replicas | default 2 }}
   selector:
     matchLabels:
-      app: {{ include "whereabouts.fullname" . }}-controller
+      app: {{ include "whereabouts.fullname" . }}-operator
   template:
     metadata:
       labels:
-        app: {{ include "whereabouts.fullname" . }}-controller
+        app: {{ include "whereabouts.fullname" . }}-operator
     spec:
-      {{- with .Values.nodeSliceController.priorityClassName }}
+      {{- with .Values.operator.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
+      serviceAccountName: {{ include "whereabouts.fullname" . }}-operator
       containers:
-        - command:
-            - /whereabouts-operator
-            - controller
-            - --leader-elect=true
-          env:
-            - name: NODENAME
-              valueFrom:
-                fieldRef:
-                  apiVersion: v1
-                  fieldPath: spec.nodeName
-            - name: WHEREABOUTS_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  apiVersion: v1
-                  fieldPath: metadata.namespace
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          name: whereabouts
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
-          volumeMounts:
-            - mountPath: /host/opt/cni/bin
-              name: cnibin
-            - mountPath: /host/etc/cni/net.d
-              name: cni-net-dir
-            - mountPath: /cron-schedule
-              name: cron-scheduler-configmap
-      preemptionPolicy: PreemptLowerPriority
-      priority: 0
-      restartPolicy: Always
-      schedulerName: default-scheduler
-      securityContext: {}
-      serviceAccount: {{ include "whereabouts.serviceAccountName" . }}
-      serviceAccountName: {{ include "whereabouts.serviceAccountName" . }}
-      terminationGracePeriodSeconds: 30
-      volumes:
-        - hostPath:
-            path: /opt/cni/bin
-            type: ""
-          name: cnibin
-        - hostPath:
-            path: /etc/cni/net.d
-            type: ""
-          name: cni-net-dir
-        - configMap:
-            defaultMode: 484
-            items:
-              - key: cron-expression
-                path: config
-            name: {{ include "whereabouts.fullname" . }}-config
-          name: cron-scheduler-configmap
-{{- end}}
+      - name: controller
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /whereabouts-operator
+        - controller
+        - --leader-elect=true
+        - --leader-elect-namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
+        - --metrics-bind-address=:8080
+        - --health-probe-bind-address=:8081
+        - --reconcile-interval=30s
+        env:
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: WHEREABOUTS_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: healthz
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          {{- toYaml .Values.operator.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

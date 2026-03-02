@@ -6,13 +6,14 @@ package webhook
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+
+	"github.com/telekom/whereabouts/internal/validation"
 )
 
 // OverlappingRangeValidator validates OverlappingRangeIPReservation resources.
@@ -57,15 +58,8 @@ func (v *OverlappingRangeValidator) ValidateDelete(_ context.Context, _ *whereab
 }
 
 func validateOverlappingRange(res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
-	// PodRef is required (enforced by MinLength=1 CRD validation, but double-check).
-	if res.Spec.PodRef == "" {
-		return nil, fmt.Errorf("spec.podref is required")
+	if err := validation.ValidatePodRef(res.Spec.PodRef, true); err != nil {
+		return nil, fmt.Errorf("spec.podref: %s", err)
 	}
-
-	parts := strings.SplitN(res.Spec.PodRef, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return nil, fmt.Errorf("spec.podref %q must be in namespace/name format", res.Spec.PodRef)
-	}
-
 	return nil, nil
 }

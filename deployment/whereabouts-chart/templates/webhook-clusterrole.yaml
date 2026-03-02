@@ -1,0 +1,21 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "whereabouts.fullname" . }}-webhook
+  labels:
+    {{- include "whereabouts.labels" . | nindent 4 }}
+rules:
+# cert-controller needs secret management for TLS certs
+- apiGroups: [""]
+  resources: [secrets]
+  verbs: [get, list, watch, create, update, patch]
+# cert-controller updates webhook configurations with CA bundle
+- apiGroups: [admissionregistration.k8s.io]
+  resources: [validatingwebhookconfigurations]
+  verbs: [get, list, watch, update, patch]
+# Events for cert rotation
+- apiGroups: ["", events.k8s.io]
+  resources: [events]
+  verbs: [create, patch, update, get]
+{{- end }}

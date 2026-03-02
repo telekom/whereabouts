@@ -56,7 +56,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, res)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.podref is required"))
+			Expect(err.Error()).To(ContainSubstring("podRef is required"))
 		})
 
 		It("should reject an ORIP with invalid podRef format", func() {

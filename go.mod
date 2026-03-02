@@ -20,6 +20,7 @@ require (
 )
 
 require (
+	github.com/gaissmai/extnetip v1.3.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/open-policy-agent/cert-controller v0.15.0
 	github.com/spf13/cobra v1.10.2

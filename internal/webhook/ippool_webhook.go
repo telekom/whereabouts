@@ -6,14 +6,14 @@ package webhook
 import (
 	"context"
 	"fmt"
-	"net"
-	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+
+	"github.com/telekom/whereabouts/internal/validation"
 )
 
 // IPPoolValidator validates IPPool resources.
@@ -37,11 +37,15 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 
 // ValidateUpdate validates an IPPool on update.
 func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	// Enforce immutability of spec.range.
+	var warnings admission.Warnings
+	// Warn (but allow) range changes to support expansion/resizing.
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
-		return nil, fmt.Errorf("spec.range is immutable and cannot be changed (was %q, requested %q)", oldPool.Spec.Range, pool.Spec.Range)
+		warnings = append(warnings, fmt.Sprintf(
+			"spec.range changed from %q to %q — existing allocations outside the new range will be orphaned",
+			oldPool.Spec.Range, pool.Spec.Range))
 	}
-	return validateIPPool(pool)
+	w, err := validateIPPool(pool)
+	return append(warnings, w...), err
 }
 
 // ValidateDelete is a no-op — deletes are always allowed.
@@ -54,9 +58,8 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 
 	// Validate Range is a valid CIDR.
 	if pool.Spec.Range != "" {
-		_, _, err := net.ParseCIDR(pool.Spec.Range)
-		if err != nil {
-			return nil, fmt.Errorf("invalid spec.range %q: %s", pool.Spec.Range, err)
+		if err := validation.ValidateCIDR(pool.Spec.Range); err != nil {
+			return nil, fmt.Errorf("invalid spec.range: %s", err)
 		}
 	}
 
@@ -66,9 +69,8 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 			warnings = append(warnings, fmt.Sprintf("allocation %s has empty podRef", key))
 			continue
 		}
-		parts := strings.SplitN(alloc.PodRef, "/", 2)
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return nil, fmt.Errorf("allocation %s has invalid podRef %q: expected namespace/name", key, alloc.PodRef)
+		if err := validation.ValidatePodRef(alloc.PodRef, false); err != nil {
+			return nil, fmt.Errorf("allocation %s: %s", key, err)
 		}
 	}
 

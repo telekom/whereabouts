@@ -544,11 +544,16 @@ func getNodeSliceName(ipam *KubernetesIPAM) string {
 	return ipam.Config.NetworkName
 }
 
+// committedAlloc tracks a successfully committed pool allocation for rollback.
+type committedAlloc struct {
+	pool storage.IPPool
+	ip   net.IP
+}
+
 // IPManagementKubernetesUpdate manages k8s updates
-func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *KubernetesIPAM, ipamConf whereaboutstypes.IPAMConfig) ([]net.IPNet, error) {
+func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *KubernetesIPAM, ipamConf whereaboutstypes.IPAMConfig) (newips []net.IPNet, retErr error) {
 	logging.Debugf("IPManagement -- mode: %d / containerID: %q / podRef: %q / ifName: %q ", mode, ipam.ContainerID, ipamConf.GetPodRef(), ipam.IfName)
 
-	var newips []net.IPNet
 	var newip net.IPNet
 	// Skip invalid modes
 	switch mode {
@@ -570,11 +575,19 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	}
 
 	// handle the ip add/del until successful
-	// NOTE: For multi-range (e.g. dual-stack), if allocation succeeds for range N
-	// but fails for range N+1, the earlier allocations remain in their pools.
-	// The IPPoolReconciler will eventually clean up orphaned allocations when
-	// the pod does not exist. Full transactional rollback is intentionally not
-	// implemented to avoid adding complexity and additional failure modes.
+	// For multi-range (e.g. dual-stack), if allocation succeeds for range N
+	// but fails for range N+1, we perform a best-effort rollback of the
+	// earlier allocations so IPs are not left orphaned.
+	var committed []committedAlloc
+
+	// Deferred rollback: if the function returns an error during Allocate mode
+	// and we have previously committed allocations, undo them.
+	defer func() {
+		if retErr != nil && mode == whereaboutstypes.Allocate && len(committed) > 0 {
+			rollbackCommitted(ctx, committed)
+		}
+	}()
+
 	var overlappingrangeallocations []whereaboutstypes.IPReservation
 	var ipforoverlappingrangeupdate net.IP
 	for _, ipRange := range ipamConf.IPRanges {
@@ -759,9 +772,36 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			}
 		}
 
+		// Track this allocation so we can roll it back if a later range fails.
+		if mode == whereaboutstypes.Allocate {
+			committed = append(committed, committedAlloc{pool: pool, ip: newip.IP})
+		}
+
 		newips = append(newips, newip)
 	}
 	return newips, nil
+}
+
+// rollbackCommitted performs a best-effort rollback of previously committed
+// multi-range allocations. Each allocation is removed from its pool so the IP
+// is not left orphaned when a later range fails.
+func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
+	for _, c := range committed {
+		allocs := c.pool.Allocations()
+		var cleaned []whereaboutstypes.IPReservation
+		for _, r := range allocs {
+			if !r.IP.Equal(c.ip) {
+				cleaned = append(cleaned, r)
+			}
+		}
+		rbCtx, rbCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+		if err := c.pool.Update(rbCtx, cleaned); err != nil {
+			logging.Errorf("Multi-range rollback failed for IP %s: %v", c.ip, err)
+		} else {
+			logging.Debugf("Rolled back allocation for IP %s", c.ip)
+		}
+		rbCancel()
+	}
 }
 
 func wbNamespaceFromCtx(ctx *clientcmdapi.Context) string {

@@ -77,7 +77,6 @@ var _ = Describe("NodeSliceReconciler", func() {
 
 			result, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 			Expect(result.RequeueAfter).To(BeZero())
 		})
 	})
@@ -95,9 +94,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			buildReconciler(nad)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 		})
 	})
 
@@ -114,9 +112,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			buildReconciler(nad)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 		})
 	})
 
@@ -136,9 +133,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
 			buildReconciler(nad, node1, node2)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 
 			// Verify a NodeSlicePool was created. Pool name is the NAD name when network_name is empty.
 			var pool whereaboutsv1alpha1.NodeSlicePool
@@ -192,9 +188,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
 			buildReconciler(nad, pool, node1, node2)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 
 			// Verify node-b was assigned.
 			var updated whereaboutsv1alpha1.NodeSlicePool
@@ -253,9 +248,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
 			buildReconciler(nad, pool, node1)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 
 			var updated whereaboutsv1alpha1.NodeSlicePool
 			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
@@ -307,9 +301,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
 			buildReconciler(nad, pool, node1)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 
 			var updated whereaboutsv1alpha1.NodeSlicePool
 			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
@@ -334,9 +327,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
 			buildReconciler(nad, node1)
 
-			result, err := reconciler.Reconcile(ctx, req)
+			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(result.Requeue).To(BeFalse())
 
 			var pool whereaboutsv1alpha1.NodeSlicePool
 			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &pool)

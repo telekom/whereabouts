@@ -17,7 +17,7 @@ webhooks:
 - name: validate-ippool.whereabouts.cni.cncf.io
   admissionReviewVersions: [v1]
   sideEffects: None
-  failurePolicy: Ignore
+  failurePolicy: Fail
   clientConfig:
     service:
       name: whereabouts-webhook
@@ -33,9 +33,6 @@ webhooks:
   - name: bypass-cni-plugin
     expression: >-
       !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts")
-  - name: bypass-operator
-    expression: >-
-      !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts-operator")
 
 - name: validate-nodeslicepool.whereabouts.cni.cncf.io
   admissionReviewVersions: [v1]
@@ -56,14 +53,11 @@ webhooks:
   - name: bypass-cni-plugin
     expression: >-
       !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts")
-  - name: bypass-operator
-    expression: >-
-      !(request.userInfo.username == "system:serviceaccount:kube-system:whereabouts-operator")
 
 - name: validate-overlappingrangeipreservation.whereabouts.cni.cncf.io
   admissionReviewVersions: [v1]
   sideEffects: None
-  failurePolicy: Ignore
+  failurePolicy: Fail
   clientConfig:
     service:
       name: whereabouts-webhook

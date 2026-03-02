@@ -24,8 +24,8 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/open-policy-agent/cert-controller v0.15.0
 	github.com/spf13/cobra v1.10.2
-	sigs.k8s.io/controller-runtime v0.23.2-0.20260202104230-4dbfa5c66aa2
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482
+	sigs.k8s.io/controller-runtime v0.23.2-0.20260202104230-4dbfa5c66aa2 // pre-release; update to tagged v0.23.2 once available
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // pre-release; update to tagged v6.3.2 once available
 )
 
 require (

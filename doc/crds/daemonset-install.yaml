@@ -1,4 +1,8 @@
-# Dont'forget to update deployment/whereabouts-chart/templates/daemonset.yaml as well
+# Don't forget to update deployment/whereabouts-chart/templates/daemonset.yaml as well
+#
+# This DaemonSet handles CNI binary installation and token watching only.
+# IP reconciliation, node-slice management, and webhooks are handled by
+# the operator (see operator-install.yaml, webhook-install.yaml).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -17,79 +21,28 @@ subjects:
 - kind: ServiceAccount
   name: whereabouts
   namespace: kube-system
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: whereabouts-cni
 rules:
-- apiGroups:
-  - whereabouts.cni.cncf.io
-  resources:
-  - ippools
-  - overlappingrangeipreservations
-  - nodeslicepools
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-  - create
-  - update
-  - delete
-- apiGroups: [""]
-  resources:
-  - pods
-  verbs:
-  - list
-  - watch
-  - get
-- apiGroups: [""]
-  resources:
-  - nodes
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups: ["k8s.cni.cncf.io"]
-  resources:
-    - network-attachment-definitions
-  verbs:
-    - get
-    - list
-    - watch
-- apiGroups:
-  - ""
-  - events.k8s.io
-  resources:
-    - events
-  verbs:
-  - create
-  - patch
-  - update
-  - get
-
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: whereabouts-config
-  namespace: kube-system
-  annotations:
-    kubernetes.io/description: |
-      Configmap containing user customizable cronjob schedule
-data:
-  cron-expression: "30 4 * * *" # Default schedule is once per day at 4:30am. Users may configure this value to their liking.
+# CNI plugin needs CRUD on IPPool and OverlappingRangeIPReservation for allocation/deallocation
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [ippools, overlappingrangeipreservations]
+  verbs: [get, list, watch, create, update, patch, delete]
+# CNI plugin reads NodeSlicePool for Fast IPAM
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [nodeslicepools]
+  verbs: [get, list, watch]
+# Optimistic locking via leases
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, create, update, delete]
+# Events for allocation logging
+- apiGroups: ["", events.k8s.io]
+  resources: [events]
+  verbs: [create, patch, update, get]
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -124,8 +77,7 @@ spec:
           - -c
           - |
             SLEEP=false source /install-cni.sh
-            /token-watcher.sh &
-            /ip-control-loop -log-level debug
+            /token-watcher.sh
         image: ghcr.io/telekom/whereabouts:latest
         env:
         - name: NODENAME
@@ -151,8 +103,6 @@ spec:
           mountPath: /host/opt/cni/bin
         - name: cni-net-dir
           mountPath: /host/etc/cni/net.d
-        - name: cron-scheduler-configmap
-          mountPath: /cron-schedule
       volumes:
         - name: cnibin
           hostPath:
@@ -160,10 +110,3 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
-        - name: cron-scheduler-configmap
-          configMap:
-            name: "whereabouts-config"
-            defaultMode: 0744
-            items:
-            - key: "cron-expression"
-              path: "config"

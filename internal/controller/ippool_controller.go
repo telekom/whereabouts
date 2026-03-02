@@ -18,11 +18,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
+
+const ippoolFinalizerName = "whereabouts.cni.cncf.io/ippool-finalizer"
 
 // IPPoolReconciler reconciles IPPool resources by removing allocations whose
 // pods no longer exist. It replaces the legacy CronJob-based reconciler and
@@ -64,6 +68,37 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("getting IPPool: %s", err)
+	}
+
+	// Handle deletion: run cleanup, then remove finalizer.
+	if !pool.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(&pool, ippoolFinalizerName) {
+			// Cleanup: remove all overlapping reservations for this pool.
+			allKeys := make([]string, 0, len(pool.Spec.Allocations))
+			for key := range pool.Spec.Allocations {
+				allKeys = append(allKeys, key)
+			}
+			if len(allKeys) > 0 {
+				if err := r.cleanupOverlappingReservations(ctx, &pool, allKeys); err != nil {
+					logger.Error(err, "failed to clean up overlapping reservations during deletion")
+					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+				}
+			}
+
+			controllerutil.RemoveFinalizer(&pool, ippoolFinalizerName)
+			if err := r.client.Update(ctx, &pool); err != nil {
+				return ctrl.Result{}, fmt.Errorf("removing finalizer: %s", err)
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer if not present.
+	if !controllerutil.ContainsFinalizer(&pool, ippoolFinalizerName) {
+		controllerutil.AddFinalizer(&pool, ippoolFinalizerName)
+		if err := r.client.Update(ctx, &pool); err != nil {
+			return ctrl.Result{}, fmt.Errorf("adding finalizer: %s", err)
+		}
 	}
 
 	if len(pool.Spec.Allocations) == 0 {
@@ -219,28 +254,7 @@ func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
 		return nil
 	}
 
-	return addOffsetToIP(ipNet.IP, offset)
-}
-
-// addOffsetToIP adds an integer offset to a base IP address.
-func addOffsetToIP(ip net.IP, offset int64) net.IP {
-	// Normalize to 16-byte representation.
-	ip = ip.To16()
-	if ip == nil {
-		return nil
-	}
-
-	result := make(net.IP, len(ip))
-	copy(result, ip)
-
-	carry := offset
-	for i := len(result) - 1; i >= 0 && carry != 0; i-- {
-		sum := int64(result[i]) + carry
-		result[i] = byte(sum & 0xff)
-		carry = sum >> 8
-	}
-
-	return result
+	return iphelpers.IPAddOffset(ipNet.IP, uint64(offset))
 }
 
 // denormalizeIPName converts a normalized IP name (dashes for colons) back to

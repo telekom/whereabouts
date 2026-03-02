@@ -54,7 +54,7 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, pool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.range is required"))
+			Expect(err.Error()).To(ContainSubstring("CIDR is required"))
 		})
 
 		It("should reject a NodeSlicePool with invalid range", func() {
@@ -86,7 +86,7 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, pool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.sliceSize is required"))
+			Expect(err.Error()).To(ContainSubstring("sliceSize is required"))
 		})
 
 		It("should reject a NodeSlicePool with invalid sliceSize", func() {

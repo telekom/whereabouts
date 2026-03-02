@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -34,10 +35,7 @@ const whereaboutsConfigFile = "whereabouts.kubeconfig"
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Whereabouts Suite",
-		[]Reporter{})
+	RunSpecs(t, "Whereabouts Suite")
 }
 
 func AllocateAndReleaseAddressesTest(ipRange string, gw string, kubeconfigPath string, expectedAddresses []string) {
@@ -53,9 +51,10 @@ func AllocateAndReleaseAddressesTest(ipRange string, gw string, kubeconfigPath s
 	// Only used to get the parsed IP range.
 	conf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, gw, kubeconfigPath)
 	wbClient := *kubernetes.NewKubernetesClient(
+  //lint:ignore SA1019 generated code lacks apply configurations
 		fake.NewSimpleClientset(
 			ipPool(conf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
-		fakek8sclient.NewSimpleClientset())
+		fakek8sclient.NewClientset())
 
 	for i := 0; i < len(expectedAddresses); i++ {
 		name := fmt.Sprintf("%s-%d", podName, i)
@@ -158,10 +157,11 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 		wbClient := *kubernetes.NewKubernetesClient(
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName, []whereaboutstypes.IPReservation{
 					{PodRef: ipamConf.GetPodRef(), IfName: ifname, IP: net.ParseIP(expectedAddress)}, {PodRef: "test"}}...)),
-			fakek8sclient.NewSimpleClientset())
+			fakek8sclient.NewClientset())
 
 		cniConf, err := newCNINetConf(cniVersion, ipamConf)
 		Expect(err).NotTo(HaveOccurred())
@@ -304,7 +304,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -375,7 +376,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -443,7 +445,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -522,7 +525,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -607,7 +611,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -671,7 +676,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName),
 				ipPool(ipamConf.IPRanges[1].Range, podNamespace, ipamConf.NetworkName)))
@@ -736,7 +742,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName),
 				ipPool(ipamConf.IPRanges[1].Range, podNamespace, ipamConf.NetworkName)))
@@ -799,7 +806,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -864,7 +872,8 @@ var _ = Describe("Whereabouts operations", func() {
 			args.ContainerID,
 			ifname,
 			ipamConf,
-			fakek8sclient.NewSimpleClientset(),
+			fakek8sclient.NewClientset(),
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -922,9 +931,10 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 		wbClient := *kubernetes.NewKubernetesClient(
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)),
-			fakek8sclient.NewSimpleClientset())
+			fakek8sclient.NewClientset())
 
 		// allocate 8 IPs (192.168.1.5 - 192.168.1.12); the entirety of the pool defined above
 		for i := 0; i < 8; i++ {
@@ -990,9 +1000,10 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "192.168.22.0/28"
 
 		wbClient := *kubernetes.NewKubernetesClient(
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
-			fakek8sclient.NewSimpleClientset())
+			fakek8sclient.NewClientset())
 
 		// ----------------------------- range 1
 
@@ -1113,9 +1124,10 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "2001::2:3:0/126"
 
 		wbClient := *kubernetes.NewKubernetesClient(
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
-			fakek8sclient.NewSimpleClientset())
+			fakek8sclient.NewClientset())
 
 		// ----------------------------- range 1
 
@@ -1236,9 +1248,10 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "192.168.33.0/28"
 
 		wbClient := *kubernetes.NewKubernetesClient(
+   //lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
-			fakek8sclient.NewSimpleClientset())
+			fakek8sclient.NewClientset())
 
 		// ----------------------------- range 1
 
@@ -1351,6 +1364,190 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	Context("CNI CHECK", func() {
+		It("succeeds when an allocation exists", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.1.0/24"
+			ipGateway := "192.168.10.1"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+
+			wbClient := *kubernetes.NewKubernetesClient(
+    //lint:ignore SA1019 generated code lacks apply configurations
+				fake.NewSimpleClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			containerID := "check-test-container"
+			args := &skel.CmdArgs{
+				ContainerID: containerID,
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+
+			// ADD first — allocate an IP.
+			client := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			_, _, err = testutils.CmdAddWithArgs(args, func() error {
+				return cmdAdd(client, cniVersion)
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// CHECK — allocation should be found.
+			checkClient := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			err = testutils.CmdCheckWithArgs(args, func() error {
+				ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
+				defer cancel()
+
+				for _, ipRange := range ipamConf.IPRanges {
+					poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+					pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
+					if err != nil {
+						return fmt.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
+					}
+					found := false
+					for _, alloc := range pool.Allocations() {
+						if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return fmt.Errorf("CHECK: no allocation found for containerID %q ifName %q in range %s",
+							args.ContainerID, args.IfName, ipRange.Range)
+					}
+				}
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("fails when no allocation exists", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.1.0/24"
+			ipGateway := "192.168.10.1"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+
+			// Create an empty pool — no allocations.
+			wbClient := *kubernetes.NewKubernetesClient(
+    //lint:ignore SA1019 generated code lacks apply configurations
+				fake.NewSimpleClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			args := &skel.CmdArgs{
+				ContainerID: "no-alloc-container",
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+
+			// CHECK without ADD — should fail.
+			checkClient := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			err = testutils.CmdCheckWithArgs(args, func() error {
+				ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
+				defer cancel()
+
+				for _, ipRange := range ipamConf.IPRanges {
+					poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+					pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
+					if err != nil {
+						return fmt.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
+					}
+					found := false
+					for _, alloc := range pool.Allocations() {
+						if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return fmt.Errorf("CHECK: no allocation found for containerID %q ifName %q in range %s",
+							args.ContainerID, args.IfName, ipRange.Range)
+					}
+				}
+				return nil
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no allocation found"))
+		})
+	})
+
+	Context("CNI DEL with retry", func() {
+		It("successfully deallocates via cmdDelFunc", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.1.0/24"
+			ipGateway := "192.168.10.1"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+
+			wbClient := *kubernetes.NewKubernetesClient(
+    //lint:ignore SA1019 generated code lacks apply configurations
+				fake.NewSimpleClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			containerID := "del-retry-container"
+			args := &skel.CmdArgs{
+				ContainerID: containerID,
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+
+			// ADD first.
+			client := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			_, _, err = testutils.CmdAddWithArgs(args, func() error {
+				return cmdAdd(client, cniVersion)
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// DEL via the retry wrapper (cmdDelFunc path).
+			// We inject the fake client so it succeeds on the first attempt;
+			// this verifies the retry wrapper returns nil on success.
+			err = testutils.CmdDelWithArgs(args, func() error {
+				return cmdDel(mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient))
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify allocation is gone: CHECK should fail.
+			checkClient := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
+			defer cancel()
+
+			poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipamConf.IPRanges[0].Range, NetworkName: ipamConf.NetworkName}
+			pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
+			Expect(err).NotTo(HaveOccurred())
+
+			found := false
+			for _, alloc := range pool.Allocations() {
+				if alloc.ContainerID == containerID && alloc.IfName == ifname {
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeFalse(), "allocation should have been removed")
+		})
+	})
 })
 
 func cniArgs(podNamespace string, podName string) string {

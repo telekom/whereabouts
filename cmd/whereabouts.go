@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/telekom/whereabouts/pkg/config"
 	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/storage"
 	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	"github.com/telekom/whereabouts/pkg/types"
 	"github.com/telekom/whereabouts/pkg/version"
@@ -35,6 +37,13 @@ func cmdAddFunc(args *skel.CmdArgs) error {
 	return cmdAdd(ipam, confVersion)
 }
 
+const (
+	// delMaxRetries is the number of times to retry a failed CNI DEL before giving up.
+	delMaxRetries = 3
+	// delInitialBackoff is the initial backoff duration between DEL retries.
+	delInitialBackoff = 1 * time.Second
+)
+
 func cmdDelFunc(args *skel.CmdArgs) error {
 	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
@@ -45,16 +54,33 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 	}
 	logging.Debugf("DEL - IPAM configuration successfully read: %+v", *ipamConf)
 
-	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
-	if err != nil {
-		// Lenient: if we can't even build the client, log and succeed.
-		logging.Errorf("IPAM client initialization error (DEL tolerant): %v", err)
-		return nil
-	}
-	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
+	var lastErr error
+	backoff := delInitialBackoff
+	for attempt := 0; attempt <= delMaxRetries; attempt++ {
+		if attempt > 0 {
+			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt, delMaxRetries, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+		}
 
-	logging.Debugf("Beginning delete for ContainerID: %q - podRef: %q - ifName: %q", args.ContainerID, ipamConf.GetPodRef(), args.IfName)
-	return cmdDel(ipam)
+		ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
+		if err != nil {
+			lastErr = err
+			logging.Errorf("IPAM client initialization error (attempt %d/%d): %v", attempt, delMaxRetries, err)
+			continue
+		}
+
+		logging.Debugf("Beginning delete for ContainerID: %q - podRef: %q - ifName: %q", args.ContainerID, ipamConf.GetPodRef(), args.IfName)
+		lastErr = cmdDel(ipam)
+		safeCloseKubernetesBackendConnection(ipam)
+		if lastErr == nil {
+			return nil
+		}
+		logging.Errorf("DEL attempt %d/%d failed: %v", attempt, delMaxRetries, lastErr)
+	}
+
+	// All retries exhausted — return the final error.
+	return logging.Errorf("DEL failed after %d retries: %s", delMaxRetries, lastErr)
 }
 
 func main() {
@@ -73,8 +99,48 @@ func safeCloseKubernetesBackendConnection(ipam *kubernetes.KubernetesIPAM) {
 	}
 }
 
-func cmdCheck(_ *skel.CmdArgs) error {
-	// CNI CHECK: return nil (no-op). The reconciler handles drift detection.
+func cmdCheck(args *skel.CmdArgs) error {
+	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
+	if err != nil {
+		return logging.Errorf("IPAM configuration load failed: %s", err)
+	}
+	logging.Debugf("CHECK - IPAM configuration successfully read: %+v", *ipamConf)
+
+	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
+	if err != nil {
+		return logging.Errorf("failed to create Kubernetes IPAM manager: %v", err)
+	}
+	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
+	defer cancel()
+
+	// Verify an allocation exists for this container in every configured IP range.
+	for _, ipRange := range ipamConf.IPRanges {
+		poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
+		if err != nil {
+			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+				return logging.Errorf("CHECK: transient error reading pool %s: %s", ipRange.Range, err)
+			}
+			return logging.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
+		}
+
+		found := false
+		for _, alloc := range pool.Allocations() {
+			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return logging.Errorf("CHECK: no allocation found for containerID %q ifName %q in range %s",
+				args.ContainerID, args.IfName, ipRange.Range)
+		}
+		logging.Debugf("CHECK: allocation verified for containerID %q ifName %q in range %s",
+			args.ContainerID, args.IfName, ipRange.Range)
+	}
+
 	return nil
 }
 

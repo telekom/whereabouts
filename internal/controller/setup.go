@@ -17,8 +17,8 @@ import (
 // The following RBAC rules are required by controller-runtime infrastructure
 // (leader election and event recording) and are not tied to a specific
 // reconciler:
-//+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;create;update;delete
-//+kubebuilder:rbac:groups="";events.k8s.io,resources=events,verbs=create;patch;update;get
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;create;update;delete
+// +kubebuilder:rbac:groups="";events.k8s.io,resources=events,verbs=create;patch;update;get
 func SetupWithManager(mgr ctrl.Manager, reconcileInterval time.Duration) error {
 	if err := SetupIPPoolReconciler(mgr, reconcileInterval); err != nil {
 		return err

@@ -109,7 +109,7 @@ var _ = Describe("IPPoolValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, pool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid podRef"))
+			Expect(err.Error()).To(ContainSubstring("must be in namespace/name format"))
 		})
 
 		It("should issue a warning for an allocation with empty podRef", func() {
@@ -169,7 +169,7 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(warnings).To(BeEmpty())
 		})
 
-		It("should reject a range change", func() {
+		It("should warn on a range change but allow it", func() {
 			oldPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -190,9 +190,10 @@ var _ = Describe("IPPoolValidator", func() {
 					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
 				},
 			}
-			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.range is immutable"))
+			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(HaveLen(1))
+			Expect(warnings[0]).To(ContainSubstring("spec.range changed"))
 		})
 
 		It("should reject an update with invalid podRef", func() {
@@ -224,7 +225,7 @@ var _ = Describe("IPPoolValidator", func() {
 			}
 			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid podRef"))
+			Expect(err.Error()).To(ContainSubstring("must be in namespace/name format"))
 		})
 	})
 

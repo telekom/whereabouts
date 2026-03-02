@@ -477,16 +477,16 @@ var _ = Describe("IncIPAddress operations", func() {
 			Expect(ip2).To(Equal(net.ParseIP("ff02::1:0:0")))
 		})
 
-		It("IPv4 addresses can overflow", func() {
+		It("IPv4 addresses return unchanged on overflow", func() {
 			ip1 := net.ParseIP("255.255.255.255")
 			ip2 := IncIP(ip1)
-			Expect(ip2).To(Equal(net.ParseIP("0.0.0.0")))
+			Expect(ip2).To(Equal(net.ParseIP("255.255.255.255")))
 		})
 
-		It("IPv6 addresses can overflow", func() {
+		It("IPv6 addresses return unchanged on overflow", func() {
 			ip1 := net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")
 			ip2 := IncIP(ip1)
-			Expect(ip2).To(Equal(net.ParseIP("::")))
+			Expect(ip2).To(Equal(net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
 		})
 	})
 })
@@ -537,16 +537,16 @@ var _ = Describe("DecIPAddress operations", func() {
 			Expect(ip2).To(Equal(net.ParseIP("ff02::ffff:ffff")))
 		})
 
-		It("IPv4 addresses can overflow", func() {
+		It("IPv4 addresses return unchanged on underflow", func() {
 			ip1 := net.ParseIP("0.0.0.0")
 			ip2 := DecIP(ip1)
-			Expect(ip2).To(Equal(net.ParseIP("255.255.255.255")))
+			Expect(ip2).To(Equal(net.ParseIP("0.0.0.0")))
 		})
 
-		It("IPv6 addresses can overflow", func() {
+		It("IPv6 addresses return unchanged on underflow", func() {
 			ip1 := net.ParseIP("::")
 			ip2 := DecIP(ip1)
-			Expect(ip2).To(Equal(net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")))
+			Expect(ip2).To(Equal(net.ParseIP("::")))
 		})
 	})
 })
@@ -855,60 +855,8 @@ var _ = Describe("IPGetOffset operations", func() {
 	})
 })
 
-var _ = Describe("IP helper utility functions", func() {
-	/*
-		func byteSliceAdd(ar1, ar2 []byte) ([]byte, error) {
-		func byteSliceSub(ar1, ar2 []byte) ([]byte, error) {
-		func ipAddrToUint64(ip net.IP) uint64 {
-		func ipAddrFromUint64(num uint64) net.IP {
-		func IPAddOffset(ip net.IP, offset uint64) net.IP {
-		func IPGetOffset(ip1, ip2 net.IP) uint64 {
-	*/
-	It("tests byteSliceAdd normal case", func() {
-		b1 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1}
-		b2 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10}
-		bSum, err := byteSliceAdd(b1, b2)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(bSum).To(Equal([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 11}))
-	})
-
-	It("tests byteSliceAdd carry case", func() {
-		b1 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255}
-		b2 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-		bSum, err := byteSliceAdd(b1, b2)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(bSum).To(Equal([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0}))
-	})
-
-	It("tests byteSliceSub normal case", func() {
-		b1 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10}
-		b2 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1}
-		bSum, err := byteSliceSub(b1, b2)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(bSum).To(Equal([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9}))
-	})
-
-	It("tests byteSliceSub carry case", func() {
-		b1 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0}
-		b2 := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
-		bSum, err := byteSliceSub(b1, b2)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(bSum).To(Equal([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255}))
-	})
-
-	It("can convert ipAddrToUint64", func() {
-		b := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 255, 255}
-		bNum := ipAddrToUint64(net.IP(b))
-		Expect(bNum).To(Equal(uint64(0x1ffff)))
-	})
-
-	It("can convert ipAddrFromUint64", func() {
-		uintNum := uint64(0x1ffff)
-		ip := net.IP([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 255, 255})
-		bNum := ipAddrFromUint64(uintNum)
-		Expect(bNum).To(Equal(ip))
-	})
-})
+// Note: byteSliceAdd, byteSliceSub, ipAddrToUint64, ipAddrFromUint64 tests removed
+// because those internal functions were replaced by net/netip + math/big in iphelpers.go.
 
 var _ = Describe("IPAddOffset operations", func() {
 	It("correctly calculates the offset between two IPv4 IPs", func() {
@@ -968,6 +916,24 @@ func TestDivideRangeBySize(t *testing.T) {
 			sliceSize:      "10",
 			expectedResult: []string{"10.0.0.0/10", "10.64.0.0/10", "10.128.0.0/10", "10.192.0.0/10"},
 		},
+		{
+			name:           "IPv6 /124 divided by /126",
+			netRange:       "fd00::/124",
+			sliceSize:      "/126",
+			expectedResult: []string{"fd00::/126", "fd00::4/126", "fd00::8/126", "fd00::c/126"},
+		},
+		{
+			name:      "IPv6 slice larger than range",
+			netRange:  "fd00::/126",
+			sliceSize: "/124",
+			expectError: true,
+		},
+		{
+			name:           "IPv6 /124 divided by same size",
+			netRange:       "fd00::/124",
+			sliceSize:      "/124",
+			expectedResult: []string{"fd00::/124"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -987,5 +953,22 @@ func TestDivideRangeBySize(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestDivideRangeBySizeIPv6Large(t *testing.T) {
+	result, err := DivideRangeBySize("fd00::/48", "/64")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expectedCount := 65536
+	if len(result) != expectedCount {
+		t.Fatalf("expected %d subnets, got %d", expectedCount, len(result))
+	}
+	if result[0] != "fd00::/64" {
+		t.Errorf("expected first subnet fd00::/64, got %s", result[0])
+	}
+	if result[len(result)-1] != "fd00:0:0:ffff::/64" {
+		t.Errorf("expected last subnet fd00:0:0:ffff::/64, got %s", result[len(result)-1])
 	}
 }

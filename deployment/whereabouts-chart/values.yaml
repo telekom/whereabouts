@@ -55,6 +55,29 @@ cniConf:
   confDir: /etc/cni/net.d
   binDir: /opt/cni/bin
 
-nodeSliceController:
+operator:
   enabled: true
+  replicas: 2
   priorityClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+webhook:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # failurePolicy for the ValidatingWebhookConfiguration (Fail or Ignore)
+  failurePolicy: Fail
+  # ServiceAccount used by the CNI plugin — bypass webhooks for this SA
+  cniServiceAccountName: whereabouts

@@ -36,8 +36,16 @@ func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereab
 }
 
 // ValidateUpdate validates a NodeSlicePool on update.
-func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, _, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
-	return validateNodeSlicePool(pool)
+func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
+	var warnings admission.Warnings
+	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
+		warnings = append(warnings, fmt.Sprintf("spec.range changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.Range, pool.Spec.Range))
+	}
+	if oldPool != nil && oldPool.Spec.SliceSize != pool.Spec.SliceSize {
+		warnings = append(warnings, fmt.Sprintf("spec.sliceSize changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.SliceSize, pool.Spec.SliceSize))
+	}
+	w, err := validateNodeSlicePool(pool)
+	return append(warnings, w...), err
 }
 
 // ValidateDelete is a no-op.

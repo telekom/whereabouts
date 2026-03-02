@@ -923,9 +923,9 @@ func TestDivideRangeBySize(t *testing.T) {
 			expectedResult: []string{"fd00::/126", "fd00::4/126", "fd00::8/126", "fd00::c/126"},
 		},
 		{
-			name:      "IPv6 slice larger than range",
-			netRange:  "fd00::/126",
-			sliceSize: "/124",
+			name:        "IPv6 slice larger than range",
+			netRange:    "fd00::/126",
+			sliceSize:   "/124",
 			expectError: true,
 		},
 		{

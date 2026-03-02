@@ -51,7 +51,7 @@ func AllocateAndReleaseAddressesTest(ipRange string, gw string, kubeconfigPath s
 	// Only used to get the parsed IP range.
 	conf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, gw, kubeconfigPath)
 	wbClient := *kubernetes.NewKubernetesClient(
-  //lint:ignore SA1019 generated code lacks apply configurations
+		//lint:ignore SA1019 generated code lacks apply configurations
 		fake.NewSimpleClientset(
 			ipPool(conf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
 		fakek8sclient.NewClientset())
@@ -157,7 +157,7 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 		wbClient := *kubernetes.NewKubernetesClient(
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName, []whereaboutstypes.IPReservation{
 					{PodRef: ipamConf.GetPodRef(), IfName: ifname, IP: net.ParseIP(expectedAddress)}, {PodRef: "test"}}...)),
@@ -305,7 +305,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -377,7 +377,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -446,7 +446,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -526,7 +526,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -612,7 +612,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -677,7 +677,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName),
 				ipPool(ipamConf.IPRanges[1].Range, podNamespace, ipamConf.NetworkName)))
@@ -743,7 +743,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName),
 				ipPool(ipamConf.IPRanges[1].Range, podNamespace, ipamConf.NetworkName)))
@@ -807,7 +807,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -873,7 +873,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ifname,
 			ipamConf,
 			fakek8sclient.NewClientset(),
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
 
@@ -931,7 +931,7 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 		wbClient := *kubernetes.NewKubernetesClient(
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)),
 			fakek8sclient.NewClientset())
@@ -1000,7 +1000,7 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "192.168.22.0/28"
 
 		wbClient := *kubernetes.NewKubernetesClient(
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
 			fakek8sclient.NewClientset())
@@ -1124,7 +1124,7 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "2001::2:3:0/126"
 
 		wbClient := *kubernetes.NewKubernetesClient(
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
 			fakek8sclient.NewClientset())
@@ -1248,7 +1248,7 @@ var _ = Describe("Whereabouts operations", func() {
 		secondRange := "192.168.33.0/28"
 
 		wbClient := *kubernetes.NewKubernetesClient(
-   //lint:ignore SA1019 generated code lacks apply configurations
+			//lint:ignore SA1019 generated code lacks apply configurations
 			fake.NewSimpleClientset(
 				ipPool(firstRange, podNamespace, ""), ipPool(secondRange, podNamespace, "")),
 			fakek8sclient.NewClientset())
@@ -1375,7 +1375,7 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 			wbClient := *kubernetes.NewKubernetesClient(
-    //lint:ignore SA1019 generated code lacks apply configurations
+				//lint:ignore SA1019 generated code lacks apply configurations
 				fake.NewSimpleClientset(
 					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
 				fakek8sclient.NewClientset())
@@ -1439,7 +1439,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 			// Create an empty pool — no allocations.
 			wbClient := *kubernetes.NewKubernetesClient(
-    //lint:ignore SA1019 generated code lacks apply configurations
+				//lint:ignore SA1019 generated code lacks apply configurations
 				fake.NewSimpleClientset(
 					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
 				fakek8sclient.NewClientset())
@@ -1497,7 +1497,7 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
 
 			wbClient := *kubernetes.NewKubernetesClient(
-    //lint:ignore SA1019 generated code lacks apply configurations
+				//lint:ignore SA1019 generated code lacks apply configurations
 				fake.NewSimpleClientset(
 					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
 				fakek8sclient.NewClientset())

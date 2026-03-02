@@ -131,7 +131,9 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	specChanged := pool.Spec.Range != ipamConf.Range || pool.Spec.SliceSize != ipamConf.NodeSliceSize
 
 	// Ensure this NAD is an OwnerReference.
-	r.ensureOwnerRef(ctx, &pool, &nad)
+	if err := r.ensureOwnerRef(ctx, &pool, &nad); err != nil {
+		return ctrl.Result{}, fmt.Errorf("ensuring OwnerReference: %s", err)
+	}
 
 	if specChanged {
 		return r.updatePoolSpec(ctx, &pool, ipamConf.Range, ipamConf.NodeSliceSize, subnets, nodes)
@@ -256,12 +258,10 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 }
 
 // ensureOwnerRef adds a non-controller OwnerReference for multi-NAD scenarios.
-func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nad *nadv1.NetworkAttachmentDefinition) {
-	logger := log.FromContext(ctx)
-
+func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nad *nadv1.NetworkAttachmentDefinition) error {
 	for _, ref := range pool.OwnerReferences {
 		if ref.UID == nad.UID {
-			return // Already has this OwnerReference.
+			return nil // Already has this OwnerReference.
 		}
 	}
 
@@ -273,9 +273,9 @@ func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereabo
 		UID:        nad.UID,
 	})
 	if err := r.client.Patch(ctx, pool, patch); err != nil {
-		logger.Error(err, "failed to add OwnerReference to NodeSlicePool",
-			"pool", pool.Name, "nad", nad.Name)
+		return fmt.Errorf("patching OwnerReference on NodeSlicePool %s for NAD %s: %s", pool.Name, nad.Name, err)
 	}
+	return nil
 }
 
 // mapNodeToNADs maps a Node event to reconciliation of all NADs.

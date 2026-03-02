@@ -112,8 +112,8 @@ for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whe
   # by the daemonset is the one loaded into KinD and not one pulled from a repo
   awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
 done
-# deployment has an extra tab for the sed so doing out of the loop
-awk '/^          image:/{print; print "          imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/node-slice-controller.yaml" | retry kubectl apply -f -
+# operator deployment uses different indentation for its image field
+awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/operator-install.yaml" | retry kubectl apply -f -
 retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
-retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-controller pod --timeout=$TIMEOUT_K8
+retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-operator pod --timeout=$TIMEOUT_K8
 echo "## done"

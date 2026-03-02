@@ -293,5 +293,3 @@ func addrToNetIP(addr netip.Addr, origIP net.IP) net.IP {
 	}
 	return addr.AsSlice()
 }
-
-

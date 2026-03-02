@@ -77,7 +77,8 @@ spec:
           - -c
           - |
             SLEEP=false source /install-cni.sh
-            /token-watcher.sh
+            /token-watcher.sh &
+            sleep infinity
         image: ghcr.io/telekom/whereabouts:latest
         env:
         - name: NODENAME

@@ -244,9 +244,9 @@ func GetFlatIPAM(isControlLoop bool, IPAM *types.IPAMConfig, extraConfigPaths ..
 			if err != nil {
 				return flatipam, foundflatfile, fmt.Errorf("error opening flat configuration file @ %s with: %s", confpath, err)
 			}
+			defer jsonFile.Close()
 
 			jsonBytes, err := io.ReadAll(jsonFile)
-			jsonFile.Close()
 			if err != nil {
 				return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %s", confpath, err)
 			}

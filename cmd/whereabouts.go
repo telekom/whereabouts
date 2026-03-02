@@ -56,9 +56,9 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 
 	var lastErr error
 	backoff := delInitialBackoff
-	for attempt := 0; attempt <= delMaxRetries; attempt++ {
+	for attempt := 0; attempt < delMaxRetries; attempt++ {
 		if attempt > 0 {
-			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt, delMaxRetries, backoff)
+			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt+1, delMaxRetries, backoff)
 			time.Sleep(backoff)
 			backoff *= 2
 		}
@@ -66,7 +66,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 		if err != nil {
 			lastErr = err
-			logging.Errorf("IPAM client initialization error (attempt %d/%d): %v", attempt, delMaxRetries, err)
+			logging.Errorf("IPAM client initialization error (attempt %d/%d): %v", attempt+1, delMaxRetries, err)
 			continue
 		}
 
@@ -76,11 +76,13 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		if lastErr == nil {
 			return nil
 		}
-		logging.Errorf("DEL attempt %d/%d failed: %v", attempt, delMaxRetries, lastErr)
+		logging.Errorf("DEL attempt %d/%d failed: %v", attempt+1, delMaxRetries, lastErr)
 	}
 
-	// All retries exhausted — return the final error.
-	return logging.Errorf("DEL failed after %d retries: %s", delMaxRetries, lastErr)
+	// All retries exhausted — CNI spec requires DEL to be idempotent.
+	// Log the error but return nil to avoid blocking pod deletion.
+	_ = logging.Errorf("DEL failed after %d attempts: %s", delMaxRetries, lastErr)
+	return nil
 }
 
 func main() {

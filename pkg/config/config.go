@@ -54,7 +54,10 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 
 	flatipam, foundflatfile, err := GetFlatIPAM(false, n.IPAM, extraConfigPaths...)
 	if err != nil {
-		return nil, "", err
+		// Config file not found is non-fatal — inline IPAM config may be sufficient.
+		if _, ok := err.(*ConfigFileNotFoundError); !ok {
+			return nil, "", err
+		}
 	}
 
 	// Now let's try to merge the configurations...
@@ -242,9 +245,8 @@ func GetFlatIPAM(isControlLoop bool, IPAM *types.IPAMConfig, extraConfigPaths ..
 				return flatipam, foundflatfile, fmt.Errorf("error opening flat configuration file @ %s with: %s", confpath, err)
 			}
 
-			defer jsonFile.Close()
-
 			jsonBytes, err := io.ReadAll(jsonFile)
+			jsonFile.Close()
 			if err != nil {
 				return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %s", confpath, err)
 			}

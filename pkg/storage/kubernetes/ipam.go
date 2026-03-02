@@ -470,7 +470,7 @@ func IPManagement(ctx context.Context, mode int, ipamConf whereaboutstypes.IPAMC
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	stopM := make(chan struct{})
+	stopM := make(chan struct{}, 1)
 	result := make(chan error, 2)
 
 	var err error
@@ -489,7 +489,8 @@ func IPManagement(ctx context.Context, mode int, ipamConf whereaboutstypes.IPAMC
 				return
 			case <-deposed:
 				logging.Debugf("Deposed as leader, shutting down")
-				result <- nil
+				err = fmt.Errorf("deposed as leader, cannot complete IP management")
+				stopM <- struct{}{}
 				return
 			}
 		}
@@ -569,6 +570,11 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	}
 
 	// handle the ip add/del until successful
+	// NOTE: For multi-range (e.g. dual-stack), if allocation succeeds for range N
+	// but fails for range N+1, the earlier allocations remain in their pools.
+	// The IPPoolReconciler will eventually clean up orphaned allocations when
+	// the pod does not exist. Full transactional rollback is intentionally not
+	// implemented to avoid adding complexity and additional failure modes.
 	var overlappingrangeallocations []whereaboutstypes.IPReservation
 	var ipforoverlappingrangeupdate net.IP
 	for _, ipRange := range ipamConf.IPRanges {
@@ -599,7 +605,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					return newips, err
 				}
 				poolIdentifier.NodeName = hostname
-				nodeSliceRange, err := GetNodeSlicePoolRange(ctx, ipam, hostname)
+				nodeSliceRange, err := GetNodeSlicePoolRange(requestCtx, ipam, hostname)
 				if err != nil {
 					requestCancel()
 					return newips, err
@@ -682,10 +688,11 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			case whereaboutstypes.Deallocate:
 				updatedreservelist, ipforoverlappingrangeupdate = allocate.DeallocateIP(reservelist, ipam.ContainerID, ipam.IfName)
 				if ipforoverlappingrangeupdate == nil {
-					// Do not fail if allocation was not found.
-					logging.Debugf("Failed to find allocation for container ID: %s", ipam.ContainerID)
+					// Allocation not found in this range — continue to remaining
+					// ranges so that IPs in other ranges are still released.
+					logging.Debugf("No allocation found for container ID %q in range %s, continuing to next range", ipam.ContainerID, ipRange.Range)
 					requestCancel()
-					return nil, nil
+					break RETRYLOOP
 				}
 			}
 
@@ -717,7 +724,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		if err != nil {
-			return newips, logging.Errorf("IP allocation failed for range %s after %d retries: %s", ipRange.Range, storage.DatastoreRetries, err)
+			return newips, logging.Errorf("IP allocation failed for range %s: %s", ipRange.Range, err)
 		}
 
 		if ipamConf.OverlappingRanges {
@@ -728,6 +735,25 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				overlappingCancel()
 				if err != nil {
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation: %v", err)
+					// Best-effort rollback: if we just allocated an IP in the pool
+					// but failed to create the ORIP, attempt to remove the allocation
+					// so the IP isn't reserved without overlap protection.
+					if mode == whereaboutstypes.Allocate && pool != nil {
+						rollbackList := pool.Allocations()
+						var cleaned []whereaboutstypes.IPReservation
+						for _, r := range rollbackList {
+							if !r.IP.Equal(newip.IP) {
+								cleaned = append(cleaned, r)
+							}
+						}
+						rollbackCtx, rollbackCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+						if rbErr := pool.Update(rollbackCtx, cleaned); rbErr != nil {
+							logging.Errorf("Rollback of pool update failed: %v", rbErr)
+						} else {
+							logging.Debugf("Rolled back pool update after ORIP failure")
+						}
+						rollbackCancel()
+					}
 					return newips, err
 				}
 			}

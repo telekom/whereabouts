@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -60,7 +59,7 @@ func newControllerCommand() *cobra.Command {
 			}
 
 			log.Info("starting controller manager")
-			return mgr.Start(context.Background())
+			return mgr.Start(ctrl.SetupSignalHandler())
 		},
 	}
 

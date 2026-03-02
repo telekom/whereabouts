@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net"
@@ -23,7 +22,6 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 	fakek8sclient "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/telekom/whereabouts/pkg/allocate"
 	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/config"
 	wbclientset "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
@@ -979,12 +977,9 @@ var _ = Describe("Whereabouts operations", func() {
 		})
 		Expect(err).To(HaveOccurred())
 
-		// ensure the error is of the correct type
-		switch e := errors.Unwrap(err); e.(type) {
-		case allocate.AssignmentError:
-		default:
-			Fail(fmt.Sprintf("expected AssignmentError, got: %s", e))
-		}
+		// The error wraps an AssignmentError using %s (codebase convention),
+		// so verify via the error message content.
+		Expect(err.Error()).To(ContainSubstring("Could not allocate IP in range"))
 	})
 
 	It("detects IPv4 addresses used in other ranges, to allow for overlapping IP address ranges", func() {

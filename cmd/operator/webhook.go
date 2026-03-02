@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -62,7 +61,7 @@ func newWebhookCommand() *cobra.Command {
 				CertDir:     certDir,
 				DNSName:     fmt.Sprintf("whereabouts-webhook.%s.svc", namespace),
 				SecretName:  "whereabouts-webhook-cert",
-				WebhookName: "whereabouts-validating-webhook",
+				WebhookName: "whereabouts-validating-webhooks",
 				IsReady:     certReady,
 			}); err != nil {
 				return err
@@ -82,7 +81,7 @@ func newWebhookCommand() *cobra.Command {
 			}
 
 			log.Info("starting webhook server")
-			return mgr.Start(context.Background())
+			return mgr.Start(ctrl.SetupSignalHandler())
 		},
 	}
 

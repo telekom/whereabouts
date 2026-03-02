@@ -25,7 +25,10 @@ func (a AssignmentError) Error() string {
 // AssignIP assigns an IP using a range and a reserve list.
 func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservation, containerID, podRef, ifName string) (net.IPNet, []types.IPReservation, error) {
 	// Setup the basics here.
-	_, ipnet, _ := net.ParseCIDR(ipamConf.Range)
+	_, ipnet, err := net.ParseCIDR(ipamConf.Range)
+	if err != nil {
+		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %s", ipamConf.Range, err)
+	}
 
 	// Verify if podRef and ifName have already an allocation.
 	for i, r := range reservelist {

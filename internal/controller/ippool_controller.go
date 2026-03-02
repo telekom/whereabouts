@@ -133,7 +133,10 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			"pool", pool.Name, "count", len(orphanedKeys))
 
 		// Also clean up any corresponding OverlappingRangeIPReservation CRDs.
-		r.cleanupOverlappingReservations(ctx, &pool, orphanedKeys)
+		if err := r.cleanupOverlappingReservations(ctx, &pool, orphanedKeys); err != nil {
+			logger.Error(err, "failed to clean up some overlapping reservations, will retry")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 	}
 
 	// Requeue sooner if pending pods exist.
@@ -164,9 +167,11 @@ func (r *IPPoolReconciler) removeAllocations(ctx context.Context, pool *whereabo
 }
 
 // cleanupOverlappingReservations deletes OverlappingRangeIPReservation CRDs
-// for IPs that were in the orphaned allocations.
-func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, keys []string) {
+// for IPs that were in the orphaned allocations. Returns an error if any
+// deletion fails (excluding NotFound).
+func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, keys []string) error {
 	logger := log.FromContext(ctx)
+	var lastErr error
 
 	for _, key := range keys {
 		ip := allocationKeyToIP(pool, key)
@@ -178,6 +183,7 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 		var reservations whereaboutsv1alpha1.OverlappingRangeIPReservationList
 		if err := r.client.List(ctx, &reservations, client.InNamespace(pool.Namespace)); err != nil {
 			logger.V(1).Info("failed to list overlapping reservations", "error", err)
+			lastErr = err
 			continue
 		}
 
@@ -188,23 +194,24 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 				if err := r.client.Delete(ctx, res); err != nil && !errors.IsNotFound(err) {
 					logger.Error(err, "failed to delete overlapping reservation",
 						"name", res.Name)
+					lastErr = err
 				} else {
 					logger.V(1).Info("deleted overlapping reservation", "name", res.Name)
 				}
 			}
 		}
 	}
+
+	return lastErr
 }
 
 // allocationKeyToIP converts an allocation map key (decimal offset) to an IP
 // address using the pool's CIDR range.
 func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
-	ip, ipNet, err := net.ParseCIDR(pool.Spec.Range)
+	_, ipNet, err := net.ParseCIDR(pool.Spec.Range)
 	if err != nil {
 		return nil
 	}
-	// Align to network address.
-	ip = ipNet.IP
 
 	// Parse offset.
 	var offset int64
@@ -212,7 +219,7 @@ func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
 		return nil
 	}
 
-	return addOffsetToIP(ip, offset)
+	return addOffsetToIP(ipNet.IP, offset)
 }
 
 // addOffsetToIP adds an integer offset to a base IP address.

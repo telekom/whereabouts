@@ -36,7 +36,11 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 }
 
 // ValidateUpdate validates an IPPool on update.
-func (v *IPPoolValidator) ValidateUpdate(_ context.Context, _, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+	// Enforce immutability of spec.range.
+	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
+		return nil, fmt.Errorf("spec.range is immutable and cannot be changed (was %q, requested %q)", oldPool.Spec.Range, pool.Spec.Range)
+	}
 	return validateIPPool(pool)
 }
 

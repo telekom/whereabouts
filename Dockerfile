@@ -1,12 +1,21 @@
 FROM golang:1.25.7@sha256:931c889bca758a82fcbfcb1b6ed6ca1de30783e9e52e6093ad50060735cb99be AS builder
 WORKDIR /go/src/github.com/telekom/whereabouts
+# Version information injected at build time via --build-arg
+ARG VERSION=""
+ARG GIT_SHA=""
+ARG GIT_TREE_STATE="clean"
+ARG RELEASE_STATUS="unreleased"
 # Cache dependency downloads in a separate layer
 COPY go.mod go.sum ./
 COPY vendor/ vendor/
 # Copy source code
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/whereabouts ./cmd/ && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/whereabouts-operator ./cmd/operator/
+RUN VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VERSION} \
+    -X github.com/telekom/whereabouts/pkg/version.GitSHA=${GIT_SHA} \
+    -X github.com/telekom/whereabouts/pkg/version.GitTreeState=${GIT_TREE_STATE} \
+    -X github.com/telekom/whereabouts/pkg/version.ReleaseStatus=${RELEASE_STATUS}" && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts ./cmd/ && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts-operator ./cmd/operator/
 
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 LABEL org.opencontainers.image.source=https://github.com/telekom/whereabouts

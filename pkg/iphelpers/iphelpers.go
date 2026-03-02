@@ -302,7 +302,7 @@ func byteSliceSub(ar1, ar2 []byte) ([]byte, error) {
 		var sum int
 		sum = int(ar1[15-n]) - int(ar2[15-n]) - carry
 		if sum < 0 {
-			sum = 0x100 - int(ar1[15-n]) - int(ar2[15-n]) - carry
+			sum = 0x100 + int(ar1[15-n]) - int(ar2[15-n]) - carry
 			carry = 1
 		} else {
 			carry = 0

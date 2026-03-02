@@ -45,7 +45,5 @@ VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VERSION
 GLDFLAGS="${GLDFLAGS} ${VERSION_LDFLAGS}"
 
 CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} ${GO} build ${GOFLAGS} -trimpath -ldflags "${GLDFLAGS}" -o bin/${cmd} ./cmd/
-CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} ${GO} build ${GOFLAGS} -trimpath -ldflags "${GLDFLAGS}" -o bin/ip-control-loop ./cmd/controlloop/
-CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} ${GO} build ${GOFLAGS} -trimpath -ldflags "${GLDFLAGS}" -o bin/node-slice-controller ./cmd/nodeslicecontroller/
 CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} ${GO} build ${GOFLAGS} -trimpath -ldflags "${GLDFLAGS}" -o bin/whereabouts-operator ./cmd/operator/
 

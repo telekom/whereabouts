@@ -18,7 +18,10 @@ func SetupWithManager(mgr ctrl.Manager, reconcileInterval time.Duration) error {
 		return err
 	}
 
-	// TODO(step-10): register NodeSlicePoolReconciler
+	if err := SetupNodeSliceReconciler(mgr); err != nil {
+		return err
+	}
+
 	// TODO(step-11): register OverlappingRangeReconciler
 
 	return nil

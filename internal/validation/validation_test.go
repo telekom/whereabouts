@@ -43,7 +43,10 @@ func TestValidatePodRef(t *testing.T) {
 		{name: "no slash", podRef: "justpodname", required: true, wantErr: true},
 		{name: "empty namespace", podRef: "/pod", required: true, wantErr: true},
 		{name: "empty name", podRef: "ns/", required: true, wantErr: true},
-		{name: "multiple slashes", podRef: "ns/pod/extra", required: true, wantErr: false}, // SplitN(,2) → ["ns", "pod/extra"]
+		// Intentionally lenient: SplitN(podRef, "/", 2) yields ["ns", "pod/extra"],
+		// so "pod/extra" is accepted as the pod name. This matches Kubernetes behavior
+		// where pod names cannot contain slashes, but we don't reject at this layer.
+		{name: "multiple slashes", podRef: "ns/pod/extra", required: true, wantErr: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

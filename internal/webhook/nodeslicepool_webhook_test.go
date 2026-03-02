@@ -156,7 +156,7 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			Expect(warnings).To(BeNil())
 		})
 
-		It("should accept an update with changed range", func() {
+		It("should accept an update with changed range but emit a warning", func() {
 			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -171,7 +171,8 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			newPool.Spec.Range = "10.1.0.0/16"
 			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(warnings).To(BeNil())
+			Expect(warnings).To(HaveLen(1))
+			Expect(warnings[0]).To(ContainSubstring("spec.range changed"))
 		})
 
 		It("should reject an update with invalid range", func() {

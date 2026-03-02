@@ -584,7 +584,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	// and we have previously committed allocations, undo them.
 	defer func() {
 		if retErr != nil && mode == whereaboutstypes.Allocate && len(committed) > 0 {
-			rollbackCommitted(ctx, committed)
+			rollbackCommitted(context.Background(), committed)
 		}
 	}()
 
@@ -704,6 +704,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// Allocation not found in this range — continue to remaining
 					// ranges so that IPs in other ranges are still released.
 					logging.Debugf("No allocation found for container ID %q in range %s, continuing to next range", ipam.ContainerID, ipRange.Range)
+					skipOverlappingRangeUpdate = true
 					requestCancel()
 					break RETRYLOOP
 				}
@@ -737,7 +738,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		if err != nil {
-			return newips, logging.Errorf("IP allocation failed for range %s: %s", ipRange.Range, err)
+			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %s", ipRange.Range, storage.DatastoreRetries, err)
 		}
 
 		if ipamConf.OverlappingRanges {
@@ -752,20 +753,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// but failed to create the ORIP, attempt to remove the allocation
 					// so the IP isn't reserved without overlap protection.
 					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackList := pool.Allocations()
-						var cleaned []whereaboutstypes.IPReservation
-						for _, r := range rollbackList {
-							if !r.IP.Equal(newip.IP) {
-								cleaned = append(cleaned, r)
-							}
-						}
-						rollbackCtx, rollbackCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-						if rbErr := pool.Update(rollbackCtx, cleaned); rbErr != nil {
-							logging.Errorf("Rollback of pool update failed: %v", rbErr)
-						} else {
-							logging.Debugf("Rolled back pool update after ORIP failure")
-						}
-						rollbackCancel()
+						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, ip: newip.IP}})
 					}
 					return newips, err
 				}

@@ -18,15 +18,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
-
-const ippoolFinalizerName = "whereabouts.cni.cncf.io/ippool-finalizer"
 
 // IPPoolReconciler reconciles IPPool resources by removing allocations whose
 // pods no longer exist. It replaces the legacy CronJob-based reconciler and
@@ -70,35 +67,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("getting IPPool: %s", err)
 	}
 
-	// Handle deletion: run cleanup, then remove finalizer.
+	// Skip pools being deleted.
 	if !pool.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(&pool, ippoolFinalizerName) {
-			// Cleanup: remove all overlapping reservations for this pool.
-			allKeys := make([]string, 0, len(pool.Spec.Allocations))
-			for key := range pool.Spec.Allocations {
-				allKeys = append(allKeys, key)
-			}
-			if len(allKeys) > 0 {
-				if err := r.cleanupOverlappingReservations(ctx, &pool, allKeys); err != nil {
-					logger.Error(err, "failed to clean up overlapping reservations during deletion")
-					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-				}
-			}
-
-			controllerutil.RemoveFinalizer(&pool, ippoolFinalizerName)
-			if err := r.client.Update(ctx, &pool); err != nil {
-				return ctrl.Result{}, fmt.Errorf("removing finalizer: %s", err)
-			}
-		}
 		return ctrl.Result{}, nil
-	}
-
-	// Add finalizer if not present.
-	if !controllerutil.ContainsFinalizer(&pool, ippoolFinalizerName) {
-		controllerutil.AddFinalizer(&pool, ippoolFinalizerName)
-		if err := r.client.Update(ctx, &pool); err != nil {
-			return ctrl.Result{}, fmt.Errorf("adding finalizer: %s", err)
-		}
 	}
 
 	if len(pool.Spec.Allocations) == 0 {
@@ -248,9 +219,12 @@ func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
 		return nil
 	}
 
-	// Parse offset.
+	// Parse offset — must be non-negative for a valid allocation key.
 	var offset int64
 	if _, err := fmt.Sscanf(key, "%d", &offset); err != nil {
+		return nil
+	}
+	if offset < 0 {
 		return nil
 	}
 
@@ -259,25 +233,34 @@ func allocationKeyToIP(pool *whereaboutsv1alpha1.IPPool, key string) net.IP {
 
 // denormalizeIPName converts a normalized IP name (dashes for colons) back to
 // a net.IP. Handles optional network-name prefix.
+//
+// Names may have a network-name prefix: "mynet-10.0.0.5" or just "10.0.0.5".
+// For IPv6, colons are replaced with dashes: "fd00--1" for "fd00::1".
 func denormalizeIPName(name string) net.IP {
-	// Names may have a network-name prefix: "mynet-10.0.0.5" or just "10.0.0.5"
-	// For IPv6, colons are replaced with dashes: "fd00--1" for "fd00::1"
 	// Try parsing as-is first (IPv4 with dots preserved).
 	if ip := net.ParseIP(name); ip != nil {
 		return ip
 	}
 
-	// Try replacing dashes with colons (IPv6 normalization).
-	denormalized := strings.ReplaceAll(name, "-", ":")
-	if ip := net.ParseIP(denormalized); ip != nil {
+	// Try full dash→colon replacement (IPv6 normalization).
+	if ip := net.ParseIP(strings.ReplaceAll(name, "-", ":")); ip != nil {
 		return ip
 	}
 
-	// Try removing network-name prefix (everything before first segment that
-	// looks like an IP).
-	parts := strings.SplitN(name, "-", 2)
-	if len(parts) == 2 {
-		return denormalizeIPName(parts[1])
+	// Iteratively strip leading dash-separated prefix segments.
+	// e.g. "mynet-10.0.0.5" → try "10.0.0.5",
+	// "mynet-fd00--1" → try "fd00--1" → replace → "fd00::1".
+	for i := 0; i < len(name); i++ {
+		if name[i] != '-' {
+			continue
+		}
+		suffix := name[i+1:]
+		if ip := net.ParseIP(suffix); ip != nil {
+			return ip
+		}
+		if ip := net.ParseIP(strings.ReplaceAll(suffix, "-", ":")); ip != nil {
+			return ip
+		}
 	}
 
 	return nil

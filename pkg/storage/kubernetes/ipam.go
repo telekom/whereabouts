@@ -591,10 +591,13 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	var overlappingrangeallocations []whereaboutstypes.IPReservation
 	var ipforoverlappingrangeupdate net.IP
 	for _, ipRange := range ipamConf.IPRanges {
+		configuredRange := ipRange.Range // capture before potential node-slice reassignment
 		var err error
+		var attempts int
 		skipOverlappingRangeUpdate := false
 	RETRYLOOP:
 		for j := 0; j < storage.DatastoreRetries; j++ {
+			attempts = j + 1
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			select {
 			case <-ctx.Done():
@@ -738,7 +741,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		if err != nil {
-			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %s", ipRange.Range, storage.DatastoreRetries, err)
+			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %s", configuredRange, attempts, err)
 		}
 
 		if ipamConf.OverlappingRanges {

@@ -12,6 +12,7 @@ SPDX-PackageDownloadLocation = "https://github.com/telekom/whereabouts"
 [[annotations]]
 path = [
   "cmd/**/*.go",
+  "api/**/*.go",
   "pkg/**/*.go",
   "e2e/**/*.go",
   "tools.go",
@@ -24,7 +25,7 @@ SPDX-License-Identifier = "Apache-2.0"
 [[annotations]]
 path = [
   "pkg/generated/**/*.go",
-  "pkg/api/**/zz_generated.deepcopy.go",
+  "api/**/zz_generated.deepcopy.go",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
@@ -45,13 +46,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = ["2019 k8snetworkplumbingwg", "2026 Deutsche Telekom AG"]
 SPDX-License-Identifier = "Apache-2.0"
 
-# Kubernetes / Helm configuration — Apache-2.0
+# Kubernetes / Helm / Kustomize configuration — Apache-2.0
 [[annotations]]
 path = [
+  "config/**/*.yaml",
   "deployment/**/*.yaml",
   "deployment/**/*.txt",
   "deployment/**/*.tpl",
-  "doc/crds/*.yaml",
   "yamls/*.yaml",
   "hack/cni-install.yml",
   "doc/sample_config.json",
@@ -96,6 +97,7 @@ path = [
   ".gitignore",
   "go.mod",
   "go.sum",
+  "PROJECT",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"

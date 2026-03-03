@@ -28,14 +28,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install kubebuilder tools
-        run: ./hack/install-kubebuilder-tools.sh
-
-      - name: Build
-        run: ./hack/build-go.sh
-
-      - name: Test
-        run: sudo PATH=${PATH}:./bin ./hack/test-go.sh
+      - name: Build and Test
+        run: make test
 
   build-push:
     name: Build / ${{ matrix.platform }}

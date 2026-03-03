@@ -17,12 +17,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
-	api "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io"
+const (
+	// GroupName is the group name used in this package.
+	GroupName = "whereabouts.cni.cncf.io"
 )
 
 // SchemeGroupVersion is group version used to register these objects.
-var SchemeGroupVersion = schema.GroupVersion{Group: api.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1alpha1"}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind.
 func Kind(kind string) schema.GroupKind {

@@ -18,7 +18,7 @@ limitations under the License.
 package applyconfiguration
 
 import (
-	v1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	v1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	internal "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/internal"
 	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/whereabouts.cni.cncf.io/v1alpha1"
 	runtime "k8s.io/apimachinery/pkg/runtime"

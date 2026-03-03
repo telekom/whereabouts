@@ -12,7 +12,7 @@ import (
 	fake "k8s.io/client-go/kubernetes/fake"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
 	"github.com/telekom/whereabouts/pkg/types"
 )

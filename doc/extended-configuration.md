@@ -12,8 +12,8 @@ Stranded IP addresses can occur due to node failures (e.g. a sudden power off /
 reboot event) or potentially from pods that have been force deleted
 (e.g. `kubectl delete pod foo --grace-period=0 --force`)
 
-The reconciler runs as part of the **whereabouts-operator** (see
-`doc/crds/operator-install.yaml`). The reconciliation interval is configured
+The reconciler runs as part of the **whereabouts-operator** (deployed via
+`make deploy`). The reconciliation interval is configured
 via the `--reconcile-interval` flag on the operator's `controller` subcommand
 (default: `30s`).
 
@@ -21,7 +21,7 @@ via the `--reconcile-interval` flag on the operator's `controller` subcommand
 
 The daemonset installation as shown on the README is for use with Kubernetes version 1.16 and later. It may also be useful with previous versions, however you'll need to change the `apiVersion` of the daemonset in the provided yaml, [see the deprecation notice](https://kubernetes.io/blog/2019/07/18/api-deprecations-in-1-16/).
 
-You can compile from this repo (with `./hack/build-go.sh`) and copy the resulting binary onto each node in the `/opt/cni/bin` directory (by default).
+You can compile from this repo (with `make build
 
 Note that we're also including a Custom Resource Definition (CRD) to use the `kubernetes` datastore option. This installs the kubernetes CRD specification for the `ippools.whereabouts.cni.cncf.io/v1alpha1` type.
 
@@ -154,7 +154,7 @@ Example dual-stack configuration:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `doc/crds/operator-install.yaml`). Valid range: 1–128. |
+| `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `make deploy`). Valid range: 1–128. |
 
 ### Leader Election
 
@@ -189,20 +189,21 @@ are in **milliseconds**. Defaults are suitable for most deployments.
 
 ## Operator Configuration Examples
 
-The operator binary (`whereabouts-operator`) supports two subcommands:
-
-### Controller (reconcilers)
+The operator binary (`whereabouts-operator`) uses a single `controller`
+subcommand that runs both reconcilers (leader-elected) and the webhook server
+(all replicas) from the same process:
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: whereabouts-controller
+  name: whereabouts-controller-manager
 spec:
+  replicas: 2
   template:
     spec:
       containers:
-      - name: whereabouts-controller
+      - name: manager
         image: ghcr.io/telekom/whereabouts:latest
         command:
         - /whereabouts-operator
@@ -211,33 +212,14 @@ spec:
         - --reconcile-interval=60s
         # Health and metrics endpoints
         - --health-probe-bind-address=:8081
-        - --metrics-bind-address=:8443
-```
-
-### Webhook server
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: whereabouts-webhook
-spec:
-  template:
-    spec:
-      containers:
-      - name: whereabouts-webhook
-        image: ghcr.io/telekom/whereabouts:latest
-        command:
-        - /whereabouts-operator
-        - webhook
-        # Webhook server port (default: 9443)
+        - --metrics-bind-address=:8080
+        # Webhook server (all replicas serve webhooks)
         - --webhook-port=9443
-        # Health probe (default: :8081)
-        - --health-probe-bind-address=:8082
-        # TLS certificates are auto-rotated by cert-controller
+        - --cert-dir=/var/run/webhook-certs
+        - --namespace=kube-system
 ```
 
-For complete installation manifests, see `doc/crds/operator-install.yaml` and
-`doc/crds/webhook-install.yaml`.
+For the complete kustomize-based installation, run `make deploy`.
+See `config/manager/manager.yaml` for the full Deployment manifest.
 
 

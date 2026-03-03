@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Operator binary with `controller` and `webhook` subcommands, replacing the
-  legacy `ip-control-loop` and `node-slice-controller` binaries.
+- Operator binary with single `controller` subcommand that runs both reconcilers
+  and webhook server, replacing the legacy `ip-control-loop` and `node-slice-controller` binaries.
 - Validating webhooks for IPPool, NodeSlicePool, and OverlappingRangeIPReservation
   CRDs with automatic TLS certificate rotation.
 - `matchConditions` CEL expressions on webhooks to bypass validation for the CNI

@@ -15,7 +15,7 @@ The plugin assigns IPs from a specified range (CIDR notation), always allocating
 ### Building
 ```bash
 # Build the CNI plugin binary
-./hack/build-go.sh
+make build
 
 # Build Docker image
 make docker-build
@@ -77,16 +77,16 @@ make kind COMPUTE_NODES=3
 
 ### Core Components
 
-**CNI Plugin Entry Point** (`cmd/whereabouts.go`)
+**CNI Plugin Entry Point** (`cmd/whereabouts/main.go`)
 - Implements the CNI specification interface (ADD, DEL, CHECK, VERSION commands)
 - `cmdAddFunc`: Allocates an IP address when a pod interface is created
 - `cmdDelFunc`: Releases an IP address when a pod interface is deleted
 - Loads IPAM configuration from stdin and creates a Kubernetes IPAM client
 
 **Operator** (`cmd/operator/`)
-- Built on controller-runtime v0.23 with Cobra subcommands
-- `controller` subcommand: leader-elected Deployment running reconcilers
-- `webhook` subcommand: webhook server with cert-controller TLS rotation
+- Built on controller-runtime v0.23 with Cobra
+- `controller` subcommand: leader-elected Deployment running reconcilers + webhook server + cert rotation
+- All replicas serve webhooks; only the leader runs reconcilers
 - Replaces the old `ip-control-loop` and `node-slice-controller` binaries
 
 **Reconcilers** (`internal/controller/`)
@@ -126,16 +126,16 @@ make kind COMPUTE_NODES=3
 
 ### Custom Resource Definitions
 
-**IPPool** (`pkg/api/whereabouts.cni.cncf.io/v1alpha1/ippool_types.go`)
+**IPPool** (`api/whereabouts.cni.cncf.io/v1alpha1/ippool_types.go`)
 - Stores IP allocations for a specific range
 - Key format: `<namespace>-<network-name>-<normalized-range>`
 - Contains array of IPReservation entries with IP, PodRef, ContainerID, IfName
 
-**OverlappingRangeIPReservation** (`pkg/api/whereabouts.cni.cncf.io/v1alpha1/overlappingrangeipreservation_types.go`)
+**OverlappingRangeIPReservation** (`api/whereabouts.cni.cncf.io/v1alpha1/overlappingrangeipreservation_types.go`)
 - Ensures IP uniqueness across overlapping ranges when `enable_overlapping_ranges: true`
 - Prevents same IP from being allocated in different ranges that overlap
 
-**NodeSlicePool** (`pkg/api/whereabouts.cni.cncf.io/v1alpha1/nodeslicepool_types.go`)
+**NodeSlicePool** (`api/whereabouts.cni.cncf.io/v1alpha1/nodeslicepool_types.go`)
 - Experimental: Tracks node-specific IP slice allocations for Fast IPAM
 - Enabled by setting `node_slice_size` in IPAM config
 
@@ -165,7 +165,7 @@ make kind COMPUTE_NODES=3
 
 ### Key Packages
 
-- `cmd/operator`: Cobra-based operator entry point (controller + webhook subcommands)
+- `cmd/operator`: Cobra-based operator entry point (single `controller` subcommand: reconcilers + webhooks)
 - `internal/controller`: controller-runtime reconcilers (IPPool, NodeSlice, OverlappingRange)
 - `internal/webhook`: Validating webhook handlers + cert-controller wrapper
 - `pkg/allocate`: IP assignment algorithms, iteration logic
@@ -178,7 +178,7 @@ make kind COMPUTE_NODES=3
 ### Binaries
 
 - `whereabouts`: CNI plugin binary (called by container runtime via Multus)
-- `whereabouts-operator`: Operator binary with `controller` and `webhook` subcommands
+- `whereabouts-operator`: Operator binary — `controller` subcommand runs reconcilers + webhook server
 
 ## Testing Strategy
 
@@ -203,7 +203,7 @@ make kind COMPUTE_NODES=3
 
 ### Fast IPAM (Experimental)
 - Enabled by adding `node_slice_size` field to IPAM config
-- Managed by the operator's NodeSliceReconciler (deployed via `doc/crds/operator-install.yaml`)
+- Managed by the operator's NodeSliceReconciler (deployed via `make deploy` / kustomize)
 - Pre-allocates IP slices per node to reduce allocation contention in large clusters
 
 ### Configuration Hierarchy

@@ -22,7 +22,7 @@ import (
 	"github.com/telekom/whereabouts/e2e/retrievers"
 	testenv "github.com/telekom/whereabouts/e2e/testenvironment"
 	"github.com/telekom/whereabouts/e2e/util"
-	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/storage"
 	wbstorage "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	"github.com/telekom/whereabouts/pkg/types"

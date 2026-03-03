@@ -1,4 +1,3 @@
-# Don't forget to update doc/crds/daemonset-install.yaml as well
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

@@ -79,17 +79,6 @@ operator:
   topologySpreadConstraints: []
 
 webhook:
-  enabled: true
-  replicas: 2
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 200m
-      memory: 256Mi
-  # topologySpreadConstraints for HA zone distribution (optional)
-  topologySpreadConstraints: []
   # failurePolicy for the ValidatingWebhookConfiguration (Fail or Ignore).
   failurePolicy: Fail
   # ServiceAccount used by the CNI plugin — bypass webhooks for this SA

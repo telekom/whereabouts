@@ -21,7 +21,7 @@ import (
 	context "context"
 	time "time"
 
-	apiwhereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	apiwhereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	versioned "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/telekom/whereabouts/pkg/generated/informers/externalversions/internalinterfaces"
 	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/generated/listers/whereabouts.cni.cncf.io/v1alpha1"

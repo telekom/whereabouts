@@ -48,29 +48,27 @@ Further installation options and configuration parameters can be found in the [e
 
 ### Installing Whereabouts.
 
-You can install this plugin with a Daemonset, using:
+You can install the full stack (CRDs + DaemonSet + operator + webhooks) with:
 
 ```
 git clone https://github.com/telekom/whereabouts && cd whereabouts
-kubectl apply \
-    -f doc/crds/daemonset-install.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_nodeslicepools.yaml
+make deploy
+```
+
+Or install components individually:
+
+```
+make install    # CRDs only
+make deploy     # CRDs + DaemonSet + operator + webhooks
 ```
 
 ### Installing the Whereabouts Operator
 
-The operator handles IP reconciliation (cleaning up orphaned allocations), node-slice management (for Fast IPAM), and validating webhooks. Install it with:
+The operator runs reconcilers (IP pool cleanup, node-slice management) and
+serves validating webhooks from the same deployment. Leader election ensures
+only one replica runs reconcilers, while all replicas serve webhooks.
 
-```
-kubectl apply \
-    -f doc/crds/operator-install.yaml \
-    -f doc/crds/webhook-install.yaml \
-    -f doc/crds/validatingwebhookconfiguration.yaml
-```
-
-The operator runs as a Deployment with leader election, while webhooks run as a separate Deployment with automatic TLS certificate rotation.
+The operator is included in `make deploy`. No separate installation is needed.
 
 The daemonset installation requires Kubernetes Version 1.16 or later.
 
@@ -92,14 +90,7 @@ Helm will install the CRDs as well as the daemonset, operator, and webhooks.
 For **kubectl-based** installations, re-apply the manifests with the new version:
 
 ```
-git pull && kubectl apply \
-    -f doc/crds/daemonset-install.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
-    -f doc/crds/whereabouts.cni.cncf.io_nodeslicepools.yaml \
-    -f doc/crds/operator-install.yaml \
-    -f doc/crds/webhook-install.yaml \
-    -f doc/crds/validatingwebhookconfiguration.yaml
+git pull && make deploy IMG=ghcr.io/telekom/whereabouts:<NEW_VERSION>
 ```
 
 For **Helm**:
@@ -111,13 +102,10 @@ helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <NEW_
 
 For **kubectl-based** installations:
 ```
-kubectl delete -f doc/crds/validatingwebhookconfiguration.yaml
-kubectl delete -f doc/crds/webhook-install.yaml
-kubectl delete -f doc/crds/operator-install.yaml
-kubectl delete -f doc/crds/daemonset-install.yaml
+make undeploy
 ```
 
-> **Note:** CRDs (`whereabouts.cni.cncf.io_ippools.yaml` etc.) are not deleted by default to prevent data loss. Remove them manually if no longer needed.
+> **Note:** CRDs are not deleted by default to prevent data loss. Remove them manually with `make uninstall` if no longer needed.
 
 For **Helm**:
 ```
@@ -282,7 +270,7 @@ spec:
 ```
 
 This setup enables the fast IPAM feature to optimize IP allocation for nodes, improving network performance in clusters with high pod density.
-Please note, you must run the whereabouts operator for this to work. Install manifests can be found in `doc/crds/operator-install.yaml`.
+Please note, you must run the whereabouts operator for this to work. The operator is deployed automatically with `make deploy`.
 You must run your whereabouts daemonset and whereabouts operator in the same namespaces as your network-attachment-definitions.
 The field in the example `node_slice_size` determines how large of a CIDR to allocate per node and the existence of the field is what triggers
 `Fast IPAM` mode.
@@ -351,7 +339,7 @@ Parameter `enable_overlapping_ranges` (see above) is scoped per network name.
 Run the build command from the `./hack` directory:
 
 ```
-./hack/build-go.sh
+make build
 ```
 
 ## Running whereabouts CNI in a local kind cluster

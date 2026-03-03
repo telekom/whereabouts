@@ -18,7 +18,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	internal "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -57,7 +57,7 @@ func OverlappingRangeIPReservation(name, namespace string) *OverlappingRangeIPRe
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 func ExtractOverlappingRangeIPReservationFrom(overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, fieldManager string, subresource string) (*OverlappingRangeIPReservationApplyConfiguration, error) {
 	b := &OverlappingRangeIPReservationApplyConfiguration{}
-	err := managedfields.ExtractInto(overlappingRangeIPReservation, internal.Parser().Type("com.github.telekom.whereabouts.pkg.api.whereabouts.cni.cncf.io.v1alpha1.OverlappingRangeIPReservation"), fieldManager, b, subresource)
+	err := managedfields.ExtractInto(overlappingRangeIPReservation, internal.Parser().Type("com.github.telekom.whereabouts.api.whereabouts.cni.cncf.io.v1alpha1.OverlappingRangeIPReservation"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}

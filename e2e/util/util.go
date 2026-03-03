@@ -16,7 +16,7 @@ import (
 
 	wbtestclient "github.com/telekom/whereabouts/e2e/client"
 	"github.com/telekom/whereabouts/e2e/entities"
-	"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbstorage "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 )
 

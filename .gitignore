@@ -26,6 +26,6 @@ CLAUDE.local.md
 e2e/.env
 
 # Build artifacts
-operator
+/operator
 /whereabouts
 /whereabouts-operator

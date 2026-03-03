@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	dto "github.com/prometheus/client_model/go"
 
-	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 )
 
 // getCounterValue reads the current value of a Counter metric.

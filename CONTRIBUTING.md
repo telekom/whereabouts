@@ -8,7 +8,7 @@ Thank you for your interest in contributing to the Whereabouts IPAM CNI plugin!
 2. **Install Go** (see `go.mod` for the required version).
 3. **Build** the binary:
    ```bash
-   ./hack/build-go.sh
+   make build
    ```
 4. **Run tests**:
    ```bash
@@ -73,7 +73,7 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 | Alias                    | Package                                              |
 |--------------------------|------------------------------------------------------|
 | `whereaboutstypes`       | `pkg/types`                                          |
-| `whereaboutsv1alpha1`    | `pkg/api/whereabouts.cni.cncf.io/v1alpha1`           |
+| `whereaboutsv1alpha1`    | `api/v1alpha1`           |
 
 ### JSON Tags
 

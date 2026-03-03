@@ -24,7 +24,7 @@ import (
 	"gomodules.xyz/jsonpatch/v2"
 
 	"github.com/telekom/whereabouts/pkg/allocate"
-	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 	"github.com/telekom/whereabouts/pkg/logging"

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -18,6 +19,8 @@ import (
 
 // NodeSlicePoolValidator validates NodeSlicePool resources.
 type NodeSlicePoolValidator struct{}
+
+var nodeslicepoolLog = ctrl.Log.WithName("webhook").WithName("nodeslicepool")
 
 var _ admission.Validator[*whereaboutsv1alpha1.NodeSlicePool] = &NodeSlicePoolValidator{}
 
@@ -33,6 +36,9 @@ func SetupNodeSlicePoolWebhook(mgr manager.Manager) error {
 // ValidateCreate validates a NodeSlicePool on creation.
 func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
 	w, err := validateNodeSlicePool(pool)
+	if err != nil {
+		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
+	}
 	recordValidation("nodeslicepool", "create", err)
 	return w, err
 }
@@ -47,6 +53,9 @@ func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool
 		warnings = append(warnings, fmt.Sprintf("spec.sliceSize changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.SliceSize, pool.Spec.SliceSize))
 	}
 	w, err := validateNodeSlicePool(pool)
+	if err != nil {
+		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+	}
 	recordValidation("nodeslicepool", "update", err)
 	return append(warnings, w...), err
 }
@@ -60,13 +69,13 @@ func (v *NodeSlicePoolValidator) ValidateDelete(_ context.Context, _ *whereabout
 func validateNodeSlicePool(pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
 	// Validate Range is a valid CIDR.
 	if err := validation.ValidateCIDR(pool.Spec.Range); err != nil {
-		return nil, fmt.Errorf("invalid spec.range: %s", err)
+		return nil, fmt.Errorf("invalid spec.range: %w", err)
 	}
 
 	// Validate SliceSize is parseable.
 	_, err := validation.ValidateSliceSize(pool.Spec.SliceSize)
 	if err != nil {
-		return nil, fmt.Errorf("invalid spec.sliceSize: %s", err)
+		return nil, fmt.Errorf("invalid spec.sliceSize: %w", err)
 	}
 
 	return nil, nil

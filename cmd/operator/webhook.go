@@ -38,7 +38,7 @@ func newWebhookCommand() *cobra.Command {
 
 			cfg, err := ctrl.GetConfig()
 			if err != nil {
-				return fmt.Errorf("loading kubeconfig: %s", err)
+				return fmt.Errorf("loading kubeconfig: %w", err)
 			}
 
 			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -94,7 +94,7 @@ func newWebhookCommand() *cobra.Command {
 	cmd.Flags().StringVar(&metricsAddr, "metrics-bind-address", ":8082", "Address the Prometheus metrics endpoint binds to")
 	cmd.Flags().StringVar(&healthProbeAddr, "health-probe-bind-address", ":8083", "Address the health/readiness probes bind to")
 	cmd.Flags().IntVar(&webhookPort, "webhook-port", 9443, "Port the webhook server listens on")
-	cmd.Flags().StringVar(&certDir, "cert-dir", "/tmp/k8s-webhook-server/serving-certs", "Directory for TLS certificates")
+	cmd.Flags().StringVar(&certDir, "cert-dir", "/var/run/webhook-certs", "Directory for TLS certificates")
 	cmd.Flags().StringVar(&namespace, "namespace", "", "Namespace where the webhook service runs (required)")
 
 	return cmd

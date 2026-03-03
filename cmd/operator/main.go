@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -54,12 +55,17 @@ func newRootCommand() *cobra.Command {
 }
 
 func setupLogger(cmd *cobra.Command) {
-	logLevel, _ := cmd.Flags().GetString("log-level")
+	logLevel, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read log-level flag: %v\n", err)
+	}
 
 	var opts zap.Options
 	switch logLevel {
 	case "debug":
 		opts.Development = true
+	case "error":
+		opts.Level = zapcore.ErrorLevel
 	default:
 		opts.Development = false
 	}

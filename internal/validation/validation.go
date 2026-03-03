@@ -20,7 +20,7 @@ func ValidateCIDR(cidr string) error {
 	}
 	_, _, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return fmt.Errorf("invalid CIDR %q: %s", cidr, err)
+		return fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 	}
 	return nil
 }

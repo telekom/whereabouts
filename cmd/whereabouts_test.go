@@ -314,7 +314,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(k8sClient, cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -386,7 +385,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(k8sClient, cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -455,7 +453,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(k8sClient, cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -534,7 +531,6 @@ var _ = Describe("Whereabouts operations", func() {
 		r, raw, err := testutils.CmdAddWithArgs(args, func() error {
 			return cmdAdd(k8sClient, cniVersion)
 		})
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
@@ -1041,7 +1037,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient), cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -1085,10 +1080,9 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Allocate the IP
 		r, raw, err = testutils.CmdAddWithArgs(argssecond, func() error {
-			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
+			return cmdAdd(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err = current.GetResult(r)
@@ -1110,7 +1104,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Release the IP, second range
 		err = testutils.CmdDelWithArgs(argssecond, func() error {
-			return cmdDel(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient))
+			return cmdDel(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient))
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -1165,7 +1159,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient), cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -1209,10 +1202,9 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Allocate the IP
 		r, raw, err = testutils.CmdAddWithArgs(argssecond, func() error {
-			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
+			return cmdAdd(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err = current.GetResult(r)
@@ -1234,7 +1226,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Release the IP, second range
 		err = testutils.CmdDelWithArgs(argssecond, func() error {
-			return cmdDel(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient))
+			return cmdDel(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient))
 		})
 
 		Expect(err).NotTo(HaveOccurred())
@@ -1290,7 +1282,6 @@ var _ = Describe("Whereabouts operations", func() {
 			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient), cniVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err := current.GetResult(r)
@@ -1334,10 +1325,9 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Allocate the IP
 		r, raw, err = testutils.CmdAddWithArgs(argssecond, func() error {
-			return cmdAdd(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
+			return cmdAdd(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient), secondCNIVersion)
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// fmt.Printf("!bang raw: %s\n", raw)
 		Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
 
 		result, err = current.GetResult(r)
@@ -1359,7 +1349,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 		// Release the IP, second range
 		err = testutils.CmdDelWithArgs(argssecond, func() error {
-			return cmdDel(mutateK8sIPAM(args.ContainerID, ifname, secondIPAMConf, wbClient))
+			return cmdDel(mutateK8sIPAM(argssecond.ContainerID, ifname, secondIPAMConf, wbClient))
 		})
 		Expect(err).NotTo(HaveOccurred())
 	})

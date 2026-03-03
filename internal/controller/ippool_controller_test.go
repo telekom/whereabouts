@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -62,31 +63,59 @@ var _ = Describe("IPPoolReconciler", func() {
 	buildReconciler := func(objs ...client.Object) {
 		fakeClient := fake.NewClientBuilder().
 			WithScheme(scheme).
+			WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 			WithObjects(objs...).
 			Build()
 		reconciler = &IPPoolReconciler{
 			client:            fakeClient,
+			recorder:          record.NewFakeRecorder(10),
 			reconcileInterval: interval,
+		}
+	}
+
+	// poolWithFinalizer returns an IPPool that already has the cleanup
+	// finalizer, simulating a pool that has been reconciled at least once.
+	poolWithFinalizer := func(name, ns, cidr string, allocs map[string]whereaboutsv1alpha1.IPAllocation) *whereaboutsv1alpha1.IPPool {
+		return &whereaboutsv1alpha1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       name,
+				Namespace:  ns,
+				Finalizers: []string{ippoolFinalizer},
+			},
+			Spec: whereaboutsv1alpha1.IPPoolSpec{
+				Range:       cidr,
+				Allocations: allocs,
+			},
 		}
 	}
 
 	Context("when the pool has no allocations", func() {
 		It("should requeue with reconcileInterval", func() {
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
-				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range:       poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
-				},
-			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{})
 			buildReconciler(pool)
 
 			result, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(Equal(interval))
+		})
+
+		It("should populate status with range details and zero allocations", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{})
+			buildReconciler(pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Status.FirstIP).To(Equal("10.0.0.1"))
+			Expect(updated.Status.LastIP).To(Equal("10.0.0.254"))
+			Expect(updated.Status.TotalIPs).To(Equal(int32(254)))
+			Expect(updated.Status.UsedIPs).To(Equal(int32(0)))
+			Expect(updated.Status.FreeIPs).To(Equal(int32(254)))
+			Expect(updated.Status.OrphanedIPs).To(Equal(int32(0)))
+			Expect(updated.Status.PendingPods).To(Equal(int32(0)))
+			Expect(updated.Status.AllocatedIPs).To(BeEmpty())
 		})
 	})
 
@@ -101,22 +130,13 @@ var _ = Describe("IPPoolReconciler", func() {
 					Phase: corev1.PodRunning,
 				},
 			}
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "default/my-pod",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool, pod)
 
 			result, err := reconciler.Reconcile(ctx, req)
@@ -128,26 +148,52 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 			Expect(updated.Spec.Allocations).To(HaveKey("1"))
 		})
+
+		It("should populate status with correct allocation counts and resolved IPs", func() {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-pod",
+					Namespace: "default",
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
+					IfName:      "eth0",
+				},
+			})
+			buildReconciler(pool, pod)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Status.TotalIPs).To(Equal(int32(254)))
+			Expect(updated.Status.UsedIPs).To(Equal(int32(1)))
+			Expect(updated.Status.FreeIPs).To(Equal(int32(253)))
+			Expect(updated.Status.OrphanedIPs).To(Equal(int32(0)))
+			Expect(updated.Status.PendingPods).To(Equal(int32(0)))
+			Expect(updated.Status.AllocatedIPs).To(HaveLen(1))
+			Expect(updated.Status.AllocatedIPs[0].IP).To(Equal("10.0.0.5"))
+			Expect(updated.Status.AllocatedIPs[0].PodRef).To(Equal("default/my-pod"))
+			Expect(updated.Status.AllocatedIPs[0].IfName).To(Equal("eth0"))
+		})
 	})
 
 	Context("when the pool has an orphaned allocation (pod not found)", func() {
 		It("should remove the orphaned allocation", func() {
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/missing-pod",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "default/missing-pod",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool)
 
 			result, err := reconciler.Reconcile(ctx, req)
@@ -159,26 +205,44 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 			Expect(updated.Spec.Allocations).To(BeEmpty())
 		})
+
+		It("should report OrphanedIPs count in status after cleanup", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"3": {
+					ContainerID: "abc1",
+					PodRef:      "default/missing-1",
+					IfName:      "eth0",
+				},
+				"7": {
+					ContainerID: "abc2",
+					PodRef:      "default/missing-2",
+					IfName:      "eth0",
+				},
+			})
+			buildReconciler(pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			// After cleanup, orphaned allocations are removed from spec so
+			// UsedIPs=0, but OrphanedIPs should reflect the 2 cleaned entries.
+			Expect(updated.Status.OrphanedIPs).To(Equal(int32(2)))
+			Expect(updated.Status.UsedIPs).To(Equal(int32(0)))
+			Expect(updated.Status.FreeIPs).To(Equal(int32(254)))
+		})
 	})
 
 	Context("when the pool has an allocation with invalid podRef format", func() {
 		It("should remove the allocation", func() {
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "invalid-no-slash",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "invalid-no-slash",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool)
 
 			result, err := reconciler.Reconcile(ctx, req)
@@ -193,22 +257,13 @@ var _ = Describe("IPPoolReconciler", func() {
 
 	Context("when the pool has an allocation with empty podRef", func() {
 		It("should remove the allocation", func() {
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool)
 
 			result, err := reconciler.Reconcile(ctx, req)
@@ -242,27 +297,47 @@ var _ = Describe("IPPoolReconciler", func() {
 					Phase: corev1.PodPending,
 				},
 			}
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/pending-pod",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "default/pending-pod",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool, pod)
 
 			result, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(Equal(5 * time.Second))
+		})
+
+		It("should report PendingPods count in status", func() {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pending-pod",
+					Namespace: "default",
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodPending,
+				},
+			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/pending-pod",
+					IfName:      "eth0",
+				},
+			})
+			buildReconciler(pool, pod)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Status.PendingPods).To(Equal(int32(1)))
+			Expect(updated.Status.UsedIPs).To(Equal(int32(1)))
+			Expect(updated.Status.FreeIPs).To(Equal(int32(253)))
 		})
 	})
 
@@ -284,22 +359,13 @@ var _ = Describe("IPPoolReconciler", func() {
 					},
 				},
 			}
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolName,
-					Namespace: poolNamespace,
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/evicted-pod",
+					IfName:      "eth0",
 				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "default/evicted-pod",
-							IfName:      "eth0",
-						},
-					},
-				},
-			}
+			})
 			buildReconciler(pool, pod)
 
 			result, err := reconciler.Reconcile(ctx, req)

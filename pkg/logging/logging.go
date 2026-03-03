@@ -40,7 +40,12 @@ const (
 var loggingStderr bool
 var loggingFp *os.File
 var loggingLevel Level
-var mu sync.RWMutex
+
+// mu guards all logging state (loggingStderr, loggingFp, loggingLevel).
+// A full Mutex (not RWMutex) is used intentionally: SetLogFile closes
+// the previous loggingFp under the lock, so concurrent Printf callers
+// must not hold a reader lock that would let them write to a closed file.
+var mu sync.Mutex
 
 const defaultTimestampFormat = time.RFC3339
 
@@ -60,8 +65,8 @@ func (l Level) String() string {
 
 // Printf provides basic Printf functionality for logs
 func Printf(level Level, format string, a ...interface{}) {
-	mu.RLock()
-	defer mu.RUnlock()
+	mu.Lock()
+	defer mu.Unlock()
 
 	if level > loggingLevel {
 		return

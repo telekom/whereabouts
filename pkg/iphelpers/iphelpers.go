@@ -1,3 +1,6 @@
+// Package iphelpers provides IP address arithmetic utilities for whereabouts,
+// including offset calculation, range iteration, CIDR splitting, and IPv4/IPv6
+// detection.
 package iphelpers
 
 import (
@@ -52,12 +55,12 @@ func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, e
 	sliceSizeString = strings.TrimPrefix(sliceSizeString, "/")
 	sliceSize, err := strconv.Atoi(sliceSizeString)
 	if err != nil {
-		return nil, fmt.Errorf("invalid slice size %q: %s", sliceSizeString, err)
+		return nil, fmt.Errorf("invalid slice size %q: %w", sliceSizeString, err)
 	}
 
 	prefix, err := netip.ParsePrefix(inputNetwork)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing CIDR %s: %s", inputNetwork, err)
+		return nil, fmt.Errorf("error parsing CIDR %s: %w", inputNetwork, err)
 	}
 	if prefix.Addr() != prefix.Masked().Addr() {
 		return nil, errors.New("netCIDR is not a valid network address")
@@ -142,6 +145,39 @@ func LastUsableIP(ipnet net.IPNet) (net.IP, error) {
 func HasUsableIPs(ipnet net.IPNet) bool {
 	ones, totalBits := ipnet.Mask.Size()
 	return totalBits-ones > 1
+}
+
+// CountUsableIPs returns the number of usable IPs in a CIDR range (excluding
+// the network address and broadcast address). The result is clamped to
+// math.MaxInt32 for safe conversion to int32 status fields.
+func CountUsableIPs(cidr string) (int32, error) {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return 0, fmt.Errorf("parsing CIDR %q: %w", cidr, err)
+	}
+	if !HasUsableIPs(*ipNet) {
+		return 0, nil
+	}
+	first, err := FirstUsableIP(*ipNet)
+	if err != nil {
+		return 0, err
+	}
+	last, err := LastUsableIP(*ipNet)
+	if err != nil {
+		return 0, err
+	}
+	offset, err := IPGetOffset(first, last)
+	if err != nil {
+		return 0, err
+	}
+	// Total usable = offset + 1 (inclusive range).
+	total := new(big.Int).Add(offset, big.NewInt(1))
+
+	maxInt32 := big.NewInt(1<<31 - 1)
+	if total.Cmp(maxInt32) > 0 {
+		return 1<<31 - 1, nil
+	}
+	return int32(total.Int64()), nil
 }
 
 // IncIP increases the given IP address by one.

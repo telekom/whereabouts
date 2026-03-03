@@ -15,19 +15,29 @@ type OverlappingRangeIPReservationSpec struct {
 	IfName string `json:"ifname,omitempty"`
 }
 
+// OverlappingRangeIPReservationStatus defines the observed state of OverlappingRangeIPReservation.
+type OverlappingRangeIPReservationStatus struct {
+	// Conditions holds the conditions for the OverlappingRangeIPReservation.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=orip
+// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="PodRef",type=string,JSONPath=`.spec.podref`,description="Namespace/name of the owning pod"
 // +kubebuilder:printcolumn:name="IfName",type=string,JSONPath=`.spec.ifname`,description="Network interface name"
 // +kubebuilder:printcolumn:name="ContainerID",type=string,JSONPath=`.spec.containerid`,priority=1,description="Container identifier"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Whether the reservation is ready"
 
 // OverlappingRangeIPReservation is the Schema for the overlappingrangeipreservations API.
 type OverlappingRangeIPReservation struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec OverlappingRangeIPReservationSpec `json:"spec"`
+	Spec   OverlappingRangeIPReservationSpec   `json:"spec"`
+	Status OverlappingRangeIPReservationStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -25,6 +25,22 @@ type NodeSlicePoolSpec struct {
 type NodeSlicePoolStatus struct {
 	// Allocations holds the allocations of nodes to slices.
 	Allocations []NodeSliceAllocation `json:"allocations,omitempty"`
+
+	// TotalSlices is the total number of IP slices in the pool.
+	// +optional
+	TotalSlices int32 `json:"totalSlices,omitempty"`
+
+	// AssignedSlices is the number of slices currently assigned to nodes.
+	// +optional
+	AssignedSlices int32 `json:"assignedSlices,omitempty"`
+
+	// FreeSlices is the number of slices available for node assignment.
+	// +optional
+	FreeSlices int32 `json:"freeSlices,omitempty"`
+
+	// Conditions holds the conditions for the NodeSlicePool.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // NodeSliceAllocation represents a single node-to-slice assignment.
@@ -48,6 +64,10 @@ func (i NodeSlicePool) ParseCIDR() (net.IP, *net.IPNet, error) {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Range",type=string,JSONPath=`.spec.range`,description="CIDR range of the node slice pool"
 // +kubebuilder:printcolumn:name="SliceSize",type=string,JSONPath=`.spec.sliceSize`,description="Size of each node slice"
+// +kubebuilder:printcolumn:name="Total",type=integer,JSONPath=`.status.totalSlices`,description="Total number of slices"
+// +kubebuilder:printcolumn:name="Assigned",type=integer,JSONPath=`.status.assignedSlices`,description="Slices assigned to nodes"
+// +kubebuilder:printcolumn:name="Free",type=integer,JSONPath=`.status.freeSlices`,description="Slices available for assignment"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Whether the node slice pool is ready"
 
 // NodeSlicePool is the Schema for the nodeslicepools API.
 type NodeSlicePool struct {

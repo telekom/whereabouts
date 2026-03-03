@@ -39,13 +39,7 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [ "/bin/sh" ]
-          args:
-            - -c
-            - |
-              SLEEP=false source /install-cni.sh
-              /token-watcher.sh &
-              sleep infinity
+          command: ["/install-cni"]
           env:
           - name: NODENAME
             valueFrom:

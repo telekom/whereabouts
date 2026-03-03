@@ -28,6 +28,9 @@ func newControllerCommand() *cobra.Command {
 		webhookPort          int
 		certDir              string
 		namespace            string
+		webhookServiceName   string
+		webhookSecretName    string
+		webhookConfigName    string
 	)
 
 	cmd := &cobra.Command{
@@ -77,9 +80,9 @@ func newControllerCommand() *cobra.Command {
 			if err := certrotator.Enable(ctx, mgr, certrotator.Options{
 				Namespace:   namespace,
 				CertDir:     certDir,
-				DNSName:     fmt.Sprintf("whereabouts-webhook.%s.svc", namespace),
-				SecretName:  "whereabouts-webhook-cert",
-				WebhookName: "whereabouts-validating-webhooks",
+				DNSName:     fmt.Sprintf("%s.%s.svc", webhookServiceName, namespace),
+				SecretName:  webhookSecretName,
+				WebhookName: webhookConfigName,
 				IsReady:     certReady,
 			}); err != nil {
 				return err
@@ -111,6 +114,9 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().IntVar(&webhookPort, "webhook-port", 9443, "Port the webhook server listens on")
 	cmd.Flags().StringVar(&certDir, "cert-dir", "/var/run/webhook-certs", "Directory for TLS certificates")
 	cmd.Flags().StringVar(&namespace, "namespace", "", "Namespace where the operator runs (required for webhook cert DNS)")
+	cmd.Flags().StringVar(&webhookServiceName, "webhook-service-name", "whereabouts-webhook-service", "Name of the webhook Service (used for TLS certificate DNS SAN)")
+	cmd.Flags().StringVar(&webhookSecretName, "webhook-secret-name", "whereabouts-webhook-cert", "Name of the Secret storing webhook TLS certificates")
+	cmd.Flags().StringVar(&webhookConfigName, "webhook-config-name", "whereabouts-validating-webhook-configuration", "Name of the ValidatingWebhookConfiguration to inject CA into")
 
 	return cmd
 }

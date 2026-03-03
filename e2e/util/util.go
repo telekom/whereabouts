@@ -54,7 +54,7 @@ func PodTierLabel(podTier string) map[string]string {
 }
 
 // This will check that the count of subnets has been created and that each node has a unique allocation
-// NOTE: this requires that there are not more nodes than subnets in the nodeslicepool
+// NOTE: this requires that there are not more nodes than subnets in the nodeslicepool.
 func ValidateNodeSlicePoolSlicesCreatedAndNodesAssigned(nodesliceName string, nodeSliceNamespace string, expectedSubnets int, clientInfo *wbtestclient.ClientInfo) error {
 	nodeSlice, err := clientInfo.GetNodeSlicePool(nodesliceName, nodeSliceNamespace)
 	if err != nil {
@@ -82,7 +82,8 @@ func ValidateNodeSlicePoolSlicesCreatedAndNodesAssigned(nodesliceName string, no
 	if err != nil {
 		return err
 	}
-	for _, node := range nodes.Items {
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
 		if _, ok := nodeMap[node.Name]; !ok {
 			//TODO: CP nodes?
 			return fmt.Errorf("node not assinged to slice %v", node.Name)
@@ -91,7 +92,7 @@ func ValidateNodeSlicePoolSlicesCreatedAndNodesAssigned(nodesliceName string, no
 	return nil
 }
 
-// Waits for all replicas to be fully removed from replicaset, and checks that there are 0 ip pool allocations
+// Waits for all replicas to be fully removed from replicaset, and checks that there are 0 ip pool allocations.
 func CheckZeroIPPoolAllocationsAndReplicas(ctx context.Context, clientInfo *wbtestclient.ClientInfo, k8sIPAM *wbstorage.KubernetesIPAM, rsName, namespace string, ipPoolCIDR string, networkNames ...string) error {
 	const (
 		emptyReplicaSet   = 0
@@ -113,16 +114,16 @@ func CheckZeroIPPoolAllocationsAndReplicas(ctx context.Context, clientInfo *wbte
 	}
 
 	matchingLabel := entities.ReplicaSetQuery(rsName)
-	if err = wbtestclient.WaitForReplicaSetSteadyState(ctx, clientInfo.Client, namespace, matchingLabel, replicaSet, rsSteadyTimeout); err != nil {
+	if err := wbtestclient.WaitForReplicaSetSteadyState(ctx, clientInfo.Client, namespace, matchingLabel, replicaSet, rsSteadyTimeout); err != nil {
 		return err
 	}
 
 	if k8sIPAM.Config.NodeSliceSize == "" {
-		if err = wbtestclient.WaitForZeroIPPoolAllocations(ctx, k8sIPAM, ipPoolCIDR, zeroIPPoolTimeout); err != nil {
+		if err := wbtestclient.WaitForZeroIPPoolAllocations(ctx, k8sIPAM, ipPoolCIDR, zeroIPPoolTimeout); err != nil {
 			return err
 		}
 	} else {
-		if err = wbtestclient.WaitForZeroIPPoolAllocationsAcrossNodeSlices(ctx, k8sIPAM, ipPoolCIDR, zeroIPPoolTimeout, clientInfo); err != nil {
+		if err := wbtestclient.WaitForZeroIPPoolAllocationsAcrossNodeSlices(ctx, k8sIPAM, ipPoolCIDR, zeroIPPoolTimeout, clientInfo); err != nil {
 			return err
 		}
 	}
@@ -130,7 +131,7 @@ func CheckZeroIPPoolAllocationsAndReplicas(ctx context.Context, clientInfo *wbte
 	return nil
 }
 
-// Returns a network attachment definition object configured by provided parameters
+// Returns a network attachment definition object configured by provided parameters.
 func GenerateNetAttachDefSpec(name, namespace, config string) *nettypes.NetworkAttachmentDefinition {
 	return &nettypes.NetworkAttachmentDefinition{
 		TypeMeta: metav1.TypeMeta{
@@ -251,12 +252,12 @@ func bytesCompare(a, b net.IP) int {
 }
 
 func CreateIPRanges(ranges []string) string {
-	formattedRanges := []string{}
+	formattedRanges := make([]string, 0, len(ranges))
 	for _, ipRange := range ranges {
-		singleRange := fmt.Sprintf(`{"range": "%s"}`, ipRange)
+		singleRange := fmt.Sprintf(`{"range": "%s"}`, ipRange) //nolint:gocritic // %q adds Go-style escaping; JSON needs literal double quotes
 		formattedRanges = append(formattedRanges, singleRange)
 	}
-	ipRanges := "[" + strings.Join(formattedRanges[:], ",") + "]"
+	ipRanges := "[" + strings.Join(formattedRanges, ",") + "]"
 	return ipRanges
 }
 
@@ -267,7 +268,7 @@ func MacvlanNetworkWithWhereaboutsExcludeRange(networkName, namespaceName, ipRan
 		if i > 0 {
 			excludeJSON += ","
 		}
-		excludeJSON += fmt.Sprintf(`"%s"`, r)
+		excludeJSON += fmt.Sprintf("%q", r)
 	}
 	excludeJSON += "]"
 	macvlanConfig := fmt.Sprintf(`{

@@ -21,6 +21,18 @@ spec:
       jsonPath: .spec.range
       name: Range
       type: string
+    - description: Total usable IPs in the range
+      jsonPath: .status.totalIPs
+      name: Total
+      type: integer
+    - description: Number of IPs currently allocated
+      jsonPath: .status.usedIPs
+      name: Used
+      type: integer
+    - description: Number of IPs available for allocation
+      jsonPath: .status.freeIPs
+      name: Free
+      type: integer
     - description: Whether the IP pool is ready
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
@@ -87,6 +99,32 @@ spec:
           status:
             description: IPPoolStatus defines the observed state of IPPool.
             properties:
+              allocatedIPs:
+                description: |-
+                  AllocatedIPs is a list of resolved IP-to-pod assignments derived from the
+                  spec allocations offset map. Provides a human-readable view of the pool's
+                  current allocations.
+                items:
+                  description: |-
+                    IPAddressAllocation represents a single resolved IP allocation with its
+                    actual IP address (computed from the CIDR base and offset key).
+                  properties:
+                    ifName:
+                      description: IfName is the network interface name inside the
+                        pod.
+                      type: string
+                    ip:
+                      description: IP is the resolved IP address for this allocation.
+                      type: string
+                    podRef:
+                      description: PodRef is the namespace/name reference of the pod
+                        that owns this allocation.
+                      type: string
+                  required:
+                  - ip
+                  - podRef
+                  type: object
+                type: array
               conditions:
                 description: Conditions holds the conditions for the IPPool.
                 items:
@@ -144,6 +182,47 @@ spec:
                   - type
                   type: object
                 type: array
+              firstIP:
+                description: FirstIP is the first usable IP address in the pool's
+                  range.
+                type: string
+              freeIPs:
+                description: FreeIPs is the number of IPs available for allocation
+                  (totalIPs - usedIPs).
+                format: int32
+                type: integer
+              lastIP:
+                description: LastIP is the last usable IP address in the pool's range.
+                type: string
+              orphanedIPs:
+                description: |-
+                  OrphanedIPs is the number of allocations whose pods no longer exist,
+                  as detected during the last reconciliation.
+                format: int32
+                type: integer
+              overlappingReservations:
+                description: |-
+                  OverlappingReservations is the number of OverlappingRangeIPReservation CRDs
+                  that correspond to allocations in this pool.
+                format: int32
+                type: integer
+              pendingPods:
+                description: |-
+                  PendingPods is the number of allocations whose pods are still in the
+                  Pending phase, as detected during the last reconciliation.
+                format: int32
+                type: integer
+              totalIPs:
+                description: |-
+                  TotalIPs is the total number of usable IPs in the pool's CIDR range
+                  (excluding network and broadcast addresses).
+                format: int32
+                type: integer
+              usedIPs:
+                description: UsedIPs is the number of IPs currently allocated from
+                  the pool.
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

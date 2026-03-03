@@ -39,6 +39,8 @@ type IPPoolsGetter interface {
 type IPPoolInterface interface {
 	Create(ctx context.Context, iPPool *whereaboutscnicncfiov1alpha1.IPPool, opts v1.CreateOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
 	Update(ctx context.Context, iPPool *whereaboutscnicncfiov1alpha1.IPPool, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, iPPool *whereaboutscnicncfiov1alpha1.IPPool, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*whereaboutscnicncfiov1alpha1.IPPool, error)
@@ -46,6 +48,8 @@ type IPPoolInterface interface {
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *whereaboutscnicncfiov1alpha1.IPPool, err error)
 	Apply(ctx context.Context, iPPool *applyconfigurationwhereaboutscnicncfiov1alpha1.IPPoolApplyConfiguration, opts v1.ApplyOptions) (result *whereaboutscnicncfiov1alpha1.IPPool, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, iPPool *applyconfigurationwhereaboutscnicncfiov1alpha1.IPPoolApplyConfiguration, opts v1.ApplyOptions) (result *whereaboutscnicncfiov1alpha1.IPPool, err error)
 	IPPoolExpansion
 }
 

@@ -16,7 +16,7 @@ import (
 	netclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 
 	"github.com/telekom/whereabouts/e2e/entities"
-	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 )
 
@@ -57,7 +57,7 @@ func NewClientInfo(config *rest.Config) (*ClientInfo, error) {
 	}, nil
 }
 
-func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error) {
+func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutsv1alpha1.NodeSlicePool, error) {
 	err := WaitForNodeSliceReady(context.TODO(), c, namespace, name, nodeSliceCreateTimeout)
 	if err != nil {
 		return nil, err

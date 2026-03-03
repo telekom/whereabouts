@@ -1,4 +1,4 @@
-// Package main contains the beginning of the whereabouts cmd
+// Package main contains the beginning of the whereabouts cmd.
 package main
 
 import (
@@ -55,7 +55,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 
 	var lastErr error
 	backoff := delInitialBackoff
-	for attempt := 0; attempt < delMaxRetries; attempt++ {
+	for attempt := range delMaxRetries {
 		if attempt > 0 {
 			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt+1, delMaxRetries, backoff)
 			time.Sleep(backoff)
@@ -127,7 +127,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 
 	// Verify an allocation exists for this container in every configured IP range.
 	for _, ipRange := range ipamConf.IPRanges {
-		poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
 		if err != nil {
 			if e, ok := err.(storage.Temporary); ok && e.Temporary() {

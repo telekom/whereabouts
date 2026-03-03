@@ -351,7 +351,7 @@ var _ = Describe("Allocation operations", func() {
 				ipres := []types.IPReservation{}
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(len(ipres)).To(Equal(1))
+				Expect(ipres).To(HaveLen(1))
 				Expect(ipres[0].IP.Equal(net.ParseIP("192.168.0.1"))).To(BeTrue())
 			})
 		})
@@ -380,7 +380,7 @@ var _ = Describe("Allocation operations", func() {
 
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(len(ipres)).To(Equal(4))
+				Expect(ipres).To(HaveLen(4))
 				Expect(ipres[3].IP.Equal(net.ParseIP("192.168.0.4"))).To(BeTrue())
 			})
 		})
@@ -409,7 +409,7 @@ var _ = Describe("Allocation operations", func() {
 
 				_, ipres, err = IterateForAssignment(*ipnet, startip, lastip, ipres, nil, "0xdeadbeef", "dummy-0", "")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(len(ipres)).To(Equal(4))
+				Expect(ipres).To(HaveLen(4))
 				Expect(ipres[3].IP.Equal(net.ParseIP("192.168.0.3"))).To(BeTrue())
 			})
 		})

@@ -69,7 +69,7 @@ var _ = Describe("Allocation operations", func() {
 
 	It("throws an error when no flat-files are found", func() {
 		_, _, err := GetFlatIPAM(true, &types.IPAMConfig{})
-		Expect(err).To(MatchError(NewConfigFileNotFoundError()))
+		Expect(err).To(MatchError(NewFileNotFoundError()))
 	})
 
 	It("can load a global flat-file config", func() {

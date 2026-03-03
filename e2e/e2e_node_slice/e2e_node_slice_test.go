@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/apps/v1"
-	core "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -49,7 +49,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 			testConfig   *testenv.Configuration
 			netAttachDef *nettypes.NetworkAttachmentDefinition
 			replicaSet   *v1.ReplicaSet
-			pod          *core.Pod
+			pod          *corev1.Pod
 		)
 
 		BeforeEach(func() {
@@ -156,12 +156,12 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 
 			It("allocates each IP pool entry with a unique pod IP", func() {
 				By("creating max number of pods and checking IP Pool validity")
-				for i := 0; i < testConfig.NumberOfIterations; i++ {
+				for range testConfig.NumberOfIterations {
 					Expect(
 						util.CheckZeroIPPoolAllocationsAndReplicas(
 							context.TODO(), clientInfo, k8sIPAM, rsName, testNamespace, ipv4TestRange, testNetworkName)).To(Succeed())
 
-					allPods, err := clientInfo.Client.CoreV1().Pods(core.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+					allPods, err := clientInfo.Client.CoreV1().Pods(corev1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
 					Expect(err).NotTo(HaveOccurred())
 
 					replicaSet, err = clientInfo.UpdateReplicaSet(
@@ -192,7 +192,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 					for _, node := range nodes.Items {
 						nodeSliceRange, err := wbstorage.GetNodeSlicePoolRange(context.TODO(), k8sIPAM, node.Name)
 						Expect(err).NotTo(HaveOccurred())
-						ipPool, err := k8sIPAM.GetIPPool(context.Background(), wbstorage.PoolIdentifier{IpRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name})
+						ipPool, err := k8sIPAM.GetIPPool(context.Background(), wbstorage.PoolIdentifier{IPRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name})
 						if err == nil {
 							ipPools = append(ipPools, ipPool)
 						}
@@ -213,7 +213,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 				statefulSetName      = "statefulthingy"
 			)
 
-			podList := func(podList *core.PodList) []core.Pod { return podList.Items }
+			podList := func(podList *corev1.PodList) []corev1.Pod { return podList.Items }
 			var k8sIPAM *wbstorage.KubernetesIPAM
 
 			Context("regular sized network", func() {
@@ -255,7 +255,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 						Expect(
 							clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
 								context.TODO(),
-								wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: ipv4TestRange, NetworkName: testNetworkName, NodeName: node.Name}),
+								wbstorage.IPPoolName(wbstorage.PoolIdentifier{IPRange: ipv4TestRange, NetworkName: testNetworkName, NodeName: node.Name}),
 								metav1.GetOptions{})).To(
 							WithTransform(poolAllocations, BeEmpty()),
 							"cannot have leaked IPAllocations in the system")
@@ -273,7 +273,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 					for _, node := range nodes.Items {
 						nodeSliceRange, err := wbstorage.GetNodeSlicePoolRange(context.TODO(), k8sIPAM, node.Name)
 						Expect(err).NotTo(HaveOccurred())
-						ipPool, err := k8sIPAM.GetIPPool(context.Background(), wbstorage.PoolIdentifier{IpRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name})
+						ipPool, err := k8sIPAM.GetIPPool(context.Background(), wbstorage.PoolIdentifier{IPRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name})
 						if err == nil {
 							ipPools = append(ipPools, ipPool)
 						}
@@ -284,7 +284,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 						nodeSliceRange, err := wbstorage.GetNodeSlicePoolRange(context.TODO(), k8sIPAM, node.Name)
 						Expect(err).NotTo(HaveOccurred())
 						ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(context.TODO(),
-							wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name}),
+							wbstorage.IPPoolName(wbstorage.PoolIdentifier{IPRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name}),
 							metav1.GetOptions{})
 						// error is okay because pod may not land on every node
 						if err == nil {
@@ -309,7 +309,7 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 							nodeSliceRange, err := wbstorage.GetNodeSlicePoolRange(context.TODO(), k8sIPAM, node.Name)
 							Expect(err).NotTo(HaveOccurred())
 							ipPool, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(context.TODO(),
-								wbstorage.IPPoolName(wbstorage.PoolIdentifier{IpRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name}),
+								wbstorage.IPPoolName(wbstorage.PoolIdentifier{IPRange: nodeSliceRange, NetworkName: testNetworkName, NodeName: node.Name}),
 								metav1.GetOptions{})
 							// error is okay because pod may not land on every node
 							if err == nil {

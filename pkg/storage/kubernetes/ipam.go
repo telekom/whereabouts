@@ -2,10 +2,10 @@ package kubernetes
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -48,7 +48,8 @@ func retryBackoff(ctx context.Context, d time.Duration) {
 	if half <= 0 {
 		half = 1
 	}
-	jittered := time.Duration(half + rand.Int63n(half))
+	n, _ := rand.Int(rand.Reader, big.NewInt(half))
+	jittered := time.Duration(half + n.Int64())
 	select {
 	case <-time.After(jittered):
 	case <-ctx.Done():
@@ -81,7 +82,7 @@ func newKubernetesIPAM(containerID, ifName string, ipamConf whereaboutstypes.IPA
 	}
 }
 
-// NewKubernetesIPAM returns a new KubernetesIPAM Client configured to a kubernetes CRD backend
+// NewKubernetesIPAM returns a new KubernetesIPAM Client configured to a kubernetes CRD backend.
 func NewKubernetesIPAM(containerID, ifName string, ipamConf whereaboutstypes.IPAMConfig) (*KubernetesIPAM, error) {
 	var namespace string
 	if cfg, err := clientcmd.LoadFromFile(ipamConf.Kubernetes.KubeConfigPath); err != nil {
@@ -100,7 +101,7 @@ func NewKubernetesIPAM(containerID, ifName string, ipamConf whereaboutstypes.IPA
 	return k8sIPAM, nil
 }
 
-// NewKubernetesIPAMWithNamespace returns a new KubernetesIPAM Client configured to a kubernetes CRD backend
+// NewKubernetesIPAMWithNamespace returns a new KubernetesIPAM Client configured to a kubernetes CRD backend.
 func NewKubernetesIPAMWithNamespace(containerID, ifName string, ipamConf whereaboutstypes.IPAMConfig, namespace string) (*KubernetesIPAM, error) {
 	k8sIPAM, err := NewKubernetesIPAM(containerID, ifName, ipamConf)
 	if err != nil {
@@ -111,16 +112,16 @@ func NewKubernetesIPAMWithNamespace(containerID, ifName string, ipamConf whereab
 }
 
 type PoolIdentifier struct {
-	IpRange     string
+	IPRange     string
 	NetworkName string
 	NodeName    string
 }
 
-// GetIPPool returns a storage.IPPool for the given range
+// GetIPPool returns a storage.IPPool for the given range.
 func (i *KubernetesIPAM) GetIPPool(ctx context.Context, poolIdentifier PoolIdentifier) (storage.IPPool, error) {
 	name := IPPoolName(poolIdentifier)
 
-	pool, err := i.getPool(ctx, name, poolIdentifier.IpRange)
+	pool, err := i.getPool(ctx, name, poolIdentifier.IPRange)
 	if err != nil {
 		return nil, err
 	}
@@ -137,31 +138,29 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 	if poolIdentifier.NodeName != "" {
 		// fast node range naming convention
 		if poolIdentifier.NetworkName == UnnamedNetwork {
-			return fmt.Sprintf("%v-%v", poolIdentifier.NodeName, normalizeRange(poolIdentifier.IpRange))
-		} else {
-			return fmt.Sprintf("%v-%v-%v", poolIdentifier.NetworkName, poolIdentifier.NodeName, normalizeRange(poolIdentifier.IpRange))
+			return fmt.Sprintf("%v-%v", poolIdentifier.NodeName, normalizeRange(poolIdentifier.IPRange))
 		}
-	} else {
-		// default naming convention
-		if poolIdentifier.NetworkName == UnnamedNetwork {
-			return normalizeRange(poolIdentifier.IpRange)
-		} else {
-			return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IpRange))
-		}
+		return fmt.Sprintf("%v-%v-%v", poolIdentifier.NetworkName, poolIdentifier.NodeName, normalizeRange(poolIdentifier.IPRange))
 	}
+
+	// default naming convention
+	if poolIdentifier.NetworkName == UnnamedNetwork {
+		return normalizeRange(poolIdentifier.IPRange)
+	}
+	return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IPRange))
 }
 
 // normalizeRange converts an IP range CIDR into a string suitable for use as a
 // Kubernetes resource name. Colons (IPv6) and slashes (CIDR notation) are
 // replaced with dashes because metadata.name must match RFC 1123 DNS subdomain.
 func normalizeRange(ipRange string) string {
-	if len(ipRange) == 0 {
+	if ipRange == "" {
 		return ""
 	}
 	// Trailing colon in abbreviated IPv6 (e.g. "2001::") needs a zero appended
 	// so the replacement below produces a valid name segment.
 	if ipRange[len(ipRange)-1] == ':' {
-		ipRange = ipRange + "0"
+		ipRange += "0"
 	}
 	normalized := strings.ReplaceAll(ipRange, ":", "-")
 	normalized = strings.ReplaceAll(normalized, "/", "-")
@@ -176,7 +175,7 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 	if err != nil && errors.IsNotFound(err) {
 		// pool does not exist, create it
 		newPool := &whereaboutsv1alpha1.IPPool{}
-		newPool.ObjectMeta.Name = name
+		newPool.Name = name
 		newPool.Spec.Range = iprange
 		newPool.Spec.Allocations = make(map[string]whereaboutsv1alpha1.IPAllocation)
 		_, err = i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).Create(ctxWithTimeout, newPool, metav1.CreateOptions{})
@@ -195,30 +194,30 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 	return pool, nil
 }
 
-// Status tests connectivity to the kubernetes backend
+// Status tests connectivity to the kubernetes backend.
 func (i *KubernetesIPAM) Status(ctx context.Context) error {
 	_, err := i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).List(ctx, metav1.ListOptions{})
 	return err
 }
 
-// Close partially implements the Store interface
+// Close partially implements the Store interface.
 func (i *KubernetesIPAM) Close() error {
 	return nil
 }
 
-// KubernetesIPPool represents an IPPool resource and its parsed set of allocations
+// KubernetesIPPool represents an IPPool resource and its parsed set of allocations.
 type KubernetesIPPool struct {
 	client  wbclient.Interface
 	firstIP net.IP
 	pool    *whereaboutsv1alpha1.IPPool
 }
 
-// Allocations returns the initially retrieved set of allocations for this pool
+// Allocations returns the initially retrieved set of allocations for this pool.
 func (p *KubernetesIPPool) Allocations() []whereaboutstypes.IPReservation {
 	return toIPReservationList(p.pool.Spec.Allocations, p.firstIP)
 }
 
-// Update sets the pool allocated IP list to the given IP reservations
+// Update sets the pool allocated IP list to the given IP reservations.
 func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereaboutstypes.IPReservation) error {
 	// marshal the current pool to serve as the base for the patch creation
 	orig := p.pool.DeepCopy()
@@ -247,7 +246,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	// add additional tests to the patch
 	ops := []jsonpatch.Operation{
 		// ensure patch is applied to appropriate resource version only
-		{Operation: "test", Path: "/metadata/resourceVersion", Value: orig.ObjectMeta.ResourceVersion},
+		{Operation: "test", Path: "/metadata/resourceVersion", Value: orig.ResourceVersion},
 	}
 	for _, o := range patch {
 		// safeguard add ops -- "add" will update existing paths, this "test" ensures the path is empty
@@ -302,22 +301,22 @@ func toAllocationMap(reservelist []whereaboutstypes.IPReservation, firstip net.I
 	return allocations, nil
 }
 
-// KubernetesOverlappingRangeStore represents a OverlappingRangeStore interface
+// KubernetesOverlappingRangeStore represents a OverlappingRangeStore interface.
 type KubernetesOverlappingRangeStore struct {
 	client    wbclient.Interface
 	namespace string
 }
 
-// GetOverlappingRangeStore returns a clusterstore interface
+// GetOverlappingRangeStore returns a clusterstore interface.
 func (i *KubernetesIPAM) GetOverlappingRangeStore() (storage.OverlappingRangeStore, error) {
 	return &KubernetesOverlappingRangeStore{i.client, i.Namespace}, nil
 }
 
 // IsAllocatedInOverlappingRange checks for IP addresses to see if they're allocated cluster wide, for overlapping
 // ranges. First return value is true if the IP is allocated, second return value is true if the IP is allocated to the
-// current podRef
+// current podRef.
 func (c *KubernetesOverlappingRangeStore) GetOverlappingRangeIPReservation(ctx context.Context, ip net.IP,
-	podRef, networkName string) (*whereaboutsv1alpha1.OverlappingRangeIPReservation, error) {
+	_ /* podRef */, networkName string) (*whereaboutsv1alpha1.OverlappingRangeIPReservation, error) {
 	normalizedIP := NormalizeIP(ip, networkName)
 
 	logging.Debugf("Get overlappingRangewide allocation; normalized IP: %q, IP: %q, networkName: %q",
@@ -423,13 +422,12 @@ func getNodeName(ipam *KubernetesIPAM) (string, error) {
 
 // newLeaderElector creates a new leaderelection.LeaderElector and associated
 // channels by which to observe elections and depositions.
-func newLeaderElector(ctx context.Context, clientset kubernetes.Interface, namespace string, ipamConf *KubernetesIPAM) (*leaderelection.LeaderElector, chan struct{}, chan struct{}) {
-	//log.WithField("context", "leaderelection")
+func newLeaderElector(ctx context.Context, clientset kubernetes.Interface, namespace string, ipamConf *KubernetesIPAM) (elector *leaderelection.LeaderElector, leaderOK, deposed chan struct{}) {
 	// leaderOK will block gRPC startup until it's closed.
-	leaderOK := make(chan struct{})
+	leaderOK = make(chan struct{})
 	// deposed is closed by the leader election callback when
 	// we are deposed as leader so that we can clean up.
-	deposed := make(chan struct{})
+	deposed = make(chan struct{})
 
 	leaseName := "whereabouts"
 	if ipamConf.Config.NodeSliceSize != "" {
@@ -444,7 +442,7 @@ func newLeaderElector(ctx context.Context, clientset kubernetes.Interface, names
 			logging.Errorf("Failed to create leader elector: %v", err)
 			return nil, leaderOK, deposed
 		}
-		leaseName = IPPoolName(PoolIdentifier{IpRange: nodeSliceRange, NodeName: hostname, NetworkName: ipamConf.Config.NetworkName})
+		leaseName = IPPoolName(PoolIdentifier{IPRange: nodeSliceRange, NodeName: hostname, NetworkName: ipamConf.Config.NetworkName})
 	}
 	logging.Debugf("using lease with name: %v", leaseName)
 
@@ -588,7 +586,7 @@ type committedAlloc struct {
 	ip   net.IP
 }
 
-// IPManagementKubernetesUpdate manages k8s updates
+// IPManagementKubernetesUpdate manages k8s updates.
 func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *KubernetesIPAM, ipamConf whereaboutstypes.IPAMConfig) (newips []net.IPNet, retErr error) {
 	logging.Debugf("IPManagement -- mode: %d / containerID: %q / podRef: %q / ifName: %q ", mode, ipam.ContainerID, ipamConf.GetPodRef(), ipam.IfName)
 
@@ -635,7 +633,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		skipOverlappingRangeUpdate := false
 		backoff := retryInitialBackoff
 	RETRYLOOP:
-		for j := 0; j < storage.DatastoreRetries; j++ {
+		for j := range storage.DatastoreRetries {
 			attempts = j + 1
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			select {
@@ -651,7 +649,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				requestCancel()
 				return newips, err
 			}
-			poolIdentifier := PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+			poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 			if ipamConf.NodeSliceSize != "" {
 				hostname, err := getNodeName(ipam)
 				if err != nil {
@@ -671,7 +669,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					return newips, err
 				}
-				poolIdentifier.IpRange = nodeSliceRange
+				poolIdentifier.IPRange = nodeSliceRange
 				rangeStart, err := iphelpers.FirstUsableIP(*ipNet)
 				if err != nil {
 					logging.Errorf("Error parsing node slice cidr to range start: %v", err)

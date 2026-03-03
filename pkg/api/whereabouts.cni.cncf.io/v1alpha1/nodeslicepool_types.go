@@ -53,11 +53,6 @@ type NodeSliceAllocation struct {
 	SliceRange string `json:"sliceRange"`
 }
 
-// ParseCIDR formats the Range of the NodeSlicePool.
-func (i NodeSlicePool) ParseCIDR() (net.IP, *net.IPNet, error) {
-	return net.ParseCIDR(i.Spec.Range)
-}
-
 // +genclient
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=nsp
@@ -76,6 +71,11 @@ type NodeSlicePool struct {
 
 	Spec   NodeSlicePoolSpec   `json:"spec,omitempty"`
 	Status NodeSlicePoolStatus `json:"status,omitempty"`
+}
+
+// ParseCIDR formats the Range of the NodeSlicePool.
+func (in NodeSlicePool) ParseCIDR() (net.IP, *net.IPNet, error) {
+	return net.ParseCIDR(in.Spec.Range)
 }
 
 // +kubebuilder:object:root=true

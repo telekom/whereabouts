@@ -550,7 +550,7 @@ func TestKubernetesIPPoolAllocations(t *testing.T) {
 }
 
 // TestRetryBackoffDoesNotBlock tests retryBackoff with a canceled context.
-func TestRetryBackoffCancelledContext(t *testing.T) {
+func TestRetryBackoffCancelledContext(_ *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -560,7 +560,7 @@ func TestRetryBackoffCancelledContext(t *testing.T) {
 
 // ===========================================================================
 // IPManagementKubernetesUpdate tests
-// ===========================================================================
+// ===========================================================================.
 
 // TestIPManagementKubernetesUpdateUnknownMode tests that an invalid mode
 // returns an error.

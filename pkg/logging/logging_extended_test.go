@@ -235,7 +235,7 @@ var _ = Describe("Thread safety", func() {
 		SetLogFile(tmpFile.Name())
 
 		var wg sync.WaitGroup
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			wg.Add(1)
 			go func(n int) {
 				defer wg.Done()
@@ -255,6 +255,6 @@ var _ = Describe("Thread safety", func() {
 		data, err := os.ReadFile(tmpFile.Name())
 		Expect(err).NotTo(HaveOccurred())
 		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-		Expect(len(lines)).To(Equal(100))
+		Expect(lines).To(HaveLen(100))
 	})
 })

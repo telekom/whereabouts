@@ -79,7 +79,7 @@ func TestIPPoolName(t *testing.T) {
 			name: "No node name, unnamed network",
 			poolIdentifier: PoolIdentifier{
 				NetworkName: UnnamedNetwork,
-				IpRange:     "10.0.0.0/8",
+				IPRange:     "10.0.0.0/8",
 			},
 			expectedResult: "10.0.0.0-8",
 		},
@@ -87,7 +87,7 @@ func TestIPPoolName(t *testing.T) {
 			name: "No node name, named network",
 			poolIdentifier: PoolIdentifier{
 				NetworkName: "test",
-				IpRange:     "10.0.0.0/8",
+				IPRange:     "10.0.0.0/8",
 			},
 			expectedResult: "test-10.0.0.0-8",
 		},
@@ -96,7 +96,7 @@ func TestIPPoolName(t *testing.T) {
 			poolIdentifier: PoolIdentifier{
 				NetworkName: UnnamedNetwork,
 				NodeName:    "testnode",
-				IpRange:     "10.0.0.0/8",
+				IPRange:     "10.0.0.0/8",
 			},
 			expectedResult: "testnode-10.0.0.0-8",
 		},
@@ -105,7 +105,7 @@ func TestIPPoolName(t *testing.T) {
 			poolIdentifier: PoolIdentifier{
 				NetworkName: "testnetwork",
 				NodeName:    "testnode",
-				IpRange:     "10.0.0.0/8",
+				IPRange:     "10.0.0.0/8",
 			},
 			expectedResult: "testnetwork-testnode-10.0.0.0-8",
 		},

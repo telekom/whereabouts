@@ -7,13 +7,13 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 )
 
-// WaitForStatefulSetGone ...
+// WaitForStatefulSetGone waits until the named StatefulSet and its pods are deleted.
 func WaitForStatefulSetGone(ctx context.Context, cs *kubernetes.Clientset, namespace, serviceName string, labelSelector string, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, time.Second, timeout, true, isStatefulSetGone(ctx, cs, serviceName, namespace, labelSelector))
 }
@@ -21,7 +21,7 @@ func WaitForStatefulSetGone(ctx context.Context, cs *kubernetes.Clientset, names
 func isStatefulSetGone(ctx context.Context, cs *kubernetes.Clientset, serviceName string, namespace string, labelSelector string) wait.ConditionWithContextFunc {
 	return func(context.Context) (done bool, err error) {
 		statefulSet, err := cs.AppsV1().StatefulSets(namespace).Get(ctx, serviceName, metav1.GetOptions{})
-		if err != nil && !k8serrors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return false, fmt.Errorf("something weird happened with the stateful set whose status is: [%s]. Errors: %w", statefulSet.Status.String(), err)
 		}
 

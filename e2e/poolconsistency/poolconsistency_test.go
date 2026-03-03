@@ -128,7 +128,7 @@ func (mp *mockedPool) Update(context.Context, []types.IPReservation) error {
 }
 
 func newPod(name string, namespace string, ips ...string) corev1.Pod {
-	var ifaceStatus []k8snetplumbersv1.NetworkStatus
+	ifaceStatus := make([]k8snetplumbersv1.NetworkStatus, 0, len(ips))
 	for i, ip := range ips {
 		ifaceStatus = append(ifaceStatus, k8snetplumbersv1.NetworkStatus{
 			Name:      fmt.Sprintf("net%d", i+1),
@@ -137,7 +137,10 @@ func newPod(name string, namespace string, ips ...string) corev1.Pod {
 		})
 	}
 
-	serializedIfaceStatus, _ := json.Marshal(&ifaceStatus)
+	serializedIfaceStatus, err := json.Marshal(&ifaceStatus)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal iface status: %v", err))
+	}
 	return corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,

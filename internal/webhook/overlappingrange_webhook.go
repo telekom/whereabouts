@@ -35,12 +35,12 @@ func SetupOverlappingRangeWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates an OverlappingRangeIPReservation on creation.
 func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
-	w, err := validateOverlappingRange(res)
+	err := validateOverlappingRange(res)
 	if err != nil {
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "create", "reason", err.Error())
 	}
 	recordValidation("overlappingrange", "create", err)
-	return w, err
+	return nil, err
 }
 
 // ValidateUpdate validates an OverlappingRangeIPReservation on update.
@@ -66,12 +66,12 @@ func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, re
 			return nil, err
 		}
 	}
-	w, err := validateOverlappingRange(res)
+	err := validateOverlappingRange(res)
 	if err != nil {
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
 	}
 	recordValidation("overlappingrange", "update", err)
-	return w, err
+	return nil, err
 }
 
 // ValidateDelete is a no-op.
@@ -80,9 +80,9 @@ func (v *OverlappingRangeValidator) ValidateDelete(_ context.Context, _ *whereab
 	return nil, nil
 }
 
-func validateOverlappingRange(res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
+func validateOverlappingRange(res *whereaboutsv1alpha1.OverlappingRangeIPReservation) error {
 	if err := validation.ValidatePodRef(res.Spec.PodRef, true); err != nil {
-		return nil, fmt.Errorf("spec.podref: %w", err)
+		return fmt.Errorf("spec.podref: %w", err)
 	}
-	return nil, nil
+	return nil
 }

@@ -31,12 +31,16 @@ import (
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
 	// Group=whereabouts.cni.cncf.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("IPAddressAllocation"):
+		return &whereaboutscnicncfiov1alpha1.IPAddressAllocationApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IPAllocation"):
 		return &whereaboutscnicncfiov1alpha1.IPAllocationApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IPPool"):
 		return &whereaboutscnicncfiov1alpha1.IPPoolApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IPPoolSpec"):
 		return &whereaboutscnicncfiov1alpha1.IPPoolSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("IPPoolStatus"):
+		return &whereaboutscnicncfiov1alpha1.IPPoolStatusApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSliceAllocation"):
 		return &whereaboutscnicncfiov1alpha1.NodeSliceAllocationApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("NodeSlicePool"):
@@ -49,6 +53,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("OverlappingRangeIPReservationSpec"):
 		return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("OverlappingRangeIPReservationStatus"):
+		return &whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationStatusApplyConfiguration{}
 
 	}
 	return nil

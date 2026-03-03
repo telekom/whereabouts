@@ -251,7 +251,7 @@ func IsIPv4(checkip net.IP) bool {
 // If either rangeStart or rangeEnd are inside the range of first usable IP to last usable IP, then use them.
 // Otherwise, they will be silently ignored and the first usable IP and/or last usable IP will be used.
 // A valid rangeEnd cannot be smaller than a valid rangeStart.
-func GetIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP) (net.IP, net.IP, error) {
+func GetIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP) (first, last net.IP, err error) {
 	firstUsableIP, err := FirstUsableIP(ipnet)
 	if err != nil {
 		return nil, nil, err

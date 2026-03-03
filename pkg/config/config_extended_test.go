@@ -184,9 +184,9 @@ var _ = Describe("InvalidPluginError", func() {
 	})
 })
 
-var _ = Describe("ConfigFileNotFoundError", func() {
+var _ = Describe("FileNotFoundError", func() {
 	It("has the expected error message", func() {
-		err := NewConfigFileNotFoundError()
+		err := NewFileNotFoundError()
 		Expect(err.Error()).To(Equal("config file not found"))
 	})
 })
@@ -457,7 +457,7 @@ var _ = Describe("canonicalizeIP", func() {
 		ipAddr := net.IP([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 10, 0, 0, 1})
 		err := canonicalizeIP(&ipAddr)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(ipAddr)).To(Equal(4))
+		Expect(ipAddr).To(HaveLen(4))
 		Expect(ipAddr.String()).To(Equal("10.0.0.1"))
 	})
 
@@ -465,14 +465,14 @@ var _ = Describe("canonicalizeIP", func() {
 		ipAddr := net.ParseIP("192.168.1.1").To4()
 		err := canonicalizeIP(&ipAddr)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(ipAddr)).To(Equal(4))
+		Expect(ipAddr).To(HaveLen(4))
 	})
 
 	It("canonicalizes IPv6", func() {
 		ip := net.ParseIP("fd00::1")
 		err := canonicalizeIP(&ip)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(ip)).To(Equal(16))
+		Expect(ip).To(HaveLen(16))
 	})
 
 	It("returns error for nil IP bytes", func() {
@@ -512,7 +512,7 @@ var _ = Describe("GetFlatIPAM path validation", func() {
 		ipam := &types.IPAMConfig{
 			ConfigurationPath: "/etc/cni/net.d/whereabouts.d/whereabouts.conf",
 		}
-		// This will return ConfigFileNotFoundError since the file doesn't exist,
+		// This will return FileNotFoundError since the file doesn't exist,
 		// but it should NOT return a path traversal error.
 		_, _, err := GetFlatIPAM(false, ipam)
 		Expect(err).To(HaveOccurred())

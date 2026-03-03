@@ -25,6 +25,18 @@ spec:
       jsonPath: .spec.sliceSize
       name: SliceSize
       type: string
+    - description: Total number of slices
+      jsonPath: .status.totalSlices
+      name: Total
+      type: integer
+    - description: Slices assigned to nodes
+      jsonPath: .status.assignedSlices
+      name: Assigned
+      type: integer
+    - description: Slices available for assignment
+      jsonPath: .status.freeSlices
+      name: Free
+      type: integer
     - description: Whether the node slice pool is ready
       jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
@@ -94,6 +106,11 @@ spec:
                   - sliceRange
                   type: object
                 type: array
+              assignedSlices:
+                description: AssignedSlices is the number of slices currently assigned
+                  to nodes.
+                format: int32
+                type: integer
               conditions:
                 description: Conditions holds the conditions for the NodeSlicePool.
                 items:
@@ -151,6 +168,15 @@ spec:
                   - type
                   type: object
                 type: array
+              freeSlices:
+                description: FreeSlices is the number of slices available for node
+                  assignment.
+                format: int32
+                type: integer
+              totalSlices:
+                description: TotalSlices is the total number of IP slices in the pool.
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

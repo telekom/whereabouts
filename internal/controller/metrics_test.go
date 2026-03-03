@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -37,8 +38,9 @@ var _ = Describe("Controller Metrics", func() {
 		It("should report allocation count gauge", func() {
 			pool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-pool",
-					Namespace: "default",
+					Name:       "test-pool",
+					Namespace:  "default",
+					Finalizers: []string{ippoolFinalizer},
 				},
 				Spec: whereaboutsv1alpha1.IPPoolSpec{
 					Range: "10.0.0.0/24",
@@ -70,10 +72,11 @@ var _ = Describe("Controller Metrics", func() {
 
 			c := fake.NewClientBuilder().
 				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool, podA, podB, podC).
 				Build()
 
-			r := &IPPoolReconciler{client: c, reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "test-pool", Namespace: "default"},
 			})
@@ -86,8 +89,9 @@ var _ = Describe("Controller Metrics", func() {
 		It("should increment orphan cleanup counter", func() {
 			pool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "orphan-pool",
-					Namespace: "default",
+					Name:       "orphan-pool",
+					Namespace:  "default",
+					Finalizers: []string{ippoolFinalizer},
 				},
 				Spec: whereaboutsv1alpha1.IPPoolSpec{
 					Range: "10.0.1.0/24",
@@ -104,13 +108,14 @@ var _ = Describe("Controller Metrics", func() {
 
 			c := fake.NewClientBuilder().
 				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool, existingPod).
 				Build()
 
 			// Record baseline counter value.
 			counterBefore := getCounterValue(ippoolOrphansCleaned.WithLabelValues("orphan-pool"))
 
-			r := &IPPoolReconciler{client: c, reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "orphan-pool", Namespace: "default"},
 			})
@@ -123,8 +128,9 @@ var _ = Describe("Controller Metrics", func() {
 		It("should update allocation gauge after cleanup", func() {
 			pool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "gauge-update-pool",
-					Namespace: "default",
+					Name:       "gauge-update-pool",
+					Namespace:  "default",
+					Finalizers: []string{ippoolFinalizer},
 				},
 				Spec: whereaboutsv1alpha1.IPPoolSpec{
 					Range: "10.0.2.0/24",
@@ -141,10 +147,11 @@ var _ = Describe("Controller Metrics", func() {
 
 			c := fake.NewClientBuilder().
 				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool, alivePod).
 				Build()
 
-			r := &IPPoolReconciler{client: c, reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "gauge-update-pool", Namespace: "default"},
 			})
@@ -176,7 +183,7 @@ var _ = Describe("Controller Metrics", func() {
 
 			counterBefore := getCounterValue(overlappingReservationsCleaned)
 
-			r := &OverlappingRangeReconciler{client: c, reconcileInterval: 30}
+			r := &OverlappingRangeReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "10.0.0.1", Namespace: "default"},
 			})

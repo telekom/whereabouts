@@ -492,4 +492,23 @@ var _ = Describe("Allocation operations", func() {
 			Expect(updatedList).To(HaveLen(2))
 		})
 	})
+
+	Describe("AssignmentError", func() {
+		It("returns a descriptive error message", func() {
+			_, ipnet, _ := net.ParseCIDR("10.0.0.0/24")
+			err := AssignmentError{
+				firstIP:       net.ParseIP("10.0.0.1"),
+				lastIP:        net.ParseIP("10.0.0.254"),
+				ipnet:         *ipnet,
+				excludeRanges: []string{"10.0.0.100-10.0.0.110"},
+			}
+			msg := err.Error()
+			Expect(msg).To(ContainSubstring("Could not allocate IP in range"))
+			Expect(msg).To(ContainSubstring("10.0.0.1"))
+			Expect(msg).To(ContainSubstring("10.0.0.254"))
+			Expect(msg).To(ContainSubstring("10.0.0.0/24"))
+			Expect(msg).To(ContainSubstring("10.0.0.100-10.0.0.110"))
+			Expect(msg).To(ContainSubstring("the pool may be exhausted"))
+		})
+	})
 })

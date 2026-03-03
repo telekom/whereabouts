@@ -78,10 +78,10 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		logging.Errorf("DEL attempt %d/%d failed: %v", attempt+1, delMaxRetries, lastErr)
 	}
 
-	// All retries exhausted — CNI spec requires DEL to be idempotent.
-	// Log the error but return nil to avoid blocking pod deletion.
-	_ = logging.Errorf("DEL failed after %d attempts: %s", delMaxRetries, lastErr)
-	return nil
+	// All retries exhausted — return the error so the container runtime
+	// can retry the DEL call. Swallowing the error here would cause
+	// permanent IP leaks that only the reconciler could clean up.
+	return logging.Errorf("DEL failed after %d attempts: %s", delMaxRetries, lastErr)
 }
 
 func main() {
@@ -113,8 +113,17 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
 
+	// Parse prevResult if the runtime provided one (CNI spec 0.4.0+).
+	prevResult, err := config.ParsePrevResult(args.StdinData)
+	if err != nil {
+		logging.Debugf("CHECK: could not parse prevResult (non-fatal): %s", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
 	defer cancel()
+
+	// Collect all IPs that are allocated for this container in the pools.
+	allocatedIPs := make(map[string]bool)
 
 	// Verify an allocation exists for this container in every configured IP range.
 	for _, ipRange := range ipamConf.IPRanges {
@@ -131,6 +140,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 		for _, alloc := range pool.Allocations() {
 			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
 				found = true
+				allocatedIPs[alloc.IP.String()] = true
 				break
 			}
 		}
@@ -140,6 +150,20 @@ func cmdCheck(args *skel.CmdArgs) error {
 		}
 		logging.Debugf("CHECK: allocation verified for containerID %q ifName %q in range %s",
 			args.ContainerID, args.IfName, ipRange.Range)
+	}
+
+	// If prevResult was provided, cross-check that the IPs reported by the
+	// runtime match our pool allocations. A mismatch indicates state drift.
+	if prevResult != nil {
+		for _, ipConf := range prevResult.IPs {
+			ip := ipConf.Address.IP.String()
+			if !allocatedIPs[ip] {
+				return logging.Errorf(
+					"CHECK: IP %s from prevResult is not allocated in any pool for containerID %q ifName %q",
+					ip, args.ContainerID, args.IfName)
+			}
+			logging.Debugf("CHECK: prevResult IP %s matches pool allocation", ip)
+		}
 	}
 
 	return nil
@@ -161,6 +185,8 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 		return logging.Errorf("error at storage engine: %s", err)
 	}
 
+	logging.Verbosef("ADD: allocated %d IP(s) for containerID %q podRef %q", len(newips), client.ContainerID, client.Config.GetPodRef())
+
 	for _, newip := range newips {
 		result.IPs = append(result.IPs, &current.IPConfig{
 			Address: newip,
@@ -175,7 +201,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	}
 
 	if len(result.IPs) == 0 {
-		return fmt.Errorf("no IP addresses allocated — check IPAM configuration (ipRanges may be empty)")
+		return logging.Errorf("no IP addresses allocated — check IPAM configuration (ipRanges may be empty)")
 	}
 
 	return cnitypes.PrintResult(result, cniVersion)
@@ -189,5 +215,6 @@ func cmdDel(client *kubernetes.KubernetesIPAM) error {
 	if err != nil {
 		return logging.Errorf("error deallocating IP: %s", err)
 	}
+	logging.Verbosef("DEL: released IP(s) for containerID %q podRef %q", client.ContainerID, client.Config.GetPodRef())
 	return nil
 }

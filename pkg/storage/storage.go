@@ -1,3 +1,6 @@
+// Package storage defines the interfaces for IP pool management backends.
+// The primary production implementation is in the kubernetes sub-package,
+// which uses IPPool CRDs as the storage layer.
 package storage
 
 import (

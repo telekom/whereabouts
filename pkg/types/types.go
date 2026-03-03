@@ -1,3 +1,5 @@
+// Package types defines the core data structures for whereabouts IPAM
+// configuration, IP reservations, and operation modes.
 package types
 
 import (
@@ -19,14 +21,18 @@ const (
 	DelTimeLimit                  = 1 * time.Minute
 	DefaultOverlappingIPsFeatures = true
 	DefaultSleepForRace           = 0
+	// MaxSleepForRace caps the sleep_for_race debug parameter to prevent
+	// unbounded sleeps that could be used as a denial-of-service vector.
+	MaxSleepForRace = 10
 )
 
 // Net is The top-level network config - IPAM plugins are passed the full configuration
 // of the calling plugin, not just the IPAM section.
 type Net struct {
-	Name       string      `json:"name"`
-	CNIVersion string      `json:"cniVersion"`
-	IPAM       *IPAMConfig `json:"ipam"`
+	Name          string                 `json:"name"`
+	CNIVersion    string                 `json:"cniVersion"`
+	IPAM          *IPAMConfig            `json:"ipam"`
+	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
 }
 
 // NetConfList describes an ordered list of networks.
@@ -38,43 +44,89 @@ type NetConfList struct {
 	Plugins      []*Net `json:"plugins,omitempty"`
 }
 
+// RangeConfiguration defines a single IP range from which addresses are
+// allocated, with optional start/end bounds and exclude lists. Used in the
+// ipRanges array for multi-range and dual-stack configurations.
 type RangeConfiguration struct {
+	// OmitRanges lists CIDRs to exclude from allocation within this range.
 	OmitRanges []string `json:"exclude,omitempty"`
-	Range      string   `json:"range"`
-	RangeStart net.IP   `json:"range_start,omitempty"`
-	RangeEnd   net.IP   `json:"range_end,omitempty"`
+	// Range is the CIDR notation for this IP range (e.g., "192.168.1.0/24").
+	Range string `json:"range"`
+	// RangeStart optionally restricts allocation to start at this IP.
+	RangeStart net.IP `json:"range_start,omitempty"`
+	// RangeEnd optionally restricts allocation to end at this IP.
+	RangeEnd net.IP `json:"range_end,omitempty"`
 }
 
-// IPAMConfig describes the expected json configuration for this plugin
+// IPAMConfig describes the expected json configuration for this plugin.
+// JSON tags use snake_case to match the CNI configuration format.
 type IPAMConfig struct {
-	Name                     string
-	Type                     string               `json:"type"`
-	Routes                   []*cnitypes.Route    `json:"routes"`
-	Addresses                []Address            `json:"addresses,omitempty"`
-	IPRanges                 []RangeConfiguration `json:"ipRanges"`
-	OmitRanges               []string             `json:"exclude,omitempty"`
-	DNS                      cnitypes.DNS         `json:"dns"`
-	Range                    string               `json:"range"`
-	NodeSliceSize            string               `json:"node_slice_size"`
-	RangeStart               net.IP               `json:"range_start,omitempty"`
-	RangeEnd                 net.IP               `json:"range_end,omitempty"`
-	GatewayStr               string               `json:"gateway"`
-	LeaderLeaseDuration      int                  `json:"leader_lease_duration,omitempty"`
-	LeaderRenewDeadline      int                  `json:"leader_renew_deadline,omitempty"`
-	LeaderRetryPeriod        int                  `json:"leader_retry_period,omitempty"`
-	LogFile                  string               `json:"log_file"`
-	LogLevel                 string               `json:"log_level"`
-	ReconcilerCronExpression string               `json:"reconciler_cron_expression,omitempty"`
-	OverlappingRanges        bool                 `json:"enable_overlapping_ranges,omitempty"`
-	SleepForRace             int                  `json:"sleep_for_race,omitempty"`
-	Gateway                  net.IP
-	Kubernetes               KubernetesConfig `json:"kubernetes,omitempty"`
-	ConfigurationPath        string           `json:"configuration_path"`
-	PodName                  string
-	PodNamespace             string
-	NetworkName              string `json:"network_name,omitempty"`
+	// Name is the CNI network name, copied from the top-level Net struct.
+	Name string
+	// Type is the IPAM plugin type (must be "whereabouts").
+	Type string `json:"type"`
+	// Routes defines static routes to be added by the CNI plugin.
+	Routes []*cnitypes.Route `json:"routes"`
+	// Addresses holds static IP addresses for the interface (used by configureStatic).
+	Addresses []Address `json:"addresses,omitempty"`
+	// IPRanges defines multiple IP ranges for allocation (e.g. dual-stack).
+	IPRanges []RangeConfiguration `json:"ipRanges"`
+	// OmitRanges lists CIDRs to exclude from allocation.
+	OmitRanges []string `json:"exclude,omitempty"`
+	// DNS configures DNS for the interface.
+	DNS cnitypes.DNS `json:"dns"`
+	// Range is the primary CIDR range for IP allocation.
+	Range string `json:"range"`
+	// NodeSliceSize sets the prefix length (e.g. "/28" or "28") for per-node
+	// IP slices. Enables the experimental Fast IPAM feature when non-empty.
+	NodeSliceSize string `json:"node_slice_size"`
+	// RangeStart optionally restricts allocation to start at this IP within the Range.
+	RangeStart net.IP `json:"range_start,omitempty"`
+	// RangeEnd optionally restricts allocation to end at this IP within the Range.
+	RangeEnd net.IP `json:"range_end,omitempty"`
+	// GatewayStr is the gateway IP as a string, parsed from the "gateway" JSON key.
+	GatewayStr string `json:"gateway"`
+	// LeaderLeaseDuration is the leader election lease duration in milliseconds.
+	LeaderLeaseDuration int `json:"leader_lease_duration,omitempty"`
+	// LeaderRenewDeadline is the leader election renew deadline in milliseconds.
+	LeaderRenewDeadline int `json:"leader_renew_deadline,omitempty"`
+	// LeaderRetryPeriod is the leader election retry period in milliseconds.
+	LeaderRetryPeriod int `json:"leader_retry_period,omitempty"`
+	// LogFile is the path to the whereabouts log file.
+	LogFile string `json:"log_file"`
+	// LogLevel is the logging verbosity: "debug", "verbose", "error", or "panic".
+	LogLevel string `json:"log_level"`
+	// Deprecated: ReconcilerCronExpression was used by the legacy CronJob-based
+	// reconciler. The operator now uses --reconcile-interval instead. This field
+	// is retained for backward compatibility with existing configurations but
+	// has no effect.
+	ReconcilerCronExpression string `json:"reconciler_cron_expression,omitempty"`
+	// OverlappingRanges enables cluster-wide IP uniqueness checks via
+	// OverlappingRangeIPReservation CRDs. Defaults to true.
+	OverlappingRanges bool `json:"enable_overlapping_ranges,omitempty"`
+	// SleepForRace is a debug parameter that adds artificial delay (in seconds)
+	// before pool updates to simulate race conditions. Capped at MaxSleepForRace.
+	SleepForRace int `json:"sleep_for_race,omitempty"`
+	// Gateway is the parsed net.IP of GatewayStr. It is not directly populated
+	// from JSON; instead, GatewayStr is parsed via backwardsCompatibleIPAddress.
+	Gateway net.IP
+	// Kubernetes holds Kubernetes-specific configuration (kubeconfig path, API root).
+	Kubernetes KubernetesConfig `json:"kubernetes,omitempty"`
+	// ConfigurationPath is an optional path to the whereabouts flat file configuration.
+	ConfigurationPath string `json:"configuration_path"`
+	// PodName is the name of the pod requesting an IP, set from CNI_ARGS.
+	PodName string
+	// PodNamespace is the namespace of the pod requesting an IP, set from CNI_ARGS.
+	PodNamespace string
+	// NetworkName optionally names the network for multi-tenant scenarios,
+	// creating separate IPPool CRs per network name.
+	NetworkName string `json:"network_name,omitempty"`
 }
 
+// UnmarshalJSON implements custom JSON unmarshaling for IPAMConfig.
+// It uses an internal alias type to avoid infinite recursion (the alias has no
+// custom unmarshaler), and converts string IP fields (RangeStart, RangeEnd,
+// Gateway) to net.IP via backwardsCompatibleIPAddress.
 func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 	type IPAMConfigAlias struct {
 		Name                     string
@@ -180,12 +232,18 @@ type Address struct {
 	Version    string
 }
 
-// IPReservation is an address that has been reserved by this plugin
+// IPReservation is an address that has been reserved by this plugin.
 type IPReservation struct {
-	IP          net.IP `json:"ip"`
+	// IP is the reserved IP address.
+	IP net.IP `json:"ip"`
+	// ContainerID is the CNI container ID that owns this reservation.
 	ContainerID string `json:"id"`
-	PodRef      string `json:"podref"`
-	IfName      string `json:"ifName"`
+	// PodRef is the "namespace/name" reference to the owning pod.
+	PodRef string `json:"podref"`
+	// IfName is the network interface name within the container.
+	IfName string `json:"ifName"`
+	// IsAllocated is an internal flag used during iteration to mark IPs that
+	// are reserved by overlapping ranges but should not be persisted to the pool.
 	IsAllocated bool
 }
 

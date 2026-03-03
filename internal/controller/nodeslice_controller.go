@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/fluxcd/pkg/runtime/conditions"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -30,14 +32,16 @@ import (
 // managing the corresponding NodeSlicePool CRDs. It assigns IP range slices
 // to nodes and ensures node join/leave events are reflected in the allocations.
 type NodeSliceReconciler struct {
-	client client.Client
+	client   client.Client
+	recorder record.EventRecorder
 }
 
 // SetupNodeSliceReconciler creates and registers the NodeSliceReconciler with
 // the manager.
 func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 	r := &NodeSliceReconciler{
-		client: mgr.GetClient(),
+		client:   mgr.GetClient(),
+		recorder: mgr.GetEventRecorderFor("nodeslice-controller"),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -62,6 +66,7 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 // Reconcile processes a NAD and manages the corresponding NodeSlicePool.
 func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
+	logger.V(1).Info("reconciling NAD for NodeSlicePool", "name", req.Name, "namespace", req.Namespace)
 
 	// Fetch the NAD.
 	var nad nadv1.NetworkAttachmentDefinition
@@ -70,7 +75,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			// NAD deleted — NodeSlicePool will be garbage collected via OwnerReference.
 			return ctrl.Result{}, nil
 		}
-		return ctrl.Result{}, fmt.Errorf("getting NAD: %s", err)
+		return ctrl.Result{}, fmt.Errorf("getting NAD: %w", err)
 	}
 
 	// Parse IPAM configuration from the NAD.
@@ -98,13 +103,13 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	subnets, err := iphelpers.DivideRangeBySize(ipamConf.Range, ipamConf.NodeSliceSize)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("dividing range by size: %s", err)
+		return ctrl.Result{}, fmt.Errorf("dividing range by size: %w", err)
 	}
 
 	// List all nodes.
 	var nodeList corev1.NodeList
 	if err := r.client.List(ctx, &nodeList); err != nil {
-		return ctrl.Result{}, fmt.Errorf("listing nodes: %s", err)
+		return ctrl.Result{}, fmt.Errorf("listing nodes: %w", err)
 	}
 	nodes := make([]string, 0, len(nodeList.Items))
 	for i := range nodeList.Items {
@@ -118,7 +123,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	exists := true
 	if err := r.client.Get(ctx, poolKey, &pool); err != nil {
 		if !errors.IsNotFound(err) {
-			return ctrl.Result{}, fmt.Errorf("getting NodeSlicePool: %s", err)
+			return ctrl.Result{}, fmt.Errorf("getting NodeSlicePool: %w", err)
 		}
 		exists = false
 	}
@@ -132,7 +137,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Ensure this NAD is an OwnerReference.
 	if err := r.ensureOwnerRef(ctx, &pool, &nad); err != nil {
-		return ctrl.Result{}, fmt.Errorf("ensuring OwnerReference: %s", err)
+		return ctrl.Result{}, fmt.Errorf("ensuring OwnerReference: %w", err)
 	}
 
 	if specChanged {
@@ -141,6 +146,21 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Spec unchanged — just ensure node assignments are current.
 	return r.ensureNodeAssignments(ctx, &pool, nodes)
+}
+
+// computeSliceStats populates the NodeSlicePool's status with computed
+// slice counts derived from the allocations array.
+func computeSliceStats(pool *whereaboutsv1alpha1.NodeSlicePool) {
+	total := int32(len(pool.Status.Allocations))
+	var assigned int32
+	for _, a := range pool.Status.Allocations {
+		if a.NodeName != "" {
+			assigned++
+		}
+	}
+	pool.Status.TotalSlices = total
+	pool.Status.AssignedSlices = assigned
+	pool.Status.FreeSlices = total - assigned
 }
 
 // createPool creates a new NodeSlicePool with initial allocations.
@@ -167,17 +187,25 @@ func (r *NodeSliceReconciler) createPool(ctx context.Context, nad *nadv1.Network
 	}
 
 	if err := r.client.Create(ctx, pool); err != nil {
-		return ctrl.Result{}, fmt.Errorf("creating NodeSlicePool: %s", err)
+		return ctrl.Result{}, fmt.Errorf("creating NodeSlicePool: %w", err)
 	}
 
-	// Update status separately (subresource).
+	// Snapshot after Create so we have the server-set fields, then patch status.
+	patchHelper, err := NewPatchHelper(pool, r.client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
+	}
 	pool.Status.Allocations = allocations
-	if err := r.client.Status().Update(ctx, pool); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating NodeSlicePool status: %s", err)
+	computeSliceStats(pool)
+	markReady(pool, ReasonPoolCreated, fmt.Sprintf("created with range %s, slice size %s, %d node(s)", rangeStr, sliceSize, len(nodes)))
+	if err := patchHelper.Patch(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patching NodeSlicePool status: %w", err)
 	}
 
 	logger.Info("created NodeSlicePool", "name", name, "range", rangeStr,
 		"sliceSize", sliceSize, "nodes", len(nodes))
+	r.recorder.Eventf(pool, corev1.EventTypeNormal, "Created",
+		"created NodeSlicePool with range %s, slice size %s, %d node(s)", rangeStr, sliceSize, len(nodes))
 	recordNodeSliceMetrics(name, allocations)
 	return ctrl.Result{}, nil
 }
@@ -186,23 +214,30 @@ func (r *NodeSliceReconciler) createPool(ctx context.Context, nad *nadv1.Network
 func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, rangeStr, sliceSize string, subnets, nodes []string) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
+	// Snapshot before any changes — PatchHelper will handle both spec and status.
+	patchHelper, err := NewPatchHelper(pool, r.client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
+	}
+
 	// Update spec.
-	patch := client.MergeFrom(pool.DeepCopy())
 	pool.Spec.Range = rangeStr
 	pool.Spec.SliceSize = sliceSize
-	if err := r.client.Patch(ctx, pool, patch); err != nil {
-		return ctrl.Result{}, fmt.Errorf("patching NodeSlicePool spec: %s", err)
-	}
 
 	// Recompute allocations.
 	allocations := makeAllocations(subnets, nodes)
 	pool.Status.Allocations = allocations
-	if err := r.client.Status().Update(ctx, pool); err != nil {
-		return ctrl.Result{}, fmt.Errorf("updating NodeSlicePool status: %s", err)
+	computeSliceStats(pool)
+	markReady(pool, ReasonPoolUpdated, fmt.Sprintf("updated range to %s, slice size %s", rangeStr, sliceSize))
+
+	if err := patchHelper.Patch(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patching NodeSlicePool: %w", err)
 	}
 
 	logger.Info("updated NodeSlicePool spec and re-sliced", "name", pool.Name,
 		"range", rangeStr, "sliceSize", sliceSize)
+	r.recorder.Eventf(pool, corev1.EventTypeNormal, "SpecUpdated",
+		"updated range to %s, slice size to %s, re-sliced allocations", rangeStr, sliceSize)
 	recordNodeSliceMetrics(pool.Name, allocations)
 	return ctrl.Result{}, nil
 }
@@ -210,20 +245,26 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 // ensureNodeAssignments checks that all current nodes have slice assignments
 // and removes assignments for deleted nodes.
 func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nodes []string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	// Snapshot before mutations.
+	patchHelper, err := NewPatchHelper(pool, r.client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
+	}
+
 	nodeSet := make(map[string]struct{}, len(nodes))
 	for _, n := range nodes {
 		nodeSet[n] = struct{}{}
 	}
 
 	allocations := pool.Status.Allocations
-	changed := false
 
 	// Remove assignments for nodes that no longer exist.
 	for i := range allocations {
 		if allocations[i].NodeName != "" {
 			if _, ok := nodeSet[allocations[i].NodeName]; !ok {
 				allocations[i].NodeName = ""
-				changed = true
 			}
 		}
 	}
@@ -237,23 +278,37 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 	}
 	for _, nodeName := range nodes {
 		if _, assigned := assignedNodes[nodeName]; !assigned {
+			slotFound := false
 			for i := range allocations {
 				if allocations[i].NodeName == "" {
 					allocations[i].NodeName = nodeName
 					assignedNodes[nodeName] = struct{}{}
-					changed = true
+					slotFound = true
 					break
 				}
 			}
-			// No slot available — pool is full. TODO: fire an event.
+			if !slotFound {
+				// No slot available — pool is full.
+				logger.Info("no available slot for node, pool is full",
+					"pool", pool.Name, "node", nodeName)
+				r.recorder.Eventf(pool, corev1.EventTypeWarning, "PoolFull",
+					"no available IP slice for node %s — pool is full", nodeName)
+				markStalled(pool, ReasonPoolFull,
+					fmt.Sprintf("no available IP slice for node %s", nodeName))
+			}
 		}
 	}
 
-	if changed {
-		pool.Status.Allocations = allocations
-		if err := r.client.Status().Update(ctx, pool); err != nil {
-			return ctrl.Result{}, fmt.Errorf("updating NodeSlicePool status: %s", err)
-		}
+	pool.Status.Allocations = allocations
+	computeSliceStats(pool)
+	// If not stalled (no pool-full warning), mark as ready.
+	if !conditions.IsStalled(pool) {
+		markReady(pool, ReasonReconciled, "all nodes assigned to slices")
+	}
+
+	// PatchHelper will no-op if nothing actually changed.
+	if err := patchHelper.Patch(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patching NodeSlicePool status: %w", err)
 	}
 
 	recordNodeSliceMetrics(pool.Name, pool.Status.Allocations)
@@ -268,15 +323,18 @@ func (r *NodeSliceReconciler) ensureOwnerRef(ctx context.Context, pool *whereabo
 		}
 	}
 
-	patch := client.MergeFrom(pool.DeepCopy())
+	patchHelper, err := NewPatchHelper(pool, r.client)
+	if err != nil {
+		return fmt.Errorf("creating patch helper: %w", err)
+	}
 	pool.OwnerReferences = append(pool.OwnerReferences, metav1.OwnerReference{
-		APIVersion: nad.APIVersion,
-		Kind:       nad.Kind,
+		APIVersion: nadv1.SchemeGroupVersion.String(),
+		Kind:       "NetworkAttachmentDefinition",
 		Name:       nad.Name,
 		UID:        nad.UID,
 	})
-	if err := r.client.Patch(ctx, pool, patch); err != nil {
-		return fmt.Errorf("patching OwnerReference on NodeSlicePool %s for NAD %s: %s", pool.Name, nad.Name, err)
+	if err := patchHelper.Patch(ctx, pool); err != nil {
+		return fmt.Errorf("patching OwnerReference on NodeSlicePool %s for NAD %s: %w", pool.Name, nad.Name, err)
 	}
 	return nil
 }
@@ -306,7 +364,7 @@ func (r *NodeSliceReconciler) mapNodeToNADs(ctx context.Context, _ *corev1.Node)
 func (r *NodeSliceReconciler) checkMultiNADMismatch(ctx context.Context, nad *nadv1.NetworkAttachmentDefinition, conf *nadIPAMConfig) error {
 	var nadList nadv1.NetworkAttachmentDefinitionList
 	if err := r.client.List(ctx, &nadList); err != nil {
-		return fmt.Errorf("listing NADs for mismatch check: %s", err)
+		return fmt.Errorf("listing NADs for mismatch check: %w", err)
 	}
 
 	for i := range nadList.Items {

@@ -55,13 +55,20 @@ func retryBackoff(ctx context.Context, d time.Duration) {
 	}
 }
 
-// KubernetesIPAM manages ip blocks in an kubernetes CRD backend
+// KubernetesIPAM manages IP address blocks using Kubernetes CRDs as the
+// storage backend. It embeds Client for API access and carries the per-request
+// context needed to perform allocations and deallocations.
 type KubernetesIPAM struct {
+	// Client provides access to the Kubernetes and Whereabouts API clients.
 	Client
-	Config      whereaboutstypes.IPAMConfig
-	Namespace   string
+	// Config is the parsed IPAM configuration for this allocation request.
+	Config whereaboutstypes.IPAMConfig
+	// Namespace is the Kubernetes namespace where IPPool CRDs are stored.
+	Namespace string
+	// ContainerID is the CNI container ID for the current request.
 	ContainerID string
-	IfName      string
+	// IfName is the network interface name inside the container.
+	IfName string
 }
 
 func newKubernetesIPAM(containerID, ifName string, ipamConf whereaboutstypes.IPAMConfig, namespace string, kubernetesClient Client) *KubernetesIPAM {
@@ -144,17 +151,19 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 	}
 }
 
+// normalizeRange converts an IP range CIDR into a string suitable for use as a
+// Kubernetes resource name. Colons (IPv6) and slashes (CIDR notation) are
+// replaced with dashes because metadata.name must match RFC 1123 DNS subdomain.
 func normalizeRange(ipRange string) string {
 	if len(ipRange) == 0 {
 		return ""
 	}
-	// v6 filter
+	// Trailing colon in abbreviated IPv6 (e.g. "2001::") needs a zero appended
+	// so the replacement below produces a valid name segment.
 	if ipRange[len(ipRange)-1] == ':' {
 		ipRange = ipRange + "0"
 	}
 	normalized := strings.ReplaceAll(ipRange, ":", "-")
-
-	// replace subnet cidr slash
 	normalized = strings.ReplaceAll(normalized, "/", "-")
 	return normalized
 }
@@ -175,13 +184,13 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 			// the pool was just created -- allow retry
 			return nil, &temporaryError{err}
 		} else if err != nil {
-			return nil, fmt.Errorf("k8s create error: %s", err)
+			return nil, fmt.Errorf("k8s create error: %w", err)
 		}
 		// if the pool was created for the first time, trigger another retry of the allocation loop
 		// so all of the metadata / resourceVersions are populated as necessary by the `client.Get` call
 		return nil, &temporaryError{fmt.Errorf("k8s pool initialized")}
 	} else if err != nil {
-		return nil, fmt.Errorf("k8s get error: %s", err)
+		return nil, fmt.Errorf("k8s get error: %w", err)
 	}
 	return pool, nil
 }
@@ -320,7 +329,7 @@ func (c *KubernetesOverlappingRangeStore) GetOverlappingRangeIPReservation(ctx c
 		return nil, nil
 	} else if err != nil {
 		logging.Errorf("k8s get OverlappingRangeIPReservation error: %s", err)
-		return nil, fmt.Errorf("k8s get OverlappingRangeIPReservation error: %s", err)
+		return nil, fmt.Errorf("k8s get OverlappingRangeIPReservation error: %w", err)
 	}
 
 	logging.Debugf("Normalized IP is reserved; normalized IP: %q, IP: %q, networkName: %q",
@@ -478,7 +487,12 @@ func newLeaderElector(ctx context.Context, clientset kubernetes.Interface, names
 	return le, leaderOK, deposed
 }
 
-// IPManagement manages ip allocation and deallocation from a storage perspective
+// IPManagement orchestrates IP allocation or deallocation using leader election.
+// It acquires a Kubernetes lease lock, then delegates to IPManagementKubernetesUpdate
+// to perform the actual pool update. The mode parameter must be types.Allocate or
+// types.Deallocate. Returns the list of assigned IP networks (for Allocate) or nil
+// (for Deallocate). The function blocks until the operation completes, the context
+// is canceled, or leader election fails.
 func IPManagement(ctx context.Context, mode int, ipamConf whereaboutstypes.IPAMConfig, client *KubernetesIPAM) ([]net.IPNet, error) {
 	var newips []net.IPNet
 
@@ -666,7 +680,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				}
 				rangeEnd, err := iphelpers.LastUsableIP(*ipNet)
 				if err != nil {
-					logging.Errorf("Error parsing node slice cidr to range start: %v", err)
+					logging.Errorf("Error parsing node slice cidr to range end: %v", err)
 					requestCancel()
 					return newips, err
 				}
@@ -748,9 +762,14 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				}
 			}
 
-			// Manual race condition testing
+			// Manual race condition testing (capped to prevent DoS)
 			if ipamConf.SleepForRace > 0 {
-				time.Sleep(time.Duration(ipamConf.SleepForRace) * time.Second)
+				sleepSec := ipamConf.SleepForRace
+				if sleepSec > whereaboutstypes.MaxSleepForRace {
+					logging.Debugf("Capping sleep_for_race from %d to %d seconds", sleepSec, whereaboutstypes.MaxSleepForRace)
+					sleepSec = whereaboutstypes.MaxSleepForRace
+				}
+				time.Sleep(time.Duration(sleepSec) * time.Second)
 			}
 
 			err = pool.Update(requestCtx, usereservelist)
@@ -793,11 +812,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 
 		// Track this allocation so we can roll it back if a later range fails.
+		// Only append to newips in Allocate mode — during Deallocate, newip is
+		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
 			committed = append(committed, committedAlloc{pool: pool, ip: newip.IP})
+			newips = append(newips, newip)
 		}
-
-		newips = append(newips, newip)
 	}
 	return newips, nil
 }

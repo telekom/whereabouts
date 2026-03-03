@@ -43,13 +43,13 @@ func (s *Setup) Start(ctx context.Context) error {
 	}
 
 	if err := SetupIPPoolWebhook(s.mgr); err != nil {
-		return fmt.Errorf("registering IPPool webhook: %s", err)
+		return fmt.Errorf("registering IPPool webhook: %w", err)
 	}
 	if err := SetupNodeSlicePoolWebhook(s.mgr); err != nil {
-		return fmt.Errorf("registering NodeSlicePool webhook: %s", err)
+		return fmt.Errorf("registering NodeSlicePool webhook: %w", err)
 	}
 	if err := SetupOverlappingRangeWebhook(s.mgr); err != nil {
-		return fmt.Errorf("registering OverlappingRangeIPReservation webhook: %s", err)
+		return fmt.Errorf("registering OverlappingRangeIPReservation webhook: %w", err)
 	}
 
 	s.ready.Store(true)

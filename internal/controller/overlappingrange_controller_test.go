@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -46,10 +47,12 @@ var _ = Describe("OverlappingRangeReconciler", func() {
 		scheme := newTestScheme()
 		fakeClient := fake.NewClientBuilder().
 			WithScheme(scheme).
+			WithStatusSubresource(&whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
 			WithObjects(objs...).
 			Build()
 		reconciler = &OverlappingRangeReconciler{
 			client:            fakeClient,
+			recorder:          record.NewFakeRecorder(10),
 			reconcileInterval: interval,
 		}
 	}

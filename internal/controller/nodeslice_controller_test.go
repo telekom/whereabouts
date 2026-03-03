@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -67,7 +68,8 @@ var _ = Describe("NodeSliceReconciler", func() {
 			WithStatusSubresource(&whereaboutsv1alpha1.NodeSlicePool{}).
 			Build()
 		reconciler = &NodeSliceReconciler{
-			client: fakeClient,
+			client:   fakeClient,
+			recorder: record.NewFakeRecorder(10),
 		}
 	}
 
@@ -144,6 +146,11 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(pool.Spec.SliceSize).To(Equal("/24"))
 			Expect(pool.OwnerReferences).To(HaveLen(1))
 			Expect(pool.OwnerReferences[0].UID).To(Equal(nad.UID))
+
+			// Verify slice stats are populated.
+			Expect(pool.Status.TotalSlices).To(BeNumerically(">", 0))
+			Expect(pool.Status.AssignedSlices).To(BeNumerically("<=", pool.Status.TotalSlices))
+			Expect(pool.Status.FreeSlices).To(Equal(pool.Status.TotalSlices - pool.Status.AssignedSlices))
 		})
 	})
 
@@ -204,6 +211,11 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			Expect(nodeNames).To(HaveKey("node-a"))
 			Expect(nodeNames).To(HaveKey("node-b"))
+
+			// Verify slice stats after node assignment.
+			Expect(updated.Status.TotalSlices).To(Equal(int32(3)))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(1)))
 		})
 	})
 
@@ -259,6 +271,11 @@ var _ = Describe("NodeSliceReconciler", func() {
 			for _, a := range updated.Status.Allocations {
 				Expect(a.NodeName).NotTo(Equal("node-removed"))
 			}
+
+			// Verify slice stats after node removal.
+			Expect(updated.Status.TotalSlices).To(Equal(int32(3)))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(2)))
 		})
 	})
 
@@ -308,6 +325,10 @@ var _ = Describe("NodeSliceReconciler", func() {
 			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updated.Spec.Range).To(Equal("10.0.0.0/20"))
+
+			// Verify slice stats after spec update.
+			Expect(updated.Status.TotalSlices).To(BeNumerically(">", 0))
+			Expect(updated.Status.FreeSlices).To(Equal(updated.Status.TotalSlices - updated.Status.AssignedSlices))
 		})
 	})
 

@@ -83,7 +83,7 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 	// running yet at setup time.
 	directClient, err := client.New(mgr.GetConfig(), client.Options{})
 	if err != nil {
-		return fmt.Errorf("creating direct client for secret bootstrap: %s", err)
+		return fmt.Errorf("creating direct client for secret bootstrap: %w", err)
 	}
 
 	// Ensure the secret exists before the rotator starts, because

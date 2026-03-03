@@ -33,7 +33,7 @@ func newControllerCommand() *cobra.Command {
 
 			cfg, err := ctrl.GetConfig()
 			if err != nil {
-				return fmt.Errorf("loading kubeconfig: %s", err)
+				return fmt.Errorf("loading kubeconfig: %w", err)
 			}
 
 			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -41,10 +41,11 @@ func newControllerCommand() *cobra.Command {
 				Metrics: server.Options{
 					BindAddress: metricsAddr,
 				},
-				HealthProbeBindAddress:  healthProbeAddr,
-				LeaderElection:          leaderElect,
-				LeaderElectionID:        "whereabouts-controller",
-				LeaderElectionNamespace: leaderElectNamespace,
+				HealthProbeBindAddress:         healthProbeAddr,
+				LeaderElection:                 leaderElect,
+				LeaderElectionID:               "whereabouts-controller",
+				LeaderElectionNamespace:        leaderElectNamespace,
+				LeaderElectionReleaseOnCancel:   true,
 			})
 			if err != nil {
 				return err

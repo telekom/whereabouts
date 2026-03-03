@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -18,6 +19,8 @@ import (
 
 // IPPoolValidator validates IPPool resources.
 type IPPoolValidator struct{}
+
+var ippoolLog = ctrl.Log.WithName("webhook").WithName("ippool")
 
 var _ admission.Validator[*whereaboutsv1alpha1.IPPool] = &IPPoolValidator{}
 
@@ -33,10 +36,15 @@ func SetupIPPoolWebhook(mgr manager.Manager) error {
 // ValidateCreate validates an IPPool on creation.
 func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	if pool.Spec.Range == "" {
-		recordValidation("ippool", "create", fmt.Errorf("spec.range is required"))
-		return nil, fmt.Errorf("spec.range is required")
+		err := fmt.Errorf("spec.range is required")
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
+		recordValidation("ippool", "create", err)
+		return nil, err
 	}
 	w, err := validateIPPool(pool)
+	if err != nil {
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
+	}
 	recordValidation("ippool", "create", err)
 	return w, err
 }
@@ -51,6 +59,9 @@ func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *where
 			oldPool.Spec.Range, pool.Spec.Range))
 	}
 	w, err := validateIPPool(pool)
+	if err != nil {
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+	}
 	recordValidation("ippool", "update", err)
 	return append(warnings, w...), err
 }
@@ -67,7 +78,7 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 	// Validate Range is a valid CIDR.
 	if pool.Spec.Range != "" {
 		if err := validation.ValidateCIDR(pool.Spec.Range); err != nil {
-			return nil, fmt.Errorf("invalid spec.range: %s", err)
+			return nil, fmt.Errorf("invalid spec.range: %w", err)
 		}
 	}
 
@@ -78,7 +89,7 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 			continue
 		}
 		if err := validation.ValidatePodRef(alloc.PodRef, false); err != nil {
-			return nil, fmt.Errorf("allocation %s: %s", key, err)
+			return nil, fmt.Errorf("allocation %s: %w", key, err)
 		}
 	}
 

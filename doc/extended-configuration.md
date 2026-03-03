@@ -30,7 +30,7 @@ Note that we're also including a Custom Resource Definition (CRD) to use the `ku
 There are two optional parameters for logging, they are:
 
 * `log_file`: A file path to a logfile to log to.
-* `log_level`: Set the logging verbosity, from most to least: `debug`,`error`,`panic`
+* `log_level`: Set the logging verbosity, from most to least: `debug`,`verbose`,`error`,`panic`
 
 ## Flatfile configuration
 
@@ -107,5 +107,137 @@ To change it, edit the operator Deployment's command args:
         - controller
         - --reconcile-interval=60s
 ```
+
+## IPAM Configuration Reference
+
+Below is a complete reference of all IPAM configuration parameters. All parameters
+are specified inside the `"ipam"` object in CNI configuration JSON.
+
+### Core Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | string | yes | Must be `"whereabouts"` |
+| `range` | string | yes* | CIDR notation for the IP range (e.g., `"192.168.2.0/24"`, `"2001:db8::/64"`) |
+| `range_start` | string | no | First IP to allocate within the range |
+| `range_end` | string | no | Last IP to allocate within the range |
+| `exclude` | string[] | no | CIDRs to exclude from allocation |
+| `gateway` | string | no | Gateway IP address for the interface |
+
+*\*Required unless using `ipRanges`.*
+
+### Multi-Range / Dual-Stack
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ipRanges` | object[] | Array of range objects for multi-IP or dual-stack allocation. Each element supports `range`, `range_start`, `range_end`, and `exclude`. |
+
+Example dual-stack configuration:
+```json
+{
+  "type": "whereabouts",
+  "ipRanges": [
+    {"range": "192.168.2.0/24"},
+    {"range": "2001:db8::/64", "range_start": "2001:db8::10", "range_end": "2001:db8::ff"}
+  ]
+}
+```
+
+### Network Isolation
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `network_name` | string | `""` | Logical network name. Creates separate IPPool CRs per network, allowing the same CIDR range to be used independently in multi-tenant scenarios. |
+| `enable_overlapping_ranges` | bool | `true` | Enables cluster-wide IP uniqueness checks via OverlappingRangeIPReservation CRDs. Prevents the same IP from being allocated across different ranges. |
+
+### Fast IPAM (Experimental)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `doc/crds/operator-install.yaml`). Valid range: 1–128. |
+
+### Leader Election
+
+These parameters configure the leader election used during IP allocation. All values
+are in **milliseconds**. Defaults are suitable for most deployments.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `leader_lease_duration` | int | `1500` | Leader election lease duration (ms) |
+| `leader_renew_deadline` | int | `1000` | Leader election renew deadline (ms) |
+| `leader_retry_period` | int | `500` | Leader election retry period (ms) |
+
+### Logging
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `log_file` | string | `""` | Path to the whereabouts log file. If empty, logs go to stderr. |
+| `log_level` | string | `""` | Logging verbosity: `"debug"`, `"verbose"`, `"error"`, or `"panic"`. |
+
+### Kubernetes Configuration
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `kubernetes.kubeconfig` | string | Path to a kubeconfig file. If empty, in-cluster configuration is used. |
+
+### Other
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `configuration_path` | string | Path to a flat file configuration (see [Flatfile configuration](#flatfile-configuration)). Must not contain path traversal (`..`). |
+| `sleep_for_race` | int | Debug parameter: adds artificial delay (seconds) before pool updates to simulate race conditions. Do not use in production. |
+
+## Operator Configuration Examples
+
+The operator binary (`whereabouts-operator`) supports two subcommands:
+
+### Controller (reconcilers)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whereabouts-controller
+spec:
+  template:
+    spec:
+      containers:
+      - name: whereabouts-controller
+        image: ghcr.io/telekom/whereabouts:latest
+        command:
+        - /whereabouts-operator
+        - controller
+        # Reconciliation interval (default: 30s)
+        - --reconcile-interval=60s
+        # Health and metrics endpoints
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8443
+```
+
+### Webhook server
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whereabouts-webhook
+spec:
+  template:
+    spec:
+      containers:
+      - name: whereabouts-webhook
+        image: ghcr.io/telekom/whereabouts:latest
+        command:
+        - /whereabouts-operator
+        - webhook
+        # Webhook server port (default: 9443)
+        - --webhook-port=9443
+        # Health probe (default: :8081)
+        - --health-probe-bind-address=:8082
+        # TLS certificates are auto-rotated by cert-controller
+```
+
+For complete installation manifests, see `doc/crds/operator-install.yaml` and
+`doc/crds/webhook-install.yaml`.
 
 

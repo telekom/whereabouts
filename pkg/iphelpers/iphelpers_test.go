@@ -991,3 +991,53 @@ func TestDivideRangeBySizeIPv6Large(t *testing.T) {
 		t.Errorf("expected last subnet fd00:0:0:ffff::/64, got %s", result[len(result)-1])
 	}
 }
+
+var _ = Describe("CountUsableIPs", func() {
+	It("counts usable IPs in a /24 IPv4 range", func() {
+		count, err := CountUsableIPs("10.0.0.0/24")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(254)))
+	})
+
+	It("counts usable IPs in a /30 IPv4 range", func() {
+		count, err := CountUsableIPs("192.168.1.0/30")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(2)))
+	})
+
+	It("returns 0 for a /31 (no usable IPs)", func() {
+		count, err := CountUsableIPs("10.0.0.0/31")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(0)))
+	})
+
+	It("returns 0 for a /32 (single host)", func() {
+		count, err := CountUsableIPs("10.0.0.1/32")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(0)))
+	})
+
+	It("counts usable IPs in a /16 IPv4 range", func() {
+		count, err := CountUsableIPs("10.0.0.0/16")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(65534)))
+	})
+
+	It("counts usable IPs in a /120 IPv6 range", func() {
+		count, err := CountUsableIPs("fd00::/120")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(254)))
+	})
+
+	It("returns error for invalid CIDR", func() {
+		_, err := CountUsableIPs("not-a-cidr")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("clamps to MaxInt32 for very large ranges", func() {
+		// /0 would have 2^32-2 usable IPs, clamped to MaxInt32.
+		count, err := CountUsableIPs("0.0.0.0/0")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(count).To(Equal(int32(1<<31 - 1)))
+	})
+})

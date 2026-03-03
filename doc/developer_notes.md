@@ -1,12 +1,44 @@
-## Development notes
+# Development Notes
 
-Run `go mod` with:
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Build binary | `./hack/build-go.sh` |
+| Run all tests | `make test` |
+| Run tests (skip staticcheck) | `make test-skip-static` |
+| Run single package tests | `go test -v ./pkg/allocate/` |
+| Update dependencies | `make update-deps` |
+| Regenerate API code | `make generate-api` |
+| Update clientsets/informers/listers | `./hack/update-codegen.sh` |
+| Verify generated code | `./hack/verify-codegen.sh` |
+| Create local cluster | `make kind` |
+
+## Dependencies
 
 ```
 go mod tidy
 go mod vendor
 go mod verify
 ```
+
+Or use the convenience target: `make update-deps`
+
+## Static Analysis
+
+The project uses `go vet` and [staticcheck](https://staticcheck.io/). Both are
+run by `make test`.  To skip staticcheck for faster iteration:
+
+```
+make test-skip-static
+```
+
+## Testing Framework
+
+* **Unit tests** use [Ginkgo v2](https://onsi.github.io/ginkgo/) + [Gomega](https://onsi.github.io/gomega/) with dot-imports.
+* Some packages (e.g., `pkg/storage/kubernetes/`) use standard `testing.T` table-driven tests.
+* controller-runtime `envtest` is used for reconciler and webhook integration tests.
+* Fake Kubernetes clients (`fake.NewSimpleClientset(...)`) are used for unit testing without a cluster.
 
 ## Running with CNI's `docker-run.sh`
 

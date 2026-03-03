@@ -29,6 +29,13 @@ To track which IP addresses are in use between nodes, Whereabouts uses Kubernete
 
 Issues and PRs are welcome! Some of the known limitations are found at the bottom of the README.
 
+## Prerequisites
+
+* Kubernetes 1.16+
+* [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed on the cluster (Whereabouts is used as a secondary IPAM plugin via Multus `NetworkAttachmentDefinition`s)
+* A secondary CNI plugin (e.g., macvlan, ipvlan, bridge) configured through Multus
+* `kubectl` configured with cluster-admin access
+
 ## Installation
 
 There's three steps to installing Whereabouts:
@@ -71,11 +78,51 @@ The daemonset installation requires Kubernetes Version 1.16 or later.
 You can also install whereabouts with helm 3:
 
 ```
-helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
+# Install from OCI registry
+helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
 
+# Or use template to render manifests locally
+helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
 ```
 
-Helm will install the crd as well as the daemonset
+Helm will install the CRDs as well as the daemonset, operator, and webhooks.
+
+### Upgrading
+
+For **kubectl-based** installations, re-apply the manifests with the new version:
+
+```
+git pull && kubectl apply \
+    -f doc/crds/daemonset-install.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_nodeslicepools.yaml \
+    -f doc/crds/operator-install.yaml \
+    -f doc/crds/webhook-install.yaml \
+    -f doc/crds/validatingwebhookconfiguration.yaml
+```
+
+For **Helm**:
+```
+helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <NEW_VERSION>
+```
+
+### Uninstalling
+
+For **kubectl-based** installations:
+```
+kubectl delete -f doc/crds/validatingwebhookconfiguration.yaml
+kubectl delete -f doc/crds/webhook-install.yaml
+kubectl delete -f doc/crds/operator-install.yaml
+kubectl delete -f doc/crds/daemonset-install.yaml
+```
+
+> **Note:** CRDs (`whereabouts.cni.cncf.io_ippools.yaml` etc.) are not deleted by default to prevent data loss. Remove them manually if no longer needed.
+
+For **Helm**:
+```
+helm uninstall whereabouts
+```
 
 ## Example IPAM Config
 
@@ -377,3 +424,18 @@ The typeface used in the logo is [AZONIX](https://www.dafont.com/azonix.font), b
 ## Known limitations
 
 * Unlikely to work in Canada, apparently it would have to be "where aboots?" for Canadians to be able to operate it.
+
+## API Stability
+
+The IPAM configuration format (JSON `ipam` block) is stable and follows semver. CRD API types in `whereabouts.cni.cncf.io/v1alpha1` are pre-GA: while we avoid breaking changes, the `v1alpha1` designation means the schema may evolve. The internal Go packages (`pkg/allocate`, `pkg/storage`, etc.) are not part of the public API.
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Resolution |
+|---------|-------------|------------|
+| `could not allocate IP in range` | IP pool exhausted | Expand the CIDR range or check for orphaned allocations: `kubectl get ippools -A -o yaml` |
+| `IPAM type must be 'whereabouts'` | Wrong IPAM type in NAD config | Verify `"type": "whereabouts"` in the `ipam` block of your `NetworkAttachmentDefinition` |
+| `kubernetes.kubeconfig path is required` | Missing kubeconfig | Provide `kubeconfig` in the IPAM config or in `whereabouts.conf` (only needed outside the cluster) |
+| Duplicate IPs across pods | CNI binary crash during allocation | The operator's IPPool reconciler automatically cleans up orphaned allocations within its reconcile interval |
+| Webhook rejects valid CRDs | Webhook outage or misconfiguration | Check webhook pod logs; the static manifest uses `failurePolicy: Ignore` to avoid blocking CNI operations |
+| Slow IP allocation in large clusters | Contention on IPPool CRD | Enable Fast IPAM with `node_slice_size` to pre-allocate per-node IP slices (see [extended configuration](doc/extended-configuration.md)) |

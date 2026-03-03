@@ -103,8 +103,8 @@ jobs:
 
       - name: Wait for operator to be ready
         run: |
-          kubectl -n kube-system rollout status deployment whereabouts-operator --timeout=120s
-          kubectl -n kube-system wait --for=condition=ready -l app=whereabouts-operator pod --timeout=120s
+          kubectl -n kube-system rollout status deployment whereabouts-controller-manager --timeout=120s
+          kubectl -n kube-system wait --for=condition=ready -l control-plane=controller-manager pod --timeout=120s
 
       - name: Execute E2E tests
         env:
@@ -129,10 +129,11 @@ jobs:
           kubectl get pods -A -o wide || true
           echo ""
           echo "=== Whereabouts pods ==="
-          kubectl -n kube-system get pods -l app=whereabouts -o wide || true
+          kubectl -n kube-system get pods -l name=whereabouts -o wide || true
+          kubectl -n kube-system get pods -l control-plane=controller-manager -o wide || true
           echo ""
           echo "=== Whereabouts pod logs ==="
-          for p in $(kubectl -n kube-system get pods -l app=whereabouts -o name 2>/dev/null); do
+          for p in $(kubectl -n kube-system get pods -l name=whereabouts -o name 2>/dev/null) $(kubectl -n kube-system get pods -l control-plane=controller-manager -o name 2>/dev/null); do
             echo "--- $p ---"
             kubectl -n kube-system logs "$p" --tail=200 || true
           done

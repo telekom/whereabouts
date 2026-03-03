@@ -44,6 +44,11 @@ func TestValidatePodRefExtended(t *testing.T) {
 		wantErr  bool
 		errMsg   string
 	}{
+		// Intentional leniency: ValidatePodRef only enforces "namespace/name" shape
+		// via SplitN(podRef, "/", 2). It does NOT attempt to mirror Kubernetes
+		// DNS-1123 resource name validation. Unicode, spaces, and long strings are
+		// accepted because the CNI plugin stores podRefs as-is from the runtime,
+		// and Kubernetes itself enforces naming constraints at the API server level.
 		{name: "unicode namespace", podRef: "ünïcödé/pod", required: true, wantErr: false},
 		{name: "very long podRef", podRef: strings.Repeat("a", 253) + "/" + strings.Repeat("b", 253), required: true, wantErr: false},
 		{name: "spaces in namespace", podRef: "name space/pod", required: true, wantErr: false},

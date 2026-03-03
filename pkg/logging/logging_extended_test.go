@@ -150,7 +150,7 @@ var _ = Describe("logging output verification", func() {
 			}()
 			content := readLog()
 			Expect(content).To(ContainSubstring("Stack trace output"))
-			Expect(content).To(ContainSubstring("Whereabouts Panic"))
+			Expect(content).To(ContainSubstring("panic test"))
 		})
 	})
 })

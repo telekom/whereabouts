@@ -35,12 +35,6 @@ func SetupIPPoolWebhook(mgr manager.Manager) error {
 
 // ValidateCreate validates an IPPool on creation.
 func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	if pool.Spec.Range == "" {
-		err := fmt.Errorf("spec.range is required")
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
-		recordValidation("ippool", "create", err)
-		return nil, err
-	}
 	w, err := validateIPPool(pool)
 	if err != nil {
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
@@ -76,10 +70,8 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 	var warnings admission.Warnings
 
 	// Validate Range is a valid CIDR.
-	if pool.Spec.Range != "" {
-		if err := validation.ValidateCIDR(pool.Spec.Range); err != nil {
-			return nil, fmt.Errorf("invalid spec.range: %w", err)
-		}
+	if err := validation.ValidateCIDR(pool.Spec.Range); err != nil {
+		return nil, fmt.Errorf("invalid spec.range: %w", err)
 	}
 
 	// Validate allocation podRefs.

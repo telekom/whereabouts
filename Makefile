@@ -176,6 +176,9 @@ $(STATICCHECK): | $(BIN_DIR)
 $(KUSTOMIZE): | $(BIN_DIR)
 	GOBIN=$(BIN_DIR) $(GO) install sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
 
+.PHONY: kustomize
+kustomize: $(KUSTOMIZE) ## Install kustomize binary.
+
 $(GOLANGCI_LINT): | $(BIN_DIR)
 	GOBIN=$(BIN_DIR) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 

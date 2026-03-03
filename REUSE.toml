@@ -38,6 +38,7 @@ path = [
   "hack/release/*.sh",
   "script/*.sh",
   "hack/boilerplate.go.txt",
+  "hack/openapi-violations.list",
   "Makefile",
   "Dockerfile",
   "Dockerfile.arm64",

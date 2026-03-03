@@ -41,6 +41,10 @@ func SetupOverlappingRangeReconciler(mgr ctrl.Manager, reconcileInterval time.Du
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+		// GenerationChangedPredicate passes Create events (including initial cache sync)
+		// and only filters Update events where .metadata.generation is unchanged (e.g.
+		// status-only updates). Periodic orphan checking is driven by RequeueAfter, not
+		// by watch events, so this predicate does not prevent detection of deleted pods.
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,

@@ -79,7 +79,7 @@ func (i *Client) ListIPPools() ([]storage.IPPool, error) {
 		return nil, err
 	}
 
-	var whereaboutsAPIIPPoolList []storage.IPPool
+	whereaboutsAPIIPPoolList := make([]storage.IPPool, 0, len(ipPoolList.Items))
 	for idx := range ipPoolList.Items {
 		firstIP, _, err := ipPoolList.Items[idx].ParseCIDR()
 		if err != nil {

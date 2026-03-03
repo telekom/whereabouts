@@ -30,7 +30,7 @@ make kind COMPUTE_NODES=3 # Custom worker count
 
 ### Code Generation
 
-After modifying CRD types in `pkg/api/`:
+After modifying CRD types in `api/`:
 
 ```bash
 make generate-api         # Regenerate deepcopy + manifests

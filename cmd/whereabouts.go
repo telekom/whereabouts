@@ -57,7 +57,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 	backoff := delInitialBackoff
 	for attempt := range delMaxRetries {
 		if attempt > 0 {
-			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt, delMaxRetries, backoff)
+			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt+1, delMaxRetries, backoff)
 			time.Sleep(backoff)
 			backoff *= 2
 		}
@@ -201,7 +201,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	}
 
 	if len(result.IPs) == 0 {
-		return logging.Errorf("no IP addresses allocated — check IPAM configuration (ipRanges may be empty)")
+		return logging.Errorf("no IP addresses allocated - check IPAM configuration (ipRanges may be empty)")
 	}
 
 	return cnitypes.PrintResult(result, cniVersion)

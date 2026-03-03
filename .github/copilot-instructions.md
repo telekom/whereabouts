@@ -27,7 +27,8 @@ make kind COMPUTE_NODES=3             # Custom worker count
 ## Code Conventions
 
 ### Error Handling
-- Wrap with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping
+- Wrap with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping in new code (operator, webhooks, controllers)
+- Legacy CNI plugin code (`pkg/`, `cmd/whereabouts.go`) still uses `%s` — migrate to `%w` opportunistically
 - Use `logging.Errorf("msg: %v", err)` to both log AND return an error in one call
 - When discarding the returned error: `_ = logging.Errorf(...)`
 - Custom error types use struct + `Error() string` + constructor: `NewInvalidPluginError()`

@@ -21,13 +21,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
+	"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbtestclient "github.com/telekom/whereabouts/e2e/client"
 	"github.com/telekom/whereabouts/e2e/entities"
 	"github.com/telekom/whereabouts/e2e/poolconsistency"
 	"github.com/telekom/whereabouts/e2e/retrievers"
 	testenv "github.com/telekom/whereabouts/e2e/testenvironment"
 	"github.com/telekom/whereabouts/e2e/util"
-	"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 	wbstorage "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	"github.com/telekom/whereabouts/pkg/types"
@@ -902,7 +902,7 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(err).NotTo(HaveOccurred())
 					defer func() { _ = clientInfo.DeletePod(p) }()
 
-					var allIPs []string //nolint:prealloc // dynamic append based on loop results
+					var allIPs []string
 					for _, ifName := range []string{"net1", "net2"} {
 						ips, err := retrievers.SecondaryIfaceIPValue(p, ifName)
 						Expect(err).NotTo(HaveOccurred())

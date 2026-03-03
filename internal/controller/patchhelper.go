@@ -12,6 +12,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -207,13 +208,5 @@ func splitObject(obj client.Object) (spec, status []byte, err error) {
 // This is sufficient because the blobs are produced by the same serializer
 // (encoding/json on the same Go struct) so field ordering is deterministic.
 func jsonEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return bytes.Equal(a, b)
 }

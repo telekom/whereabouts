@@ -104,7 +104,7 @@ func Errorf(format string, a ...interface{}) error {
 func Panicf(format string, a ...interface{}) {
 	Printf(PanicLevel, format, a...)
 	Printf(PanicLevel, "========= Stack trace output ========")
-	Printf(PanicLevel, "%+v", errors.New("Whereabouts Panic"))
+	Printf(PanicLevel, "%+v", errors.Errorf(format, a...))
 	Printf(PanicLevel, "========= Stack trace output end ========")
 	panic(fmt.Sprintf(format, a...))
 }
@@ -152,7 +152,7 @@ func SetLogFile(filename string) {
 		return
 	}
 
-	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 	if err != nil {
 		_, _ = os.Stderr.WriteString("Whereabouts logging: cannot open " + filename + "\n")
 		return
@@ -160,7 +160,9 @@ func SetLogFile(filename string) {
 
 	mu.Lock()
 	if loggingFp != nil {
-		loggingFp.Close()
+		if closeErr := loggingFp.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Whereabouts logging: error closing previous log file: %v\n", closeErr)
+		}
 	}
 	loggingFp = fp
 	mu.Unlock()

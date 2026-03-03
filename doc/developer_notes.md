@@ -4,7 +4,7 @@
 
 | Task | Command |
 |------|---------|
-| Build binary | `make build
+| Build binary | `make build` |
 | Run all tests | `make test` |
 | Run tests (skip staticcheck) | `make test-skip-static` |
 | Run single package tests | `go test -v ./pkg/allocate/` |

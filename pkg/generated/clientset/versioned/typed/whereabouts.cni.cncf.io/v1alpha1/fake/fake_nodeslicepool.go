@@ -18,7 +18,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	v1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/whereabouts.cni.cncf.io/v1alpha1"
 	typedwhereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	gentype "k8s.io/client-go/gentype"

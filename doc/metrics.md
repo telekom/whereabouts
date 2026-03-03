@@ -73,7 +73,7 @@ Registered on the `controller` subcommand's metrics endpoint.
 
 ### Webhook Metrics
 
-Registered on the `webhook` subcommand's metrics endpoint.
+Registered on the controller manager's metrics endpoint.
 
 #### `whereabouts_webhook_validation_total`
 

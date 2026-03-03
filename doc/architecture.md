@@ -10,9 +10,9 @@ Whereabouts ships two binaries:
 | Binary | Role |
 |--------|------|
 | `whereabouts` | CNI plugin binary, called by the container runtime (via Multus) on pod create/delete |
-| `whereabouts-operator` | Operator binary with `controller` and `webhook` subcommands |
+| `whereabouts-operator` | Operator binary — `controller` subcommand runs reconcilers + webhook server |
 
-## CNI Plugin (`cmd/whereabouts.go`)
+## CNI Plugin (`cmd/whereabouts/main.go`)
 
 Implements the standard CNI interface:
 
@@ -27,10 +27,11 @@ Implements the standard CNI interface:
 ## Operator (`cmd/operator/`)
 
 Built on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime)
-with Cobra subcommands:
+with a single `controller` subcommand that runs both reconcilers and the
+webhook server from the same process:
 
-* `controller` — runs reconcilers as a leader-elected Deployment.
-* `webhook` — runs the validating webhook server with automatic TLS rotation
+* Reconcilers are leader-elected — only one replica runs them.
+* All replicas serve validating webhooks with automatic TLS rotation
   (via `cert-controller`).
 
 ### Reconcilers (`internal/controller/`)

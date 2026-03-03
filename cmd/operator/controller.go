@@ -11,8 +11,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/telekom/whereabouts/internal/controller"
+	"github.com/telekom/whereabouts/internal/webhook"
+	"github.com/telekom/whereabouts/internal/webhook/certrotator"
 )
 
 func newControllerCommand() *cobra.Command {
@@ -22,14 +25,21 @@ func newControllerCommand() *cobra.Command {
 		leaderElect          bool
 		leaderElectNamespace string
 		reconcileInterval    time.Duration
+		webhookPort          int
+		certDir              string
+		namespace            string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "controller",
-		Short: "Run leader-elected reconcilers for IPPool, NodeSlicePool, and OverlappingRangeIPReservation",
+		Short: "Run leader-elected reconcilers and validating webhooks",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			setupLogger(cmd)
 			log := ctrl.Log.WithName("controller")
+
+			if namespace == "" {
+				return fmt.Errorf("--namespace is required")
+			}
 
 			cfg, err := ctrl.GetConfig()
 			if err != nil {
@@ -46,19 +56,45 @@ func newControllerCommand() *cobra.Command {
 				LeaderElectionID:              "whereabouts-controller",
 				LeaderElectionNamespace:       leaderElectNamespace,
 				LeaderElectionReleaseOnCancel: true,
+				// All replicas serve webhooks; only the leader runs reconcilers.
+				WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
+					Port:    webhookPort,
+					CertDir: certDir,
+				}),
 			})
 			if err != nil {
 				return err
 			}
 
+			// Reconcilers (leader-elected).
 			if err := controller.SetupWithManager(mgr, reconcileInterval); err != nil {
+				return err
+			}
+
+			// Certificate rotation for the webhook server.
+			certReady := make(chan struct{})
+			ctx := cmd.Context()
+			if err := certrotator.Enable(ctx, mgr, certrotator.Options{
+				Namespace:   namespace,
+				CertDir:     certDir,
+				DNSName:     fmt.Sprintf("whereabouts-webhook.%s.svc", namespace),
+				SecretName:  "whereabouts-webhook-cert",
+				WebhookName: "whereabouts-validating-webhooks",
+				IsReady:     certReady,
+			}); err != nil {
+				return err
+			}
+
+			// Register webhooks after cert bootstrap.
+			webhookSetup := webhook.NewSetup(mgr, certReady)
+			if err := mgr.Add(webhookSetup); err != nil {
 				return err
 			}
 
 			if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 				return err
 			}
-			if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+			if err := mgr.AddReadyzCheck("readyz", webhookSetup.ReadyCheck()); err != nil {
 				return err
 			}
 
@@ -72,6 +108,9 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&leaderElect, "leader-elect", true, "Enable leader election for the controller manager")
 	cmd.Flags().StringVar(&leaderElectNamespace, "leader-elect-namespace", "", "Namespace for leader election lease (defaults to pod namespace)")
 	cmd.Flags().DurationVar(&reconcileInterval, "reconcile-interval", 30*time.Second, "Interval for periodic reconciliation of IP pools")
+	cmd.Flags().IntVar(&webhookPort, "webhook-port", 9443, "Port the webhook server listens on")
+	cmd.Flags().StringVar(&certDir, "cert-dir", "/var/run/webhook-certs", "Directory for TLS certificates")
+	cmd.Flags().StringVar(&namespace, "namespace", "", "Namespace where the operator runs (required for webhook cert DNS)")
 
 	return cmd
 }

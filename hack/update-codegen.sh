@@ -31,7 +31,7 @@ kube::codegen::gen_openapi \
     --report-filename "${SCRIPT_ROOT}/hack/openapi-violations.list" \
     --update-report \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
-    "${SCRIPT_ROOT}/pkg/api"
+    "${SCRIPT_ROOT}/api"
 
 # Build OpenAPI schema JSON from the generated Go definitions.
 # applyconfiguration-gen needs this to populate the structured-merge-diff
@@ -47,5 +47,5 @@ kube::codegen::gen_client \
     --output-dir "${SCRIPT_ROOT}/pkg/generated" \
     --output-pkg "${THIS_PKG}/pkg/generated" \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
-    "${SCRIPT_ROOT}/pkg/api"
+    "${SCRIPT_ROOT}/api"
 

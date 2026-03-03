@@ -18,7 +18,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	internal "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -57,7 +57,7 @@ func NodeSlicePool(name, namespace string) *NodeSlicePoolApplyConfiguration {
 // applied if another fieldManager has updated or force applied any of the previously applied fields.
 func ExtractNodeSlicePoolFrom(nodeSlicePool *whereaboutscnicncfiov1alpha1.NodeSlicePool, fieldManager string, subresource string) (*NodeSlicePoolApplyConfiguration, error) {
 	b := &NodeSlicePoolApplyConfiguration{}
-	err := managedfields.ExtractInto(nodeSlicePool, internal.Parser().Type("com.github.telekom.whereabouts.pkg.api.whereabouts.cni.cncf.io.v1alpha1.NodeSlicePool"), fieldManager, b, subresource)
+	err := managedfields.ExtractInto(nodeSlicePool, internal.Parser().Type("com.github.telekom.whereabouts.api.whereabouts.cni.cncf.io.v1alpha1.NodeSlicePool"), fieldManager, b, subresource)
 	if err != nil {
 		return nil, err
 	}

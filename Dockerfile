@@ -14,7 +14,7 @@ RUN VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VER
     -X github.com/telekom/whereabouts/pkg/version.GitSHA=${GIT_SHA} \
     -X github.com/telekom/whereabouts/pkg/version.GitTreeState=${GIT_TREE_STATE} \
     -X github.com/telekom/whereabouts/pkg/version.ReleaseStatus=${RELEASE_STATUS}" && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts ./cmd/ && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts ./cmd/whereabouts/ && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts-operator ./cmd/operator/
 
 FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659

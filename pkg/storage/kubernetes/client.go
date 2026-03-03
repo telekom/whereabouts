@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/storage"

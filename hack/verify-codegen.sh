@@ -5,30 +5,39 @@ set -o nounset
 set -o pipefail
 
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-DIFFROOT="${SCRIPT_ROOT}/pkg"
-TMP_DIFFROOT="$(mktemp -d -t "$(basename "$0").XXXXXX")/pkg"
+DIFFROOT_PKG="${SCRIPT_ROOT}/pkg"
+DIFFROOT_API="${SCRIPT_ROOT}/api"
+TMPDIR="$(mktemp -d -t "$(basename "$0").XXXXXX")"
+TMP_DIFFROOT_PKG="${TMPDIR}/pkg"
+TMP_DIFFROOT_API="${TMPDIR}/api"
 
 cleanup() {
-  rm -rf "${TMP_DIFFROOT}"
+  rm -rf "${TMPDIR}"
 }
 trap "cleanup" EXIT SIGINT
 
 cleanup
 
-mkdir -p "${TMP_DIFFROOT}"
-cp -a "${DIFFROOT}"/* "${TMP_DIFFROOT}"
+mkdir -p "${TMP_DIFFROOT_PKG}" "${TMP_DIFFROOT_API}"
+cp -a "${DIFFROOT_PKG}"/* "${TMP_DIFFROOT_PKG}"
+cp -a "${DIFFROOT_API}"/* "${TMP_DIFFROOT_API}"
 
 "${SCRIPT_ROOT}/hack/update-codegen.sh"
 
-echo "diffing ${DIFFROOT} against freshly generated codegen"
+echo "diffing pkg/ against freshly generated codegen"
 ret=0
-diff -Naupr "${DIFFROOT}" "${TMP_DIFFROOT}" || ret=$?
-cp -a "${TMP_DIFFROOT}"/* "${DIFFROOT}"
+diff -Naupr "${DIFFROOT_PKG}" "${TMP_DIFFROOT_PKG}" || ret=$?
+cp -a "${TMP_DIFFROOT_PKG}"/* "${DIFFROOT_PKG}"
+
+echo "diffing api/ against freshly generated codegen"
+diff -Naupr "${DIFFROOT_API}" "${TMP_DIFFROOT_API}" || ret=$?
+cp -a "${TMP_DIFFROOT_API}"/* "${DIFFROOT_API}"
+
 if [[ $ret -eq 0 ]]
 then
-    echo "${DIFFROOT} up to date."
+    echo "pkg/ and api/ up to date."
 else
-    echo "${DIFFROOT} is out of date. Please run hack/update-codegen.sh"
+    echo "pkg/ or api/ is out of date. Please run hack/update-codegen.sh"
     exit 1
 fi
 

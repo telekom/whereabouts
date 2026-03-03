@@ -54,7 +54,7 @@ Modify `hack/update-codegen.sh`: add `--with-applyconfig` to `kube::codegen::gen
 
 ### Step 3: Update CRD scheme registration
 
-Update `pkg/api/whereabouts.cni.cncf.io/v1alpha1/register.go` to ensure the `SchemeBuilder` and `AddToScheme` work with controller-runtime's scheme. Register NAD types in the same scheme for the operator.
+Update `api/v1alpha1/register.go` to ensure the `SchemeBuilder` and `AddToScheme` work with controller-runtime's scheme. Register NAD types in the same scheme for the operator.
 
 ### Step 4: Migrate all tests Ginkgo v1 → v2
 
@@ -70,21 +70,15 @@ Replace `github.com/onsi/ginkgo` → `github.com/onsi/ginkgo/v2` in all test fil
 
 ### Step 5: Create operator entry point with Cobra subcommands
 
-Create `cmd/operator/main.go` with Cobra root command and two subcommands:
+Create `cmd/operator/main.go` with Cobra root command and a single `controller` subcommand:
 
 **`controller` subcommand**:
 - `ctrl.Manager` with leader election, health/ready probes (`:8081`), Prometheus metrics (`:8080`)
 - All field indexers (Step 6)
 - All reconcilers (Steps 7–8)
-- No webhook server
-- Flags: `--reconcile-interval` (default 30s), `--metrics-bind-address`, `--health-probe-bind-address`, `--leader-elect-namespace`, `--log-level`
-
-**`webhook` subcommand**:
-- `ctrl.Manager` with webhook server on `:9443`
-- cert-controller rotator via `rotator.AddRotator(mgr, &rotator.CertRotator{...})`
-- `IsReady` channel gates webhook registration
-- Health/ready probes (`:8083`)
-- No reconcilers, no leader election for serving
+- Embedded webhook server on `:9443` with cert-controller TLS rotation
+- All replicas serve webhooks; only the leader runs reconcilers
+- Flags: `--reconcile-interval` (default 30s), `--metrics-bind-address`, `--health-probe-bind-address`, `--leader-elect-namespace`, `--webhook-port`, `--cert-dir`, `--namespace`, `--log-level`
 
 ### Step 6: Register field indexers
 
@@ -202,7 +196,7 @@ In `pkg/storage/kubernetes/ipam.go`:
 
 ### Step 13: Update build system
 
-**hack/build-go.sh:**
+**make build:**
 - Build `bin/whereabouts-operator` from `./cmd/operator/`
 - Remove `bin/ip-control-loop` and `bin/node-slice-controller`
 
@@ -215,27 +209,25 @@ In `pkg/storage/kubernetes/ipam.go`:
 
 ### Step 14: Update Kubernetes manifests
 
-**DaemonSet** (`doc/crds/daemonset-install.yaml`):
+**DaemonSet** (`config/daemonset/daemonset.yaml`):
 - Command: `SLEEP=false source /install-cni.sh && /token-watcher.sh` (foreground)
 - Remove `ip-control-loop` invocation and ConfigMap cron mount
 - Split RBAC: DaemonSet SA → minimal CNI permissions only
 
-**Operator Controller Deployment** (`doc/crds/whereabouts-operator.yaml`):
-- `replicas: 2`, leader election
+**Operator Controller+Webhook Deployment** (`config/manager/manager.yaml`):
+- `replicas: 2`, leader election for reconcilers
+- All replicas serve webhooks on `:9443`
 - Liveness `:8081/healthz`, readiness `:8081/readyz`, metrics `:8080`
-- Label `app: whereabouts-controller`
+- Label `control-plane: controller-manager`
+- Cert volume from Secret `whereabouts-webhook-cert`
 
-**Operator Webhook Deployment** (in same file or separate):
-- `replicas: 2`, no leader election for serving
-- Webhook port `:9443`, Service port 443→9443
-- Readiness not-ready until certs bootstrapped
-
-**ValidatingWebhookConfiguration:**
+**ValidatingWebhookConfiguration** (`config/webhook/manifests.yaml` + kustomize patches):
 - IPPool, NodeSlicePool, OverlappingRangeIPReservation rules
 - `matchConditions` CEL bypass for `whereabouts` SA
 - `failurePolicy: Fail`
+- `cert-controller.io/inject-ca-from` annotation
 
-**Remove** `doc/crds/node-slice-controller.yaml`
+**Removed:** `doc/crds/` manual install manifests (replaced by kustomize `config/` tree)
 
 **Helm chart:**
 - Add `webhook.enabled` (default `false`)

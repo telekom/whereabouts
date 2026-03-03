@@ -46,13 +46,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Install Go
+      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      with:
+        go-version-file: go.mod
     - name: Prepare manifests
       run: |
         mkdir -p ./manifests
         TAG="${{ github.event.release.tag_name }}"
-        for f in doc/crds/*.yaml; do
-          sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|ghcr.io/telekom/whereabouts:${TAG}|g" "$f" > "./manifests/$(basename $f)"
-        done
+        make kustomize
+        bin/kustomize build config/default | \
+          sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|ghcr.io/telekom/whereabouts:${TAG}|g" \
+          > ./manifests/install.yaml
     - name: Upload install manifests
       uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
       with:

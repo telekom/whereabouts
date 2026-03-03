@@ -31,79 +31,79 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation":                 schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAddressAllocation(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation":                        schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAllocation(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPool":                              schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPool(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolList":                          schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec":                          schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus":                        schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation":                 schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSliceAllocation(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool":                       schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePool(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolList":                   schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec":                   schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolSpec(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus":                 schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation":       schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationList":   schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationList(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec":   schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationSpec(ref),
-		"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus": schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationStatus(ref),
-		resource.Quantity{}.OpenAPIModelName():                                                                        schema_apimachinery_pkg_api_resource_Quantity(ref),
-		v1.APIGroup{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_APIGroup(ref),
-		v1.APIGroupList{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_APIGroupList(ref),
-		v1.APIResource{}.OpenAPIModelName():                                                                           schema_pkg_apis_meta_v1_APIResource(ref),
-		v1.APIResourceList{}.OpenAPIModelName():                                                                       schema_pkg_apis_meta_v1_APIResourceList(ref),
-		v1.APIVersions{}.OpenAPIModelName():                                                                           schema_pkg_apis_meta_v1_APIVersions(ref),
-		v1.ApplyOptions{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_ApplyOptions(ref),
-		v1.Condition{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_Condition(ref),
-		v1.CreateOptions{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_CreateOptions(ref),
-		v1.DeleteOptions{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		v1.Duration{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_Duration(ref),
-		v1.FieldSelectorRequirement{}.OpenAPIModelName():                                                              schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
-		v1.FieldsV1{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_FieldsV1(ref),
-		v1.GetOptions{}.OpenAPIModelName():                                                                            schema_pkg_apis_meta_v1_GetOptions(ref),
-		v1.GroupKind{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_GroupKind(ref),
-		v1.GroupResource{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_GroupResource(ref),
-		v1.GroupVersion{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_GroupVersion(ref),
-		v1.GroupVersionForDiscovery{}.OpenAPIModelName():                                                              schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		v1.GroupVersionKind{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		v1.GroupVersionResource{}.OpenAPIModelName():                                                                  schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		v1.InternalEvent{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_InternalEvent(ref),
-		v1.LabelSelector{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_LabelSelector(ref),
-		v1.LabelSelectorRequirement{}.OpenAPIModelName():                                                              schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		v1.List{}.OpenAPIModelName():                                                                                  schema_pkg_apis_meta_v1_List(ref),
-		v1.ListMeta{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_ListMeta(ref),
-		v1.ListOptions{}.OpenAPIModelName():                                                                           schema_pkg_apis_meta_v1_ListOptions(ref),
-		v1.ManagedFieldsEntry{}.OpenAPIModelName():                                                                    schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		v1.MicroTime{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_MicroTime(ref),
-		v1.ObjectMeta{}.OpenAPIModelName():                                                                            schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		v1.OwnerReference{}.OpenAPIModelName():                                                                        schema_pkg_apis_meta_v1_OwnerReference(ref),
-		v1.PartialObjectMetadata{}.OpenAPIModelName():                                                                 schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
-		v1.PartialObjectMetadataList{}.OpenAPIModelName():                                                             schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
-		v1.Patch{}.OpenAPIModelName():                                                                                 schema_pkg_apis_meta_v1_Patch(ref),
-		v1.PatchOptions{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_PatchOptions(ref),
-		v1.Preconditions{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_Preconditions(ref),
-		v1.RootPaths{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_RootPaths(ref),
-		v1.ServerAddressByClientCIDR{}.OpenAPIModelName():                                                             schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		v1.Status{}.OpenAPIModelName():                                                                                schema_pkg_apis_meta_v1_Status(ref),
-		v1.StatusCause{}.OpenAPIModelName():                                                                           schema_pkg_apis_meta_v1_StatusCause(ref),
-		v1.StatusDetails{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_StatusDetails(ref),
-		v1.Table{}.OpenAPIModelName():                                                                                 schema_pkg_apis_meta_v1_Table(ref),
-		v1.TableColumnDefinition{}.OpenAPIModelName():                                                                 schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
-		v1.TableOptions{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_TableOptions(ref),
-		v1.TableRow{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_TableRow(ref),
-		v1.TableRowCondition{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_TableRowCondition(ref),
-		v1.Time{}.OpenAPIModelName():                                                                                  schema_pkg_apis_meta_v1_Time(ref),
-		v1.Timestamp{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_Timestamp(ref),
-		v1.TypeMeta{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_TypeMeta(ref),
-		v1.UpdateOptions{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		v1.WatchEvent{}.OpenAPIModelName():                                                                            schema_pkg_apis_meta_v1_WatchEvent(ref),
-		runtime.RawExtension{}.OpenAPIModelName():                                                                     schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		runtime.TypeMeta{}.OpenAPIModelName():                                                                         schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		runtime.Unknown{}.OpenAPIModelName():                                                                          schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		version.Info{}.OpenAPIModelName():                                                                             schema_k8sio_apimachinery_pkg_version_Info(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation":                 schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPAddressAllocation(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation":                        schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPAllocation(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPool":                              schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPool(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolList":                          schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec":                          schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus":                        schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation":                 schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSliceAllocation(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool":                       schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePool(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolList":                   schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec":                   schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolSpec(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus":                 schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation":       schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationList":   schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationList(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec":   schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationSpec(ref),
+		"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus": schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationStatus(ref),
+		resource.Quantity{}.OpenAPIModelName():                                                                    schema_apimachinery_pkg_api_resource_Quantity(ref),
+		v1.APIGroup{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_APIGroup(ref),
+		v1.APIGroupList{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_APIGroupList(ref),
+		v1.APIResource{}.OpenAPIModelName():                                                                       schema_pkg_apis_meta_v1_APIResource(ref),
+		v1.APIResourceList{}.OpenAPIModelName():                                                                   schema_pkg_apis_meta_v1_APIResourceList(ref),
+		v1.APIVersions{}.OpenAPIModelName():                                                                       schema_pkg_apis_meta_v1_APIVersions(ref),
+		v1.ApplyOptions{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_ApplyOptions(ref),
+		v1.Condition{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_Condition(ref),
+		v1.CreateOptions{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_CreateOptions(ref),
+		v1.DeleteOptions{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		v1.Duration{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_Duration(ref),
+		v1.FieldSelectorRequirement{}.OpenAPIModelName():                                                          schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
+		v1.FieldsV1{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_FieldsV1(ref),
+		v1.GetOptions{}.OpenAPIModelName():                                                                        schema_pkg_apis_meta_v1_GetOptions(ref),
+		v1.GroupKind{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_GroupKind(ref),
+		v1.GroupResource{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_GroupResource(ref),
+		v1.GroupVersion{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_GroupVersion(ref),
+		v1.GroupVersionForDiscovery{}.OpenAPIModelName():                                                          schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		v1.GroupVersionKind{}.OpenAPIModelName():                                                                  schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		v1.GroupVersionResource{}.OpenAPIModelName():                                                              schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		v1.InternalEvent{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_InternalEvent(ref),
+		v1.LabelSelector{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_LabelSelector(ref),
+		v1.LabelSelectorRequirement{}.OpenAPIModelName():                                                          schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		v1.List{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_List(ref),
+		v1.ListMeta{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_ListMeta(ref),
+		v1.ListOptions{}.OpenAPIModelName():                                                                       schema_pkg_apis_meta_v1_ListOptions(ref),
+		v1.ManagedFieldsEntry{}.OpenAPIModelName():                                                                schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		v1.MicroTime{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_MicroTime(ref),
+		v1.ObjectMeta{}.OpenAPIModelName():                                                                        schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		v1.OwnerReference{}.OpenAPIModelName():                                                                    schema_pkg_apis_meta_v1_OwnerReference(ref),
+		v1.PartialObjectMetadata{}.OpenAPIModelName():                                                             schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
+		v1.PartialObjectMetadataList{}.OpenAPIModelName():                                                         schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
+		v1.Patch{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_Patch(ref),
+		v1.PatchOptions{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_PatchOptions(ref),
+		v1.Preconditions{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_Preconditions(ref),
+		v1.RootPaths{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_RootPaths(ref),
+		v1.ServerAddressByClientCIDR{}.OpenAPIModelName():                                                         schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		v1.Status{}.OpenAPIModelName():                                                                            schema_pkg_apis_meta_v1_Status(ref),
+		v1.StatusCause{}.OpenAPIModelName():                                                                       schema_pkg_apis_meta_v1_StatusCause(ref),
+		v1.StatusDetails{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_StatusDetails(ref),
+		v1.Table{}.OpenAPIModelName():                                                                             schema_pkg_apis_meta_v1_Table(ref),
+		v1.TableColumnDefinition{}.OpenAPIModelName():                                                             schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
+		v1.TableOptions{}.OpenAPIModelName():                                                                      schema_pkg_apis_meta_v1_TableOptions(ref),
+		v1.TableRow{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_TableRow(ref),
+		v1.TableRowCondition{}.OpenAPIModelName():                                                                 schema_pkg_apis_meta_v1_TableRowCondition(ref),
+		v1.Time{}.OpenAPIModelName():                                                                              schema_pkg_apis_meta_v1_Time(ref),
+		v1.Timestamp{}.OpenAPIModelName():                                                                         schema_pkg_apis_meta_v1_Timestamp(ref),
+		v1.TypeMeta{}.OpenAPIModelName():                                                                          schema_pkg_apis_meta_v1_TypeMeta(ref),
+		v1.UpdateOptions{}.OpenAPIModelName():                                                                     schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		v1.WatchEvent{}.OpenAPIModelName():                                                                        schema_pkg_apis_meta_v1_WatchEvent(ref),
+		runtime.RawExtension{}.OpenAPIModelName():                                                                 schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		runtime.TypeMeta{}.OpenAPIModelName():                                                                     schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		runtime.Unknown{}.OpenAPIModelName():                                                                      schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		version.Info{}.OpenAPIModelName():                                                                         schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAddressAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPAddressAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -140,7 +140,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAddressAllocation(ref common
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -177,7 +177,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPAllocation(ref common.Refere
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPool(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPool(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -207,24 +207,24 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPool(ref common.ReferenceCal
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec", "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus", v1.ObjectMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolSpec", "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPoolStatus", v1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -258,7 +258,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPool"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPool"),
 									},
 								},
 							},
@@ -269,11 +269,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolList(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPPool", v1.ListMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPPool", v1.ListMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -297,7 +297,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref common.Referenc
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation"),
 									},
 								},
 							},
@@ -308,11 +308,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation"},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAllocation"},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -383,7 +383,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation"),
 									},
 								},
 							},
@@ -407,11 +407,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation", v1.Condition{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.IPAddressAllocation", v1.Condition{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSliceAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSliceAllocation(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -441,7 +441,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSliceAllocation(ref common
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePool(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePool(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -471,24 +471,24 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePool(ref common.Refer
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec", "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus", v1.ObjectMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolSpec", "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePoolStatus", v1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -522,7 +522,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref common.R
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool"),
 									},
 								},
 							},
@@ -533,11 +533,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolList(ref common.R
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool", v1.ListMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSlicePool", v1.ListMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -567,7 +567,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolSpec(ref common.R
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -582,7 +582,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref common
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation"),
 									},
 								},
 							},
@@ -627,11 +627,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(ref common
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation", v1.Condition{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.NodeSliceAllocation", v1.Condition{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -661,13 +661,13 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus"),
+							Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus"),
 						},
 					},
 				},
@@ -675,11 +675,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservation(
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec", "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus", v1.ObjectMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationSpec", "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservationStatus", v1.ObjectMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -713,7 +713,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationL
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation"),
+										Ref:     ref("github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation"),
 									},
 								},
 							},
@@ -724,11 +724,11 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationL
 			},
 		},
 		Dependencies: []string{
-			"github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation", v1.ListMeta{}.OpenAPIModelName()},
+			"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1.OverlappingRangeIPReservation", v1.ListMeta{}.OpenAPIModelName()},
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -764,7 +764,7 @@ func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationS
 	}
 }
 
-func schema_pkg_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPReservationStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{

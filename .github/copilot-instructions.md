@@ -4,18 +4,18 @@ This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetwo
 
 ## Architecture Overview
 
-- **CNI entry point** ([cmd/whereabouts.go](cmd/whereabouts.go)): Implements ADD/DEL/CHECK via `skel.PluginMainFuncs`. ADD allocates the lowest available IP; DEL releases it.
+- **CNI entry point** ([cmd/whereabouts/main.go](cmd/whereabouts/main.go)): Implements ADD/DEL/CHECK via `skel.PluginMainFuncs`. ADD allocates the lowest available IP; DEL releases it.
 - **Allocation engine** (`pkg/allocate/`): `AssignIP` / `IterateForAssignment` find the lowest free IP, skipping `.0` addresses and exclude ranges. Idempotent — existing `podRef+ifName` allocations are returned as-is.
 - **Storage layer** (`pkg/storage/`): `Store` and `IPPool` interfaces in `storage.go`; sole production implementation in `pkg/storage/kubernetes/` using IPPool CRDs with JSON Patch + optimistic locking (up to 100 retries).
 - **Config** (`pkg/config/`): Merges inline IPAM JSON → flat file (`whereabouts.conf`) → defaults using `mergo.Merge`. JSON tags are **snake_case** (`range_start`, `enable_overlapping_ranges`).
-- **Operator** (`cmd/operator/`): Cobra-based entry point with `controller` and `webhook` subcommands. Built on controller-runtime v0.23.
+- **Operator** (`cmd/operator/`): Cobra-based entry point with `controller` subcommand. Built on controller-runtime v0.23. Runs reconcilers (leader-elected) and webhook server (all replicas) from a single Deployment.
 - **Reconcilers** (`internal/controller/`): `IPPoolReconciler` (orphaned allocation cleanup), `NodeSliceReconciler` (NAD+Node → NodeSlicePool), `OverlappingRangeReconciler` (orphaned reservation cleanup).
 - **Webhooks** (`internal/webhook/`): Typed `admission.Validator[T]` implementations for IPPool, NodeSlicePool, OverlappingRangeIPReservation with matchConditions CEL bypass for CNI ServiceAccount.
 
 ## Build & Test Commands
 
 ```bash
-./hack/build-go.sh                    # CGO_ENABLED=0 static binaries → bin/
+make build
 make docker-build                     # Container image
 make test                             # build + install tools + go vet + staticcheck + tests
 make test-skip-static                 # Skip staticcheck (faster iteration)
@@ -45,7 +45,7 @@ make kind COMPUTE_NODES=3             # Custom worker count
 - Some tests use standard `testing.T` table-driven style (e.g., `TestIPPoolName` in `pkg/storage/kubernetes/`)
 - Test entity helpers live alongside production code with `//go:build test` tag
 
-### CRD Types (`pkg/api/whereabouts.cni.cncf.io/v1alpha1/`)
+### CRD Types (`api/whereabouts.cni.cncf.io/v1alpha1/`)
 - Standard kubebuilder markers: `+genclient`, `+kubebuilder:object:root=true`
 - Auto-generated code in `pkg/generated/` — regenerate with `hack/update-codegen.sh`, verify with `hack/verify-codegen.sh`
 - Never edit `zz_generated.deepcopy.go` manually
@@ -60,4 +60,4 @@ make kind COMPUTE_NODES=3             # Custom worker count
 2. **Optimistic concurrency**: IPPool updates use K8s resource version checks with retry (100 attempts, exponential backoff)
 3. **Overlapping range protection**: `OverlappingRangeIPReservation` CRDs prevent duplicate IPs across ranges (enabled by default)
 4. **Idempotent ADD**: Re-running CNI ADD for the same pod+interface returns the existing allocation
-5. **Two binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconciler + webhooks, via `controller` and `webhook` subcommands)
+5. **Two binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconcilers + webhooks via single `controller` subcommand)

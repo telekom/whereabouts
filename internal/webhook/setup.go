@@ -60,6 +60,10 @@ func (s *Setup) Start(ctx context.Context) error {
 	return nil
 }
 
+// NeedLeaderElection implements the LeaderElectionRunnable interface.
+// Webhooks must serve on every replica, not just the leader.
+func (s *Setup) NeedLeaderElection() bool { return false }
+
 // ReadyCheck returns a healthz.Checker that reports ready only after webhooks
 // have been registered (not just after certs are provisioned).
 func (s *Setup) ReadyCheck() healthz.Checker {

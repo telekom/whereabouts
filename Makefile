@@ -111,9 +111,10 @@ lint-fix: $(GOLANGCI_LINT) ## Run golangci-lint with auto-fix.
 ##@ Build
 
 .PHONY: build
-build: ## Build CNI plugin and operator binaries.
+build: ## Build CNI plugin, operator, and install-cni binaries.
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/whereabouts ./cmd/whereabouts/
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/whereabouts-operator ./cmd/operator/
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/install-cni ./cmd/install-cni/
 
 .PHONY: run
 run: ## Run the operator controller locally against the configured cluster.

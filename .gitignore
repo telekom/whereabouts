@@ -13,7 +13,7 @@
 .idea
 kind/
 
-bin/
+/bin/
 /github.com/
 
 .idea/
@@ -29,3 +29,4 @@ e2e/.env
 /operator
 /whereabouts
 /whereabouts-operator
+install-cni

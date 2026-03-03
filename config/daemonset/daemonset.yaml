@@ -29,12 +29,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: whereabouts
-        command:
-        - /bin/sh
-        - -c
-        - >
-          SLEEP=false /script/install-cni.sh &&
-          /script/token-watcher.sh
+        command: ["/install-cni"]
         image: controller:latest
         env:
         - name: NODENAME
@@ -55,6 +50,7 @@ spec:
             memory: 100Mi
         securityContext:
           privileged: true
+          runAsUser: 0
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin

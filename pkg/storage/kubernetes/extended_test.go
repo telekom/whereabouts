@@ -549,12 +549,12 @@ func TestKubernetesIPPoolAllocations(t *testing.T) {
 	}
 }
 
-// TestRetryBackoffDoesNotBlock tests retryBackoff with a cancelled context.
+// TestRetryBackoffDoesNotBlock tests retryBackoff with a canceled context.
 func TestRetryBackoffCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	// Should return quickly due to cancelled context.
+	// Should return quickly due to canceled context.
 	retryBackoff(ctx, 10*1000*1000*1000) // 10s would block without cancellation
 }
 

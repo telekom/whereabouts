@@ -18,8 +18,11 @@ limitations under the License.
 package v1alpha1
 
 import (
+	whereaboutscnicncfiov1alpha1 "github.com/telekom/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
+	internal "github.com/telekom/whereabouts/pkg/generated/applyconfiguration/internal"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
+	managedfields "k8s.io/apimachinery/pkg/util/managedfields"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 )
 
@@ -43,6 +46,47 @@ func IPPool(name, namespace string) *IPPoolApplyConfiguration {
 	b.WithKind("IPPool")
 	b.WithAPIVersion("whereabouts.cni.cncf.io/v1alpha1")
 	return b
+}
+
+// ExtractIPPoolFrom extracts the applied configuration owned by fieldManager from
+// iPPool for the specified subresource. Pass an empty string for subresource to extract
+// the main resource. Common subresources include "status", "scale", etc.
+// iPPool must be a unmodified IPPool API object that was retrieved from the Kubernetes API.
+// ExtractIPPoolFrom provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractIPPoolFrom(iPPool *whereaboutscnicncfiov1alpha1.IPPool, fieldManager string, subresource string) (*IPPoolApplyConfiguration, error) {
+	b := &IPPoolApplyConfiguration{}
+	err := managedfields.ExtractInto(iPPool, internal.Parser().Type("com.github.telekom.whereabouts.pkg.api.whereabouts.cni.cncf.io.v1alpha1.IPPool"), fieldManager, b, subresource)
+	if err != nil {
+		return nil, err
+	}
+	b.WithName(iPPool.Name)
+	b.WithNamespace(iPPool.Namespace)
+
+	b.WithKind("IPPool")
+	b.WithAPIVersion("whereabouts.cni.cncf.io/v1alpha1")
+	return b, nil
+}
+
+// ExtractIPPool extracts the applied configuration owned by fieldManager from
+// iPPool. If no managedFields are found in iPPool for fieldManager, a
+// IPPoolApplyConfiguration is returned with only the Name, Namespace (if applicable),
+// APIVersion and Kind populated. It is possible that no managed fields were found for because other
+// field managers have taken ownership of all the fields previously owned by fieldManager, or because
+// the fieldManager never owned fields any fields.
+// iPPool must be a unmodified IPPool API object that was retrieved from the Kubernetes API.
+// ExtractIPPool provides a way to perform a extract/modify-in-place/apply workflow.
+// Note that an extracted apply configuration will contain fewer fields than what the fieldManager previously
+// applied if another fieldManager has updated or force applied any of the previously applied fields.
+func ExtractIPPool(iPPool *whereaboutscnicncfiov1alpha1.IPPool, fieldManager string) (*IPPoolApplyConfiguration, error) {
+	return ExtractIPPoolFrom(iPPool, fieldManager, "")
+}
+
+// ExtractIPPoolStatus extracts the applied configuration owned by fieldManager from
+// iPPool for the status subresource.
+func ExtractIPPoolStatus(iPPool *whereaboutscnicncfiov1alpha1.IPPool, fieldManager string) (*IPPoolApplyConfiguration, error) {
+	return ExtractIPPoolFrom(iPPool, fieldManager, "status")
 }
 
 func (b IPPoolApplyConfiguration) IsApplyConfiguration() {}

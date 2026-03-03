@@ -28,17 +28,14 @@ jobs:
       with:
         go-version-file: go.mod
 
-    - name: Install kubebuilder tools
-      run: ./hack/install-kubebuilder-tools.sh
-
     - name: Generate code
-      run: ./hack/generate-code.sh
+      run: make generate
 
     - name: Build
       env:
         GOARCH: ${{ matrix.goarch }}
         GOOS: ${{ matrix.os }}
-      run: ./hack/build-go.sh
+      run: make build
 
   lint:
     name: Lint

@@ -147,8 +147,8 @@ func TestClientListIPPools(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(pool)
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset(pool)
+	k8sClient := fake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -163,8 +163,8 @@ func TestClientListIPPools(t *testing.T) {
 
 // TestClientListIPPoolsEmpty tests ListIPPools with no pools.
 func TestClientListIPPoolsEmpty(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -179,8 +179,8 @@ func TestClientListIPPoolsEmpty(t *testing.T) {
 
 // TestClientListPods tests the ListPods method.
 func TestClientListPods(t *testing.T) {
-	k8sClient := fake.NewSimpleClientset()
-	wbClient := wbfake.NewSimpleClientset()
+	k8sClient := fake.NewClientset()
+	wbClient := wbfake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -195,8 +195,8 @@ func TestClientListPods(t *testing.T) {
 
 // TestClientGetPodNotFound tests GetPod when pod doesn't exist.
 func TestClientGetPodNotFound(t *testing.T) {
-	k8sClient := fake.NewSimpleClientset()
-	wbClient := wbfake.NewSimpleClientset()
+	k8sClient := fake.NewClientset()
+	wbClient := wbfake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -219,8 +219,8 @@ func TestClientListOverlappingIPs(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(orip)
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset(orip)
+	k8sClient := fake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -248,8 +248,8 @@ func TestClientDeleteOverlappingIP(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(orip)
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset(orip)
+	k8sClient := fake.NewClientset()
 
 	client := NewKubernetesClient(wbClient, k8sClient)
 
@@ -270,8 +270,8 @@ func TestClientDeleteOverlappingIP(t *testing.T) {
 
 // TestGetPoolCreatesOnNotFound tests that getPool creates a pool when it doesn't exist.
 func TestGetPoolCreatesOnNotFound(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),
@@ -312,8 +312,8 @@ func TestGetPoolReturnsExisting(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(pool)
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset(pool)
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),
@@ -332,8 +332,8 @@ func TestGetPoolReturnsExisting(t *testing.T) {
 
 // TestKubernetesIPAMStatus tests the Status method.
 func TestKubernetesIPAMStatus(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),
@@ -348,8 +348,8 @@ func TestKubernetesIPAMStatus(t *testing.T) {
 
 // TestKubernetesIPAMClose tests the Close method.
 func TestKubernetesIPAMClose(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),
@@ -364,8 +364,8 @@ func TestKubernetesIPAMClose(t *testing.T) {
 
 // TestKubernetesIPAMGetOverlappingRangeStore tests GetOverlappingRangeStore.
 func TestKubernetesIPAMGetOverlappingRangeStore(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),
@@ -389,7 +389,7 @@ func TestKubernetesIPAMGetOverlappingRangeStore(t *testing.T) {
 
 // TestOverlappingRangeStoreGetReservation tests GetOverlappingRangeIPReservation.
 func TestOverlappingRangeStoreGetReservationNotFound(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
 
 	store := &KubernetesOverlappingRangeStore{
 		client:    wbClient,
@@ -418,7 +418,7 @@ func TestOverlappingRangeStoreGetReservationFound(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(orip)
+	wbClient := wbfake.NewClientset(orip)
 
 	store := &KubernetesOverlappingRangeStore{
 		client:    wbClient,
@@ -439,7 +439,7 @@ func TestOverlappingRangeStoreGetReservationFound(t *testing.T) {
 
 // TestOverlappingRangeStoreUpdateAllocate tests creating a reservation.
 func TestOverlappingRangeStoreUpdateAllocate(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
 
 	store := &KubernetesOverlappingRangeStore{
 		client:    wbClient,
@@ -474,7 +474,7 @@ func TestOverlappingRangeStoreUpdateDeallocate(t *testing.T) {
 		},
 	}
 
-	wbClient := wbfake.NewSimpleClientset(orip)
+	wbClient := wbfake.NewClientset(orip)
 
 	store := &KubernetesOverlappingRangeStore{
 		client:    wbClient,
@@ -565,8 +565,8 @@ func TestRetryBackoffCancelledContext(_ *testing.T) {
 // TestIPManagementKubernetesUpdateUnknownMode tests that an invalid mode
 // returns an error.
 func TestIPManagementKubernetesUpdateUnknownMode(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:      *NewKubernetesClient(wbClient, k8sClient),
@@ -592,8 +592,8 @@ func TestIPManagementKubernetesUpdateUnknownMode(t *testing.T) {
 // TestIPManagementKubernetesUpdateStatusCheck tests that the status check
 // (connectivity validation) is called before allocate/deallocate.
 func TestIPManagementKubernetesUpdateStatusCheck(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:      *NewKubernetesClient(wbClient, k8sClient),
@@ -631,8 +631,8 @@ func TestIPManagementKubernetesUpdateStatusCheck(t *testing.T) {
 
 // TestIPManagementEmptyPodName tests that IPManagement fails with empty pod name.
 func TestIPManagementEmptyPodName(t *testing.T) {
-	wbClient := wbfake.NewSimpleClientset()
-	k8sClient := fake.NewSimpleClientset()
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbClient, k8sClient),

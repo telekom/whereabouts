@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -76,7 +76,7 @@ var _ = Describe("Controller Metrics", func() {
 				WithObjects(pool, podA, podB, podC).
 				Build()
 
-			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "test-pool", Namespace: "default"},
 			})
@@ -115,7 +115,7 @@ var _ = Describe("Controller Metrics", func() {
 			// Record baseline counter value.
 			counterBefore := getCounterValue(ippoolOrphansCleaned.WithLabelValues("orphan-pool"))
 
-			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "orphan-pool", Namespace: "default"},
 			})
@@ -151,7 +151,7 @@ var _ = Describe("Controller Metrics", func() {
 				WithObjects(pool, alivePod).
 				Build()
 
-			r := &IPPoolReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
+			r := &IPPoolReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "gauge-update-pool", Namespace: "default"},
 			})
@@ -183,7 +183,7 @@ var _ = Describe("Controller Metrics", func() {
 
 			counterBefore := getCounterValue(overlappingReservationsCleaned)
 
-			r := &OverlappingRangeReconciler{client: c, recorder: record.NewFakeRecorder(10), reconcileInterval: 30}
+			r := &OverlappingRangeReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
 			_, err := r.Reconcile(context.Background(), ctrl.Request{
 				NamespacedName: types.NamespacedName{Name: "10.0.0.1", Namespace: "default"},
 			})

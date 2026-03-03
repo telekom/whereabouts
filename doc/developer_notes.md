@@ -38,7 +38,7 @@ make test-skip-static
 * **Unit tests** use [Ginkgo v2](https://onsi.github.io/ginkgo/) + [Gomega](https://onsi.github.io/gomega/) with dot-imports.
 * Some packages (e.g., `pkg/storage/kubernetes/`) use standard `testing.T` table-driven tests.
 * controller-runtime `envtest` is used for reconciler and webhook integration tests.
-* Fake Kubernetes clients (`fake.NewSimpleClientset(...)`) are used for unit testing without a cluster.
+* Fake Kubernetes clients (`fake.NewClientset(...)`) are used for unit testing without a cluster.
 
 ## Running with CNI's `docker-run.sh`
 

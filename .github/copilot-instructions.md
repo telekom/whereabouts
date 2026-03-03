@@ -40,7 +40,7 @@ make kind COMPUTE_NODES=3             # Custom worker count
 ### Testing
 - **Ginkgo v2** + Gomega with dot-imports: `. "github.com/onsi/ginkgo/v2"`, `. "github.com/onsi/gomega"`
 - Suite bootstrap: `RegisterFailHandler(Fail); RunSpecs(t, "Suite Name")`
-- K8s fakes: `fake.NewSimpleClientset(...)` from `client-go/kubernetes/fake` and generated `versioned/fake`
+- K8s fakes: `fake.NewClientset(...)` from `client-go/kubernetes/fake` and generated `versioned/fake`
 - controller-runtime `envtest` used for reconciler and webhook tests
 - Some tests use standard `testing.T` table-driven style (e.g., `TestIPPoolName` in `pkg/storage/kubernetes/`)
 - Test entity helpers live alongside production code with `//go:build test` tag

@@ -23,7 +23,7 @@ jobs:
       env:
         GOARCH: ${{ matrix.arch }}
       run: |
-        ./hack/build-go.sh
+        make build
         mv ./bin/whereabouts ./bin/whereabouts-${{ matrix.arch }}
         mv ./bin/whereabouts-operator ./bin/whereabouts-operator-${{ matrix.arch }}
         cd ./bin

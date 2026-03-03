@@ -16,7 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -35,7 +35,7 @@ import (
 // the DaemonSet pod controller.
 type IPPoolReconciler struct {
 	client            client.Client
-	recorder          record.EventRecorder
+	recorder          events.EventRecorder
 	reconcileInterval time.Duration
 }
 
@@ -133,7 +133,7 @@ const (
 func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration) error {
 	r := &IPPoolReconciler{
 		client:            mgr.GetClient(),
-		recorder:          mgr.GetEventRecorderFor("ippool-controller"),
+		recorder:          mgr.GetEventRecorder("ippool-controller"),
 		reconcileInterval: reconcileInterval,
 	}
 
@@ -285,13 +285,13 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedKeys)))
 		logger.Info("cleaned up orphaned allocations",
 			"pool", pool.Name, "count", len(orphanedKeys))
-		r.recorder.Eventf(&pool, corev1.EventTypeNormal, "OrphanedAllocationsCleaned",
+		r.recorder.Eventf(&pool, nil, corev1.EventTypeNormal, "OrphanedAllocationsCleaned", "Reconcile",
 			"removed %d orphaned IP allocation(s)", len(orphanedKeys))
 
 		// Also clean up any corresponding OverlappingRangeIPReservation CRDs.
 		if err := r.cleanupOverlappingReservations(ctx, &pool, orphanedKeys); err != nil {
 			logger.Error(err, "failed to clean up some overlapping reservations, will retry")
-			r.recorder.Eventf(&pool, corev1.EventTypeWarning, "OverlappingReservationCleanupFailed",
+			r.recorder.Eventf(&pool, nil, corev1.EventTypeWarning, "OverlappingReservationCleanupFailed", "Reconcile",
 				"failed to clean up overlapping reservations: %s", err)
 			return ctrl.Result{RequeueAfter: retryRequeueInterval}, nil
 		}

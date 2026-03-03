@@ -12,6 +12,7 @@ limitations under the License.
 */
 
 // +k8s:deepcopy-gen=package,register
+// +k8s:openapi-gen=true
 // +groupName=whereabouts.cni.cncf.io
 
 // Package v1alpha1 is the v1alpha1 version of the API.

@@ -64,7 +64,7 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
   . "github.com/onsi/gomega"
   ```
 - Suite bootstrap: `RegisterFailHandler(Fail); RunSpecs(t, "Suite Name")`
-- Use `fake.NewSimpleClientset(...)` from `client-go/kubernetes/fake` for unit tests.
+- Use `fake.NewClientset(...)` from `client-go/kubernetes/fake` for unit tests.
 - controller-runtime `envtest` is used for reconciler and webhook integration tests.
 - Never edit `zz_generated.deepcopy.go` manually.
 

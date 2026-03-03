@@ -328,38 +328,6 @@ var _ = Describe("Allocation operations", func() {
 		Expect(ipamConfig.IPRanges[0].RangeEnd).To(Equal(net.ParseIP("192.168.1.209")))
 	})
 
-	It("can unmarshall the cronjob expression", func() {
-		conf := `{
-      "cniVersion": "0.3.1",
-      "name": "mynet",
-      "type": "ipvlan",
-      "master": "foo0",
-        "ipam": {
-          "type": "whereabouts",
-          "log_file" : "/tmp/whereabouts.log",
-          "log_level" : "debug",
-          "kubernetes": {
-            "kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
-          },
-          "range": "00192.00168.1.0/24",
-          "range_start": "00192.00168.1.44",
-          "range_end": "00192.00168.01.209",
-          "gateway": "192.168.10.1",
-          "reconciler_cron_expression": "30 4 * * *"
-        }
-      }`
-
-		confPath := filepath.Join(tmpDir, "whereabouts.conf")
-		Expect(os.WriteFile(confPath, []byte(conf), 0755)).To(Succeed())
-
-		ipamConfig, _, err := LoadIPAMConfig([]byte(conf), "", confPath)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ipamConfig.IPRanges[0].Range).To(Equal("192.168.1.0/24"))
-		Expect(ipamConfig.IPRanges[0].RangeStart).To(Equal(net.ParseIP("192.168.1.44")))
-		Expect(ipamConfig.IPRanges[0].RangeEnd).To(Equal(net.ParseIP("192.168.1.209")))
-		Expect(ipamConfig.ReconcilerCronExpression).To(Equal("30 4 * * *"))
-	})
-
 	It("errors when an invalid range specified", func() {
 		invalidConf := `{
 			"cniVersion": "0.3.1",

@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -33,7 +33,7 @@ import (
 // to nodes and ensures node join/leave events are reflected in the allocations.
 type NodeSliceReconciler struct {
 	client   client.Client
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 // SetupNodeSliceReconciler creates and registers the NodeSliceReconciler with
@@ -41,7 +41,7 @@ type NodeSliceReconciler struct {
 func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 	r := &NodeSliceReconciler{
 		client:   mgr.GetClient(),
-		recorder: mgr.GetEventRecorderFor("nodeslice-controller"),
+		recorder: mgr.GetEventRecorder("nodeslice-controller"),
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -204,7 +204,7 @@ func (r *NodeSliceReconciler) createPool(ctx context.Context, nad *nadv1.Network
 
 	logger.Info("created NodeSlicePool", "name", name, "range", rangeStr,
 		"sliceSize", sliceSize, "nodes", len(nodes))
-	r.recorder.Eventf(pool, corev1.EventTypeNormal, "Created",
+	r.recorder.Eventf(pool, nil, corev1.EventTypeNormal, "Created", "Reconcile",
 		"created NodeSlicePool with range %s, slice size %s, %d node(s)", rangeStr, sliceSize, len(nodes))
 	recordNodeSliceMetrics(name, allocations)
 	return ctrl.Result{}, nil
@@ -236,7 +236,7 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 
 	logger.Info("updated NodeSlicePool spec and re-sliced", "name", pool.Name,
 		"range", rangeStr, "sliceSize", sliceSize)
-	r.recorder.Eventf(pool, corev1.EventTypeNormal, "SpecUpdated",
+	r.recorder.Eventf(pool, nil, corev1.EventTypeNormal, "SpecUpdated", "Reconcile",
 		"updated range to %s, slice size to %s, re-sliced allocations", rangeStr, sliceSize)
 	recordNodeSliceMetrics(pool.Name, allocations)
 	return ctrl.Result{}, nil
@@ -291,7 +291,7 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 				// No slot available — pool is full.
 				logger.Info("no available slot for node, pool is full",
 					"pool", pool.Name, "node", nodeName)
-				r.recorder.Eventf(pool, corev1.EventTypeWarning, "PoolFull",
+				r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "PoolFull", "Reconcile",
 					"no available IP slice for node %s — pool is full", nodeName)
 				markStalled(pool, ReasonPoolFull,
 					fmt.Sprintf("no available IP slice for node %s", nodeName))

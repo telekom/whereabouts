@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -27,7 +27,7 @@ import (
 // cleanup path in addition to the IPPoolReconciler's inline cleanup.
 type OverlappingRangeReconciler struct {
 	client            client.Client
-	recorder          record.EventRecorder
+	recorder          events.EventRecorder
 	reconcileInterval time.Duration
 }
 
@@ -35,7 +35,7 @@ type OverlappingRangeReconciler struct {
 func SetupOverlappingRangeReconciler(mgr ctrl.Manager, reconcileInterval time.Duration) error {
 	r := &OverlappingRangeReconciler{
 		client:            mgr.GetClient(),
-		recorder:          mgr.GetEventRecorderFor("overlappingrange-controller"),
+		recorder:          mgr.GetEventRecorder("overlappingrange-controller"),
 		reconcileInterval: reconcileInterval,
 	}
 
@@ -122,7 +122,7 @@ func (r *OverlappingRangeReconciler) deleteReservation(ctx context.Context, rese
 	overlappingReservationsCleaned.Inc()
 	logger.Info("deleted orphaned overlapping reservation",
 		"name", reservation.Name, "podRef", reservation.Spec.PodRef)
-	r.recorder.Eventf(reservation, corev1.EventTypeNormal, "OrphanedReservationDeleted",
+	r.recorder.Eventf(reservation, nil, corev1.EventTypeNormal, "OrphanedReservationDeleted", "Reconcile",
 		"deleted orphaned reservation for pod %s", reservation.Spec.PodRef)
 	return ctrl.Result{}, nil
 }

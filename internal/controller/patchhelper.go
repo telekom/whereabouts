@@ -90,7 +90,8 @@ func (h *PatchHelper) Patch(ctx context.Context, obj client.Object) error {
 
 	var errs []error
 
-	if specChanged && statusChanged {
+	switch {
+	case specChanged && statusChanged:
 		// Save the desired object (with both spec+status changes) so we
 		// can restore its status after the spec patch resets it.
 		desired := obj.DeepCopyObject().(client.Object)
@@ -106,11 +107,11 @@ func (h *PatchHelper) Patch(ctx context.Context, obj client.Object) error {
 				errs = append(errs, fmt.Errorf("updating status: %w", err))
 			}
 		}
-	} else if specChanged {
+	case specChanged:
 		if err := h.client.Patch(ctx, obj, client.MergeFrom(h.beforeObject)); err != nil {
 			errs = append(errs, fmt.Errorf("patching spec/metadata: %w", err))
 		}
-	} else {
+	default:
 		// Only status changed.
 		if err := h.client.Status().Update(ctx, obj); err != nil {
 			errs = append(errs, fmt.Errorf("updating status: %w", err))

@@ -12,7 +12,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 )
 
-// Datastore types
+// Datastore types.
 const (
 	DefaultLeaderLeaseDuration    = 1500
 	DefaultLeaderRenewDeadline    = 1000
@@ -208,7 +208,7 @@ func backwardsCompatibleIPAddress(ip string) net.IP {
 	return ipAddr
 }
 
-// IPAMEnvArgs are the environment vars we expect
+// IPAMEnvArgs are the environment vars we expect.
 type IPAMEnvArgs struct {
 	cnitypes.CommonArgs
 	IP                         cnitypes.UnmarshallableString `json:"ip,omitempty"`
@@ -218,7 +218,7 @@ type IPAMEnvArgs struct {
 	K8S_POD_INFRA_CONTAINER_ID cnitypes.UnmarshallableString //revive:disable-line
 }
 
-// KubernetesConfig describes the kubernetes-specific configuration details
+// KubernetesConfig describes the kubernetes-specific configuration details.
 type KubernetesConfig struct {
 	KubeConfigPath string `json:"kubeconfig,omitempty"`
 	K8sAPIRoot     string `json:"k8s_api_root,omitempty"`
@@ -252,9 +252,9 @@ func (ir IPReservation) String() string {
 }
 
 const (
-	// Allocate operation identifier
+	// Allocate operation identifier.
 	Allocate = 0
-	// Deallocate operation identifier
+	// Deallocate operation identifier.
 	Deallocate = 1
 )
 

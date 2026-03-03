@@ -474,11 +474,11 @@ func isPodUsingIP(pod *corev1.Pod, ip net.IP) bool {
 		return true
 	}
 
-	for _, status := range statuses {
-		if status.Default {
+	for i := range statuses {
+		if statuses[i].Default {
 			continue
 		}
-		for _, ipStr := range status.IPs {
+		for _, ipStr := range statuses[i].IPs {
 			podIP := net.ParseIP(ipStr)
 			if podIP != nil && podIP.Equal(ip) {
 				return true

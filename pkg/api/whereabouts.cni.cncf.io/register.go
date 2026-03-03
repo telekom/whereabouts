@@ -13,7 +13,7 @@ limitations under the License.
 
 package api
 
-// GroupName is the group name used in this package
+// GroupName is the group name used in this package.
 const (
 	GroupName = "whereabouts.cni.cncf.io"
 )

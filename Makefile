@@ -20,6 +20,11 @@ generate-api:
 	hack/update-codegen.sh
 	rm -rf github.com
 
+generate: ## Generate CRDs, deepcopy, and clientsets/informers/listers.
+	hack/generate-code.sh
+	hack/update-codegen.sh
+	rm -rf github.com
+
 install-tools:
 	hack/install-kubebuilder-tools.sh
 

@@ -17,11 +17,6 @@ type IPPoolSpec struct {
 	Allocations map[string]IPAllocation `json:"allocations"`
 }
 
-// ParseCIDR formats the Range of the IPPool.
-func (i IPPool) ParseCIDR() (net.IP, *net.IPNet, error) {
-	return net.ParseCIDR(i.Spec.Range)
-}
-
 // IPPoolStatus defines the observed state of IPPool.
 type IPPoolStatus struct {
 	// FirstIP is the first usable IP address in the pool's range.
@@ -114,6 +109,11 @@ type IPPool struct {
 
 	Spec   IPPoolSpec   `json:"spec,omitempty"`
 	Status IPPoolStatus `json:"status,omitempty"`
+}
+
+// ParseCIDR formats the Range of the IPPool.
+func (in IPPool) ParseCIDR() (net.IP, *net.IPNet, error) {
+	return net.ParseCIDR(in.Spec.Range)
 }
 
 // +kubebuilder:object:root=true

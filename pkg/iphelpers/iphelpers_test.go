@@ -782,7 +782,7 @@ var _ = Describe("IPGetOffset operations", func() {
 		Expect(offset.Int64()).To(Equal(int64(256)))
 	})
 
-	It("correctly calculates the offset between two IPv4 IPs in different notations when the second value in in To4", func() {
+	It("correctly calculates the offset between two IPv4 IPs in different notations when the second value in To4", func() {
 		ip1 := net.ParseIP("192.168.1.1").To16()
 		ip2 := net.ParseIP("192.168.1.0").To4()
 		offset, err := IPGetOffset(ip1, ip2)

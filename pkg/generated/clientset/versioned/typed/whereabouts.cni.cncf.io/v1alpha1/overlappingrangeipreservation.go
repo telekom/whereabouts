@@ -39,6 +39,8 @@ type OverlappingRangeIPReservationsGetter interface {
 type OverlappingRangeIPReservationInterface interface {
 	Create(ctx context.Context, overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, opts v1.CreateOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
 	Update(ctx context.Context, overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, overlappingRangeIPReservation *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, opts v1.UpdateOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, error)
@@ -46,6 +48,8 @@ type OverlappingRangeIPReservationInterface interface {
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, err error)
 	Apply(ctx context.Context, overlappingRangeIPReservation *applyconfigurationwhereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationApplyConfiguration, opts v1.ApplyOptions) (result *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, err error)
+	// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+	ApplyStatus(ctx context.Context, overlappingRangeIPReservation *applyconfigurationwhereaboutscnicncfiov1alpha1.OverlappingRangeIPReservationApplyConfiguration, opts v1.ApplyOptions) (result *whereaboutscnicncfiov1alpha1.OverlappingRangeIPReservation, err error)
 	OverlappingRangeIPReservationExpansion
 }
 

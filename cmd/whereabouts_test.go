@@ -56,7 +56,7 @@ func AllocateAndReleaseAddressesTest(ipRange string, gw string, kubeconfigPath s
 			ipPool(conf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
 		fakek8sclient.NewClientset())
 
-	for i := 0; i < len(expectedAddresses); i++ {
+	for i := range expectedAddresses {
 		name := fmt.Sprintf("%s-%d", podName, i)
 
 		ipamConf := ipamConfig(name, podNamespace, ipamNetworkName, ipRange, gw, kubeconfigPath)
@@ -557,7 +557,7 @@ var _ = Describe("Whereabouts operations", func() {
 				Gateway: net.ParseIP("3ffe:ffff:0::1"),
 			},
 		))
-		Expect(len(result.IPs)).To(Equal(3))
+		Expect(result.IPs).To(HaveLen(3))
 
 		Expect(result.Routes).To(Equal([]*types.Route{
 			{Dst: mustCIDR("0.0.0.0/0")},
@@ -933,7 +933,7 @@ var _ = Describe("Whereabouts operations", func() {
 			fakek8sclient.NewClientset())
 
 		// allocate 8 IPs (192.168.1.5 - 192.168.1.12); the entirety of the pool defined above
-		for i := 0; i < 8; i++ {
+		for i := range 8 {
 			name := fmt.Sprintf("%s-%d", podName, i)
 			args := &skel.CmdArgs{
 				ContainerID: fmt.Sprintf("dummy-%d", i),
@@ -1396,7 +1396,7 @@ var _ = Describe("Whereabouts operations", func() {
 				defer cancel()
 
 				for _, ipRange := range ipamConf.IPRanges {
-					poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+					poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 					pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
 					if err != nil {
 						return fmt.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
@@ -1452,7 +1452,7 @@ var _ = Describe("Whereabouts operations", func() {
 				defer cancel()
 
 				for _, ipRange := range ipamConf.IPRanges {
-					poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+					poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 					pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
 					if err != nil {
 						return fmt.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
@@ -1524,7 +1524,7 @@ var _ = Describe("Whereabouts operations", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
 			defer cancel()
 
-			poolIdentifier := kubernetes.PoolIdentifier{IpRange: ipamConf.IPRanges[0].Range, NetworkName: ipamConf.NetworkName}
+			poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipamConf.IPRanges[0].Range, NetworkName: ipamConf.NetworkName}
 			pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -1655,7 +1655,7 @@ users:
 func ipPool(ipRange string, namespace string, networkName string, podReferences ...whereaboutstypes.IPReservation) *v1alpha1.IPPool {
 	return &v1alpha1.IPPool{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            kubernetes.IPPoolName(kubernetes.PoolIdentifier{IpRange: ipRange, NetworkName: networkName}),
+			Name:            kubernetes.IPPoolName(kubernetes.PoolIdentifier{IPRange: ipRange, NetworkName: networkName}),
 			Namespace:       namespace,
 			ResourceVersion: "1",
 		},

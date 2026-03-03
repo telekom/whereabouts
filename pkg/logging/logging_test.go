@@ -41,7 +41,7 @@ var _ = Describe("logging operations", func() {
 
 	It("Check file setter with empty", func() {
 		SetLogFile("/tmp/foobar.logging")
-		Expect(loggingFp).NotTo(Equal(nil))
+		Expect(loggingFp).NotTo(BeNil())
 	})
 
 	It("Check loglevel setter", func() {

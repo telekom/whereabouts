@@ -30,7 +30,8 @@ import (
 type OverlappingRangeIPReservationApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *OverlappingRangeIPReservationSpecApplyConfiguration `json:"spec,omitempty"`
+	Spec                             *OverlappingRangeIPReservationSpecApplyConfiguration   `json:"spec,omitempty"`
+	Status                           *OverlappingRangeIPReservationStatusApplyConfiguration `json:"status,omitempty"`
 }
 
 // OverlappingRangeIPReservation constructs a declarative configuration of the OverlappingRangeIPReservation type for use with
@@ -209,6 +210,14 @@ func (b *OverlappingRangeIPReservationApplyConfiguration) ensureObjectMetaApplyC
 // If called multiple times, the Spec field is set to the value of the last call.
 func (b *OverlappingRangeIPReservationApplyConfiguration) WithSpec(value *OverlappingRangeIPReservationSpecApplyConfiguration) *OverlappingRangeIPReservationApplyConfiguration {
 	b.Spec = value
+	return b
+}
+
+// WithStatus sets the Status field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Status field is set to the value of the last call.
+func (b *OverlappingRangeIPReservationApplyConfiguration) WithStatus(value *OverlappingRangeIPReservationStatusApplyConfiguration) *OverlappingRangeIPReservationApplyConfiguration {
+	b.Status = value
 	return b
 }
 

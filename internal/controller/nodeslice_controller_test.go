@@ -34,7 +34,8 @@ func makeNADConfig(networkName, ipRange, sliceSize string) string {
 	if networkName != "" {
 		conf["ipam"].(map[string]interface{})["network_name"] = networkName
 	}
-	b, _ := json.Marshal(conf)
+	b, err := json.Marshal(conf)
+	Expect(err).NotTo(HaveOccurred())
 	return string(b)
 }
 

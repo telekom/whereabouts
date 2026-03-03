@@ -24,7 +24,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Level type
+// Level type.
 type Level uint32
 
 // PanicLevel ErrorLevel etc are our logging level constants.
@@ -63,7 +63,7 @@ func (l Level) String() string {
 	return "unknown"
 }
 
-// Printf provides basic Printf functionality for logs
+// Printf provides basic Printf functionality for logs.
 func Printf(level Level, format string, a ...interface{}) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -109,7 +109,7 @@ func Panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
 }
 
-// GetLoggingLevel returns loggingLevel
+// GetLoggingLevel returns loggingLevel.
 func GetLoggingLevel() Level {
 	return loggingLevel
 }
@@ -129,7 +129,7 @@ func getLoggingLevel(levelStr string) Level {
 	return UnknownLevel
 }
 
-// SetLogLevel sets loggingLevel
+// SetLogLevel sets loggingLevel.
 func SetLogLevel(levelStr string) {
 	level := getLoggingLevel(levelStr)
 	if level < MaxLevel {
@@ -139,22 +139,22 @@ func SetLogLevel(levelStr string) {
 	}
 }
 
-// SetLogStderr enables logging to stderr
+// SetLogStderr enables logging to stderr.
 func SetLogStderr(enable bool) {
 	mu.Lock()
 	loggingStderr = enable
 	mu.Unlock()
 }
 
-// SetLogFile defines which log file we'll log to
+// SetLogFile defines which log file we'll log to.
 func SetLogFile(filename string) {
 	if filename == "" {
 		return
 	}
 
-	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	fp, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Whereabouts logging: cannot open %s", filename)
+		_, _ = os.Stderr.WriteString("Whereabouts logging: cannot open " + filename + "\n")
 		return
 	}
 

@@ -1,4 +1,4 @@
-// Package config includes configuration utilities for whereabouts
+// Package config includes configuration utilities for whereabouts.
 package config
 
 import (
@@ -22,7 +22,7 @@ import (
 	"github.com/telekom/whereabouts/pkg/types"
 )
 
-// canonicalizeIP makes sure a provided ip is in standard form
+// canonicalizeIP makes sure a provided ip is in standard form.
 func canonicalizeIP(ip *net.IP) error {
 	if ip.To4() != nil {
 		*ip = ip.To4()
@@ -41,7 +41,7 @@ const maxConfigBytes = 1 << 20 // 1 MiB
 
 // LoadIPAMConfig creates IPAMConfig using json encoded configuration provided
 // as `bytes`. At the moment values provided in envArgs are ignored so there
-// is no possibility to overload the json configuration using envArgs
+// is no possibility to overload the json configuration using envArgs.
 func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*types.IPAMConfig, string, error) {
 	if len(bytes) > maxConfigBytes {
 		return nil, "", fmt.Errorf("IPAM configuration too large (%d bytes, max %d)", len(bytes), maxConfigBytes)
@@ -67,7 +67,7 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	flatipam, foundflatfile, err := GetFlatIPAM(false, n.IPAM, extraConfigPaths...)
 	if err != nil {
 		// Config file not found is non-fatal — inline IPAM config may be sufficient.
-		var notFoundErr *ConfigFileNotFoundError
+		var notFoundErr *FileNotFoundError
 		if !errors.As(err, &notFoundErr) {
 			return nil, "", err
 		}
@@ -230,17 +230,17 @@ func configureStatic(n *types.Net, args types.IPAMEnvArgs) error {
 	return nil
 }
 
-func GetFlatIPAM(isControlLoop bool, IPAM *types.IPAMConfig, extraConfigPaths ...string) (types.Net, string, error) {
+func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPaths ...string) (types.Net, string, error) {
 	// Once we have our basics, let's look for our (optional) configuration file
 	confdirs := []string{"/etc/kubernetes/cni/net.d/whereabouts.d/whereabouts.conf", "/etc/cni/net.d/whereabouts.d/whereabouts.conf", "/host/etc/cni/net.d/whereabouts.d/whereabouts.conf"}
 	confdirs = append(confdirs, extraConfigPaths...)
 	// We prefix the optional configuration path (so we look there first)
 
-	if !isControlLoop && IPAM != nil {
-		if IPAM.ConfigurationPath != "" {
-			cleanPath := filepath.Clean(IPAM.ConfigurationPath)
+	if !isControlLoop && ipamConfig != nil {
+		if ipamConfig.ConfigurationPath != "" {
+			cleanPath := filepath.Clean(ipamConfig.ConfigurationPath)
 			if strings.Contains(cleanPath, "..") {
-				return types.Net{}, "", fmt.Errorf("configuration_path %q contains path traversal", IPAM.ConfigurationPath)
+				return types.Net{}, "", fmt.Errorf("configuration_path %q contains path traversal", ipamConfig.ConfigurationPath)
 			}
 			confdirs = append([]string{cleanPath}, confdirs...)
 		}
@@ -250,31 +250,33 @@ func GetFlatIPAM(isControlLoop bool, IPAM *types.IPAMConfig, extraConfigPaths ..
 	flatipam := types.Net{}
 	foundflatfile := ""
 	for _, confpath := range confdirs {
-		if pathExists(confpath) {
-			jsonFile, err := os.Open(confpath)
-			if err != nil {
-				return flatipam, foundflatfile, fmt.Errorf("error opening flat configuration file @ %s with: %w", confpath, err)
-			}
-
-			jsonBytes, err := io.ReadAll(jsonFile)
-			jsonFile.Close()
-			if err != nil {
-				return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %w", confpath, err)
-			}
-
-			if err := json.Unmarshal(jsonBytes, &flatipam.IPAM); err != nil {
-				return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w / bytes: %s", confpath, err, jsonBytes)
-			}
-
-			foundflatfile = confpath
-			return flatipam, foundflatfile, nil
+		if !pathExists(confpath) {
+			continue
 		}
+
+		jsonFile, err := os.Open(confpath)
+		if err != nil {
+			return flatipam, foundflatfile, fmt.Errorf("error opening flat configuration file @ %s with: %w", confpath, err)
+		}
+
+		jsonBytes, err := io.ReadAll(jsonFile)
+		jsonFile.Close()
+		if err != nil {
+			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %w", confpath, err)
+		}
+
+		if err := json.Unmarshal(jsonBytes, &flatipam.IPAM); err != nil {
+			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w / bytes: %s", confpath, err, jsonBytes)
+		}
+
+		foundflatfile = confpath
+		return flatipam, foundflatfile, nil
 	}
 
-	return flatipam, foundflatfile, NewConfigFileNotFoundError()
+	return flatipam, foundflatfile, NewFileNotFoundError()
 }
 
-func handleEnvArgs(n *types.Net, numV6 int, numV4 int, args types.IPAMEnvArgs) (int, int, error) {
+func handleEnvArgs(n *types.Net, numV6 int, numV4 int, args types.IPAMEnvArgs) (v6Count, v4Count int, err error) {
 	if args.IP != "" {
 		for _, item := range strings.Split(string(args.IP), ",") {
 			ipstr := strings.TrimSpace(item)
@@ -382,13 +384,13 @@ func (e *InvalidPluginError) Error() string {
 	return fmt.Sprintf("IPAM type must be 'whereabouts', but got '%s' \u2014 check your CNI configuration", e.ipamType)
 }
 
-type ConfigFileNotFoundError struct{}
+type FileNotFoundError struct{}
 
-func NewConfigFileNotFoundError() *ConfigFileNotFoundError {
-	return &ConfigFileNotFoundError{}
+func NewFileNotFoundError() *FileNotFoundError {
+	return &FileNotFoundError{}
 }
 
-func (e *ConfigFileNotFoundError) Error() string {
+func (e *FileNotFoundError) Error() string {
 	return "config file not found"
 }
 
@@ -398,7 +400,7 @@ func storageError() error {
 
 // ParsePrevResult extracts and converts the prevResult field from raw CNI
 // stdin bytes. Returns (nil, nil) when no prevResult is present — callers
-// should treat a nil result as "no previous result available."
+// should treat a nil result as "no previous result available.".
 func ParsePrevResult(stdinData []byte) (*current.Result, error) {
 	var raw struct {
 		RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`

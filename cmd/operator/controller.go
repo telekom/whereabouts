@@ -41,11 +41,11 @@ func newControllerCommand() *cobra.Command {
 				Metrics: server.Options{
 					BindAddress: metricsAddr,
 				},
-				HealthProbeBindAddress:         healthProbeAddr,
-				LeaderElection:                 leaderElect,
-				LeaderElectionID:               "whereabouts-controller",
-				LeaderElectionNamespace:        leaderElectNamespace,
-				LeaderElectionReleaseOnCancel:   true,
+				HealthProbeBindAddress:        healthProbeAddr,
+				LeaderElection:                leaderElect,
+				LeaderElectionID:              "whereabouts-controller",
+				LeaderElectionNamespace:       leaderElectNamespace,
+				LeaderElectionReleaseOnCancel: true,
 			})
 			if err != nil {
 				return err

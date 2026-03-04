@@ -29,6 +29,9 @@ podAnnotations: {}
 podSecurityContext: {}
   # fsGroup: 2000
 
+# The CNI DaemonSet requires privileged root access to interact with the host
+# network stack and write CNI binaries to the host filesystem (e.g. /opt/cni/bin).
+# This is intentional and currently cannot be run as non-root.
 securityContext:
   privileged: true
   runAsUser: 0

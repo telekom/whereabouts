@@ -35,8 +35,11 @@ func ValidatePodRef(podRef string, required bool) error {
 		return nil
 	}
 	parts := strings.SplitN(podRef, "/", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return fmt.Errorf("podRef %q must be in namespace/name format", podRef)
+	if len(parts) != 2 {
+		return fmt.Errorf("podRef %q must contain a '/' separator (expected namespace/name format)", podRef)
+	}
+	if strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return fmt.Errorf("podRef %q has an empty namespace or name component (expected namespace/name format)", podRef)
 	}
 	return nil
 }

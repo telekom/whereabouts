@@ -73,7 +73,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, res)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be in namespace/name format"))
+			Expect(err.Error()).To(ContainSubstring("namespace/name format"))
 		})
 	})
 
@@ -151,6 +151,23 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("spec.containerid is immutable"))
+		})
+
+		It("should reject update when oldRes is nil", func() {
+			newRes := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.1",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					ContainerID: "abc123",
+					PodRef:      "default/my-pod",
+					IfName:      "eth0",
+				},
+			}
+			_, err := validator.ValidateUpdate(ctx, nil, newRes)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("old object is nil"))
 		})
 	})
 

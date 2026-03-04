@@ -31,6 +31,9 @@ type Options struct {
 	SecretName string
 	// WebhookName is the ValidatingWebhookConfiguration resource name.
 	WebhookName string
+	// CAOrganization is the Organization field in the generated CA certificate.
+	// Defaults to "whereabouts" if empty.
+	CAOrganization string
 	// IsReady is closed when the initial certificate has been provisioned.
 	IsReady chan struct{}
 }
@@ -97,7 +100,7 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 		SecretKey:      secretKey,
 		CertDir:        opts.CertDir,
 		CAName:         "whereabouts-ca",
-		CAOrganization: "telekom",
+		CAOrganization: caOrg(opts.CAOrganization),
 		DNSName:        opts.DNSName,
 		IsReady:        opts.IsReady,
 		Webhooks: []rotator.WebhookInfo{
@@ -109,4 +112,12 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 		RequireLeaderElection:  false,
 		RestartOnSecretRefresh: true,
 	})
+}
+
+// caOrg returns org if non-empty, otherwise "whereabouts".
+func caOrg(org string) string {
+	if org != "" {
+		return org
+	}
+	return "whereabouts"
 }

@@ -109,7 +109,7 @@ var _ = Describe("IPPoolValidator", func() {
 			}
 			_, err := validator.ValidateCreate(ctx, pool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be in namespace/name format"))
+			Expect(err.Error()).To(ContainSubstring("namespace/name format"))
 		})
 
 		It("should issue a warning for an allocation with empty podRef", func() {
@@ -225,7 +225,7 @@ var _ = Describe("IPPoolValidator", func() {
 			}
 			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be in namespace/name format"))
+			Expect(err.Error()).To(ContainSubstring("namespace/name format"))
 		})
 	})
 

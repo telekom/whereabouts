@@ -134,9 +134,10 @@ func main() {
 	})))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer cancel()
+	err := run(ctx)
+	cancel()
 
-	if err := run(ctx); err != nil {
+	if err != nil {
 		slog.Error("fatal error", "error", err)
 		os.Exit(1)
 	}
@@ -231,9 +232,9 @@ func writeKubeConfig(cfg *config) error {
 
 // whereaboutsConf is the JSON schema for whereabouts.conf.
 type whereaboutsConf struct {
-	Datastore                string             `json:"datastore"`
-	Kubernetes               kubernetesConf     `json:"kubernetes"`
-	ReconcilerCronExpression string             `json:"reconciler_cron_expression"`
+	Datastore                string         `json:"datastore"`
+	Kubernetes               kubernetesConf `json:"kubernetes"`
+	ReconcilerCronExpression string         `json:"reconciler_cron_expression"`
 }
 
 type kubernetesConf struct {
@@ -252,7 +253,7 @@ func writeWhereaboutsConf(cfg *config) error {
 
 	data, err := json.MarshalIndent(conf, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshalling whereabouts.conf: %w", err)
+		return fmt.Errorf("marshaling whereabouts.conf: %w", err)
 	}
 	data = append(data, '\n')
 
@@ -364,7 +365,7 @@ func pollLoop(ctx context.Context, cfg *config, tokenHash, caHash string) {
 
 // maybeRegenerate checks whether the token or CA file changed and, if
 // so, regenerates the kubeconfig. Returns the updated hashes.
-func maybeRegenerate(cfg *config, prevToken, prevCA string) (string, string) {
+func maybeRegenerate(cfg *config, prevToken, prevCA string) (tokenHash, caHash string) {
 	newToken := fileHash(cfg.tokenPath())
 	newCA := fileHash(cfg.KubeCAFile)
 

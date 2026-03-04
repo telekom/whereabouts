@@ -263,6 +263,17 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 
+		// Pod is terminating (DeletionTimestamp set) — this covers graceful
+		// node shutdown and standard pod deletion. The IP should be released
+		// so it can be re-used immediately rather than waiting for the pod to
+		// fully terminate. See upstream #550.
+		if pod.DeletionTimestamp != nil {
+			logger.V(1).Info("pod is terminating, marking allocation orphaned",
+				"key", key, "podRef", alloc.PodRef)
+			orphanedKeys = append(orphanedKeys, key)
+			continue
+		}
+
 		// Pending pods may not have network-status annotation yet.
 		if pod.Status.Phase == corev1.PodPending {
 			pendingCount++

@@ -146,6 +146,14 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	n.IPAM.RangeStart = nil
 	n.IPAM.RangeEnd = nil
 
+	// Propagate enable_l3 from the top-level IPAM config to every IP range.
+	// Individual ranges may also set enable_l3 directly for mixed L2/L3 setups.
+	if n.IPAM.EnableL3 {
+		for idx := range n.IPAM.IPRanges {
+			n.IPAM.IPRanges[idx].L3 = true
+		}
+	}
+
 	if n.IPAM.Kubernetes.KubeConfigPath == "" {
 		return nil, "", storageError()
 	}
@@ -156,6 +164,23 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 			return nil, "", fmt.Errorf("couldn't parse gateway IP: %s", n.IPAM.GatewayStr)
 		}
 		n.IPAM.Gateway = gwip
+	}
+
+	// When exclude_gateway is enabled and a gateway IP is configured, add it
+	// as a /32 (or /128 for IPv6) exclusion to every IP range so the gateway
+	// address is never allocated to a pod. This is useful for L2 networks
+	// where the gateway must remain free. For L3-only use cases (BGP routing,
+	// no gateway), this option should remain disabled (the default).
+	if n.IPAM.ExcludeGateway && n.IPAM.Gateway != nil {
+		suffix := "/32"
+		if n.IPAM.Gateway.To4() == nil {
+			suffix = "/128"
+		}
+		gatewayExclude := n.IPAM.Gateway.String() + suffix
+		for idx := range n.IPAM.IPRanges {
+			n.IPAM.IPRanges[idx].OmitRanges = append(n.IPAM.IPRanges[idx].OmitRanges, gatewayExclude)
+		}
+		logging.Debugf("Gateway %s excluded from allocation in all IP ranges", n.IPAM.Gateway)
 	}
 
 	if err := configureStatic(&n, args); err != nil {

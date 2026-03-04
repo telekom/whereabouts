@@ -56,6 +56,15 @@ type RangeConfiguration struct {
 	RangeStart net.IP `json:"range_start,omitempty"`
 	// RangeEnd optionally restricts allocation to end at this IP.
 	RangeEnd net.IP `json:"range_end,omitempty"`
+	// PreferredIP is an optional preferred IP address to assign. When set and
+	// available, this IP is assigned instead of the lowest free IP. Used for
+	// sticky IP assignment across pod restarts. See upstream #621.
+	PreferredIP net.IP `json:"-"`
+	// L3 enables L3/routed mode for this range. In L3 mode, all IPs in the
+	// subnet are usable — there is no network or broadcast address exclusion.
+	// This is appropriate for pure L3 (BGP, routed) environments where every
+	// IP is individually routable and there is no broadcast domain.
+	L3 bool `json:"enable_l3,omitempty"`
 }
 
 // IPAMConfig describes the expected json configuration for this plugin.
@@ -104,6 +113,26 @@ type IPAMConfig struct {
 	// OverlappingRanges enables cluster-wide IP uniqueness checks via
 	// OverlappingRangeIPReservation CRDs. Defaults to true.
 	OverlappingRanges bool `json:"enable_overlapping_ranges,omitempty"`
+	// ExcludeGateway, when true, automatically adds the gateway IP to the
+	// exclude list of every IP range, preventing the gateway from being
+	// allocated to a pod. Useful for L2 networks where the gateway address
+	// must remain free. For L3-only use cases (e.g. BGP routing) where no
+	// gateway is present, leave this disabled (the default).
+	ExcludeGateway bool `json:"exclude_gateway,omitempty"`
+	// OptimisticIPAM, when true, bypasses the leader election lock and
+	// relies solely on the optimistic concurrency control (resourceVersion
+	// checks with retries) built into the Kubernetes storage backend.
+	// This significantly reduces allocation latency in large clusters
+	// (600+ pods) where leader election contention causes slow attaches.
+	// Trade-off: slightly higher retry rates under heavy concurrent
+	// allocation but much lower average latency. See upstream #510, #508.
+	OptimisticIPAM bool `json:"optimistic_ipam,omitempty"`
+	// EnableL3 enables L3/routed mode for all IP ranges. In L3 mode, all IPs
+	// in each subnet are usable — there is no network or broadcast address
+	// exclusion. This is appropriate for pure L3 (BGP, routed) environments
+	// where every IP is individually routable and there is no broadcast domain.
+	// When true, pools do not require a gateway to be configured.
+	EnableL3 bool `json:"enable_l3,omitempty"`
 	// SleepForRace is a debug parameter that adds artificial delay (in seconds)
 	// before pool updates to simulate race conditions. Capped at MaxSleepForRace.
 	SleepForRace int `json:"sleep_for_race,omitempty"`
@@ -148,6 +177,9 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		LogLevel                 string               `json:"log_level"`
 		ReconcilerCronExpression string               `json:"reconciler_cron_expression,omitempty"`
 		OverlappingRanges        bool                 `json:"enable_overlapping_ranges,omitempty"`
+		ExcludeGateway           bool                 `json:"exclude_gateway,omitempty"`
+		OptimisticIPAM           bool                 `json:"optimistic_ipam,omitempty"`
+		EnableL3                 bool                 `json:"enable_l3,omitempty"`
 		SleepForRace             int                  `json:"sleep_for_race,omitempty"`
 		Gateway                  string
 		Kubernetes               KubernetesConfig `json:"kubernetes,omitempty"`
@@ -184,6 +216,9 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		LogFile:                  ipamConfigAlias.LogFile,
 		LogLevel:                 ipamConfigAlias.LogLevel,
 		OverlappingRanges:        ipamConfigAlias.OverlappingRanges,
+		ExcludeGateway:           ipamConfigAlias.ExcludeGateway,
+		OptimisticIPAM:           ipamConfigAlias.OptimisticIPAM,
+		EnableL3:                 ipamConfigAlias.EnableL3,
 		ReconcilerCronExpression: ipamConfigAlias.ReconcilerCronExpression,
 		SleepForRace:             ipamConfigAlias.SleepForRace,
 		Gateway:                  backwardsCompatibleIPAddress(ipamConfigAlias.Gateway),

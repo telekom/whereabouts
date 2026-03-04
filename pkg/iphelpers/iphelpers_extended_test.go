@@ -252,24 +252,24 @@ var _ = Describe("HasUsableIPs", func() {
 		Expect(HasUsableIPs(*ipNet)).To(BeTrue())
 	})
 
-	It("returns false for /31", func() {
+	It("returns true for /31 (RFC 3021 point-to-point)", func() {
 		_, ipNet, _ := net.ParseCIDR("10.0.0.0/31")
-		Expect(HasUsableIPs(*ipNet)).To(BeFalse())
+		Expect(HasUsableIPs(*ipNet)).To(BeTrue())
 	})
 
-	It("returns false for /32", func() {
+	It("returns true for /32 (single address)", func() {
 		_, ipNet, _ := net.ParseCIDR("10.0.0.0/32")
-		Expect(HasUsableIPs(*ipNet)).To(BeFalse())
+		Expect(HasUsableIPs(*ipNet)).To(BeTrue())
 	})
 
-	It("returns false for IPv6 /128", func() {
+	It("returns true for IPv6 /128 (single address)", func() {
 		_, ipNet, _ := net.ParseCIDR("fd00::1/128")
-		Expect(HasUsableIPs(*ipNet)).To(BeFalse())
+		Expect(HasUsableIPs(*ipNet)).To(BeTrue())
 	})
 
-	It("returns false for IPv6 /127", func() {
+	It("returns true for IPv6 /127 (RFC 3021)", func() {
 		_, ipNet, _ := net.ParseCIDR("fd00::/127")
-		Expect(HasUsableIPs(*ipNet)).To(BeFalse())
+		Expect(HasUsableIPs(*ipNet)).To(BeTrue())
 	})
 
 	It("returns true for IPv6 /126", func() {
@@ -361,9 +361,11 @@ var _ = Describe("GetIPRange edge cases", func() {
 		Expect(last.Equal(net.ParseIP("10.0.0.254"))).To(BeTrue())
 	})
 
-	It("returns error for too-small subnet (/31)", func() {
+	It("returns valid range for /31 (RFC 3021)", func() {
 		_, ipNet, _ := net.ParseCIDR("10.0.0.0/31")
-		_, _, err := GetIPRange(*ipNet, nil, nil)
-		Expect(err).To(HaveOccurred())
+		first, last, err := GetIPRange(*ipNet, nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(first.Equal(net.ParseIP("10.0.0.0"))).To(BeTrue())
+		Expect(last.Equal(net.ParseIP("10.0.0.1"))).To(BeTrue())
 	})
 })

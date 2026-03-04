@@ -626,6 +626,25 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 
 	var overlappingrangeallocations []whereaboutstypes.IPReservation
 	var ipforoverlappingrangeupdate net.IP
+
+	// Sticky IP: read the pod's preferred-ip annotation to attempt assigning
+	// a specific IP address. This enables pods to retain the same IP across
+	// restarts (e.g. StatefulSets). See upstream #621.
+	var preferredIP net.IP
+	if mode == whereaboutstypes.Allocate && ipamConf.PodName != "" && ipamConf.PodNamespace != "" {
+		pod, podErr := ipam.clientSet.CoreV1().Pods(ipamConf.PodNamespace).Get(ctx, ipamConf.PodName, metav1.GetOptions{})
+		if podErr == nil {
+			if preferred, ok := pod.Annotations["whereabouts.cni.cncf.io/preferred-ip"]; ok {
+				preferredIP = net.ParseIP(preferred)
+				if preferredIP != nil {
+					logging.Debugf("Pod %s has preferred IP annotation: %s", ipamConf.GetPodRef(), preferredIP)
+				} else {
+					logging.Debugf("Pod %s has invalid preferred-ip annotation: %q", ipamConf.GetPodRef(), preferred)
+				}
+			}
+		}
+	}
+
 	for _, ipRange := range ipamConf.IPRanges {
 		configuredRange := ipRange.Range // capture before potential node-slice reassignment
 		var err error
@@ -708,6 +727,10 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			var updatedreservelist []whereaboutstypes.IPReservation
 			switch mode {
 			case whereaboutstypes.Allocate:
+				// Set preferred IP from pod annotation for sticky assignment.
+				if preferredIP != nil {
+					ipRange.PreferredIP = preferredIP
+				}
 				newip, updatedreservelist, err = allocate.AssignIP(ipRange, reservelist, ipam.ContainerID, ipamConf.GetPodRef(), ipam.IfName)
 				if err != nil {
 					logging.Errorf("Error assigning IP: %v", err)

@@ -36,11 +36,6 @@ spec:
         - --cert-dir=/var/run/webhook-certs
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
         env:
-        - name: NODENAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
         - name: WHEREABOUTS_NAMESPACE
           valueFrom:
             fieldRef:

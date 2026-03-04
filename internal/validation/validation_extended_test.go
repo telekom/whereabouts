@@ -46,14 +46,16 @@ func TestValidatePodRefExtended(t *testing.T) {
 	}{
 		// Intentional leniency: ValidatePodRef only enforces "namespace/name" shape
 		// via SplitN(podRef, "/", 2). It does NOT attempt to mirror Kubernetes
-		// DNS-1123 resource name validation. Unicode, spaces, and long strings are
-		// accepted because the CNI plugin stores podRefs as-is from the runtime,
-		// and Kubernetes itself enforces naming constraints at the API server level.
+		// DNS-1123 resource name validation. Unicode and long strings are accepted
+		// because the CNI plugin stores podRefs as-is from the runtime, and
+		// Kubernetes itself enforces naming constraints at the API server level.
+		// Whitespace-only namespace or name components are rejected to avoid
+		// orphaned reservations that can never match a real pod.
 		{name: "unicode namespace", podRef: "ünïcödé/pod", required: true, wantErr: false},
 		{name: "very long podRef", podRef: strings.Repeat("a", 253) + "/" + strings.Repeat("b", 253), required: true, wantErr: false},
 		{name: "spaces in namespace", podRef: "name space/pod", required: true, wantErr: false},
-		{name: "only whitespace namespace", podRef: " /pod", required: true, wantErr: false},
-		{name: "only whitespace name", podRef: "ns/ ", required: true, wantErr: false},
+		{name: "only whitespace namespace", podRef: " /pod", required: true, wantErr: true},
+		{name: "only whitespace name", podRef: "ns/ ", required: true, wantErr: true},
 		{name: "slash only", podRef: "/", required: false, wantErr: true},
 		{name: "double slash", podRef: "//", required: false, wantErr: true, errMsg: "namespace/name"},
 	}

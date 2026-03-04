@@ -56,7 +56,7 @@ func newControllerCommand() *cobra.Command {
 				},
 				HealthProbeBindAddress:        healthProbeAddr,
 				LeaderElection:                leaderElect,
-				LeaderElectionID:              "whereabouts-controller",
+				LeaderElectionID:              "whereabouts-controller.whereabouts.cni.cncf.io",
 				LeaderElectionNamespace:       leaderElectNamespace,
 				LeaderElectionReleaseOnCancel: true,
 				// All replicas serve webhooks; only the leader runs reconcilers.

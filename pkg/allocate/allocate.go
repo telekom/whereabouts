@@ -21,7 +21,7 @@ type AssignmentError struct {
 }
 
 func (a AssignmentError) Error() string {
-	return fmt.Sprintf("Could not allocate IP in range: ip: %v - %v / range: %s / excludeRanges: %v — "+
+	return fmt.Sprintf("Could not allocate IP in range: ip: %v - %v / range: %s / excludeRanges: %v -- "+
 		"the pool may be exhausted; consider expanding the range, checking for orphaned allocations "+
 		"(kubectl get ippools -A), or adding additional ranges via ipRanges",
 		a.firstIP, a.lastIP, a.ipnet.String(), a.excludeRanges)
@@ -32,7 +32,7 @@ func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservati
 	// Setup the basics here.
 	_, ipnet, err := net.ParseCIDR(ipamConf.Range)
 	if err != nil {
-		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %w", ipamConf.Range, err)
+		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %s", ipamConf.Range, err)
 	}
 
 	// Verify if podRef and ifName have already an allocation.

@@ -54,7 +54,7 @@ func newRootCommand() *cobra.Command {
 }
 
 func setupLogger(cmd *cobra.Command) {
-	logLevel, err := cmd.Flags().GetString("log-level")
+	logLevel, err := cmd.Root().PersistentFlags().GetString("log-level")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to read log-level flag: %v\n", err)
 	}

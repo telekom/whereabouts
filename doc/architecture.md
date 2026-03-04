@@ -5,12 +5,13 @@ CNI plugin.
 
 ## Binaries
 
-Whereabouts ships two binaries:
+Whereabouts ships three binaries:
 
 | Binary | Role |
 |--------|------|
 | `whereabouts` | CNI plugin binary, called by the container runtime (via Multus) on pod create/delete |
 | `whereabouts-operator` | Operator binary — `controller` subcommand runs reconcilers + webhook server |
+| `install-cni` | DaemonSet entry-point — copies CNI binary to host, generates kubeconfig/conf, watches token rotation |
 
 ## CNI Plugin (`cmd/whereabouts/main.go`)
 

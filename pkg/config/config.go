@@ -77,7 +77,7 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	// NB: Don't try to do any initialization before this point or it won't account for merged flat file.
 	var OverlappingRanges = n.IPAM.OverlappingRanges
 	if err := mergo.Merge(&n, flatipam); err != nil {
-		return nil, "", logging.Errorf("merge error with flat file: %s", err)
+		return nil, "", logging.Errorf("merge error with flat file: %w", err)
 	}
 	n.IPAM.OverlappingRanges = OverlappingRanges
 
@@ -447,7 +447,7 @@ func ParsePrevResult(stdinData []byte) (*current.Result, error) {
 		// prevResult may be in an older CNI version format — try conversion.
 		rawResult, parseErr := cniversion.NewResult(raw.RawPrevResult["cniVersion"].(string), resultBytes)
 		if parseErr != nil {
-			return nil, fmt.Errorf("failed to parse prevResult: %s (original: %s)", parseErr, err)
+			return nil, fmt.Errorf("failed to parse prevResult: %w (original: %v)", parseErr, err)
 		}
 		converted, convertErr := current.NewResultFromResult(rawResult)
 		if convertErr != nil {

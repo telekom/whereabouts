@@ -683,6 +683,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					return newips, err
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
+					OmitRanges: ipRange.OmitRanges,
 					Range:      ipRange.Range,
 					RangeStart: rangeStart,
 					RangeEnd:   rangeEnd,

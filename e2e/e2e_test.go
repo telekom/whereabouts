@@ -902,7 +902,7 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(err).NotTo(HaveOccurred())
 					defer func() { _ = clientInfo.DeletePod(p) }()
 
-					var allIPs []string
+					var allIPs = make([]string, 0, 2)
 					for _, ifName := range []string{"net1", "net2"} {
 						ips, err := retrievers.SecondaryIfaceIPValue(p, ifName)
 						Expect(err).NotTo(HaveOccurred())

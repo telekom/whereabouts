@@ -589,7 +589,7 @@ func TestWatchAndRegenerate_DetectsFileChange(t *testing.T) {
 
 	// Wait for the regeneration to be visible via parsed kubeconfig.
 	var found bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		time.Sleep(100 * time.Millisecond)
 		data, err := os.ReadFile(cfg.kubeconfigPath())
 		if err != nil {
@@ -857,7 +857,7 @@ func TestWatchAndRegenerate_TickerTriggersRegenerate(t *testing.T) {
 
 	// Wait long enough for the ticker to fire (100ms) and regenerate.
 	var found bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		time.Sleep(50 * time.Millisecond)
 		data, err := os.ReadFile(cfg.kubeconfigPath())
 		if err != nil {
@@ -906,7 +906,7 @@ func TestPollLoop_TickerTriggersRegenerate(t *testing.T) {
 
 	// Wait for at least one tick.
 	var found bool
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		time.Sleep(50 * time.Millisecond)
 		data, err := os.ReadFile(cfg.kubeconfigPath())
 		if err != nil {

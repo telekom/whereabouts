@@ -268,7 +268,7 @@ func MacvlanNetworkWithWhereaboutsExcludeRange(networkName, namespaceName, ipRan
 		if i > 0 {
 			excludeJSON += ","
 		}
-		excludeJSON += fmt.Sprintf("%q", r)
+		excludeJSON += fmt.Sprintf("%q", r) //nolint:gocritic // %q intentionally produces a JSON string literal for CIDR exclude ranges
 	}
 	excludeJSON += "]"
 	macvlanConfig := fmt.Sprintf(`{

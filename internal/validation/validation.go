@@ -35,7 +35,7 @@ func ValidatePodRef(podRef string, required bool) error {
 		return nil
 	}
 	parts := strings.SplitN(podRef, "/", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		return fmt.Errorf("podRef %q must be in namespace/name format", podRef)
 	}
 	return nil

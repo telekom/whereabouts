@@ -109,6 +109,7 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	markReady(&reservation, ReasonValidated, "referenced pod exists")
 	if pErr = patchHelper.Patch(ctx, &reservation); pErr != nil {
 		logger.Error(pErr, "failed to patch ready status")
+		return ctrl.Result{}, fmt.Errorf("patching OverlappingRangeIPReservation status: %w", pErr)
 	}
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil

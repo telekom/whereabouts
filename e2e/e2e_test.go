@@ -17,6 +17,7 @@ import (
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -3432,6 +3433,573 @@ var _ = Describe("Whereabouts functionality", func() {
 				By("verifying same v6 IP allocated in both named DS networks")
 				Expect(net.ParseIP(ipsA[1]).Equal(net.ParseIP(ipsB[1]))).To(BeTrue(),
 					"with named networks, both pods should get same lowest v6 (isolated pools)")
+			})
+		})
+
+		Context("Edge case: node cordon + pod eviction", func() {
+			It("releases IPs when pods are evicted from a cordoned node", func() {
+				const (
+					networkName = "wa-cordon"
+					ipRange     = "10.99.0.0/24"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating a pod with a secondary interface")
+				p, err := clientInfo.ProvisionPod(
+					"wb-cordon-1", testNamespace,
+					util.PodTierLabel("wb-cordon-1"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).NotTo(BeEmpty())
+
+				By("verifying the IP is allocated")
+				verifyAllocations(clientInfo, ipRange, ips[0], testNamespace, "wb-cordon-1", "net1")
+
+				By("cordoning the node the pod is running on")
+				nodeName := p.Spec.NodeName
+				Expect(nodeName).NotTo(BeEmpty())
+				node, err := clientInfo.Client.CoreV1().Nodes().Get(
+					context.Background(), nodeName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				node.Spec.Unschedulable = true
+				_, err = clientInfo.Client.CoreV1().Nodes().Update(
+					context.Background(), node, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				defer func() {
+					By("uncordoning the node")
+					n, err := clientInfo.Client.CoreV1().Nodes().Get(
+						context.Background(), nodeName, metav1.GetOptions{})
+					if err == nil {
+						n.Spec.Unschedulable = false
+						_, _ = clientInfo.Client.CoreV1().Nodes().Update(
+							context.Background(), n, metav1.UpdateOptions{})
+					}
+				}()
+
+				By("evicting the pod")
+				eviction := &policyv1.Eviction{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      p.Name,
+						Namespace: testNamespace,
+					},
+				}
+				Expect(clientInfo.Client.PolicyV1().Evictions(testNamespace).Evict(
+					context.Background(), eviction)).To(Succeed())
+
+				By("waiting for the pod to be fully deleted")
+				Eventually(func() bool {
+					_, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
+						context.Background(), "wb-cordon-1", metav1.GetOptions{})
+					return errors.IsNotFound(err)
+				}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "pod should be deleted after eviction")
+
+				By("verifying the IP was released from the pool")
+				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, "wb-cordon-1", ips)
+
+				By("creating a new pod — IP should be reassigned (may land on a different node)")
+				p2, err := clientInfo.ProvisionPod(
+					"wb-cordon-2", testNamespace,
+					util.PodTierLabel("wb-cordon-2"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2[0]).To(Equal(ips[0]),
+					"after eviction, lowest-available IP should be reassigned")
+			})
+		})
+
+		Context("Edge case: pod eviction via Policy API", func() {
+			It("releases the IP immediately after eviction", func() {
+				const (
+					networkName = "wa-evict-policy"
+					ipRange     = "10.99.1.0/24"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-evict-pol", testNamespace,
+					util.PodTierLabel("wb-evict-pol"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				verifyAllocations(clientInfo, ipRange, ips[0], testNamespace, "wb-evict-pol", "net1")
+
+				By("evicting the pod via Policy API")
+				eviction := &policyv1.Eviction{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      p.Name,
+						Namespace: testNamespace,
+					},
+				}
+				Expect(clientInfo.Client.PolicyV1().Evictions(testNamespace).Evict(
+					context.Background(), eviction)).To(Succeed())
+
+				By("waiting for pod to be fully deleted")
+				Eventually(func() bool {
+					_, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
+						context.Background(), "wb-evict-pol", metav1.GetOptions{})
+					return errors.IsNotFound(err)
+				}, 2*time.Minute, 5*time.Second).Should(BeTrue())
+
+				By("verifying IP was released")
+				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, "wb-evict-pol", ips)
+			})
+		})
+
+		Context("Edge case: rapid pod churn (stress test)", func() {
+			It("deterministically reassigns IPs through create/delete cycles", func() {
+				const (
+					networkName = "wa-churn"
+					ipRange     = "10.99.2.0/24"
+					churnCount  = 8
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("cycle 1: creating pods and recording IPs")
+				var firstCycleIPs []string
+				var pods []*corev1.Pod
+				for i := range churnCount {
+					name := fmt.Sprintf("wb-churn-a-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						name, testNamespace,
+						util.PodTierLabel(name),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					pods = append(pods, p)
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					firstCycleIPs = append(firstCycleIPs, ips[0])
+				}
+
+				By("deleting all pods")
+				for _, p := range pods {
+					Expect(clientInfo.DeletePod(p)).To(Succeed())
+				}
+
+				By("waiting for all IPs to be released")
+				for i, ip := range firstCycleIPs {
+					name := fmt.Sprintf("wb-churn-a-%d", i)
+					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, name, []string{ip})
+				}
+
+				By("cycle 2: creating same number of pods — should get same IPs (deterministic lowest-available)")
+				var secondCycleIPs []string
+				for i := range churnCount {
+					name := fmt.Sprintf("wb-churn-b-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						name, testNamespace,
+						util.PodTierLabel(name),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					secondCycleIPs = append(secondCycleIPs, ips[0])
+				}
+
+				By("verifying the exact same IPs were reassigned")
+				sort.Strings(firstCycleIPs)
+				sort.Strings(secondCycleIPs)
+				Expect(secondCycleIPs).To(Equal(firstCycleIPs),
+					"after full churn cycle, same set of IPs should be reassigned")
+			})
+		})
+
+		Context("Edge case: multi-interface pod cleanup", func() {
+			It("releases IPs from all interfaces when pod is deleted", func() {
+				const (
+					networkNameA = "wa-multi-if-a"
+					networkNameB = "wa-multi-if-b"
+					ipRangeA     = "10.99.3.0/24"
+					ipRangeB     = "10.99.4.0/24"
+				)
+
+				nadA := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkNameA, testNamespace, ipRangeA, []string{}, wbstorage.UnnamedNetwork, true)
+				nadB := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkNameB, testNamespace, ipRangeB, []string{}, wbstorage.UnnamedNetwork, true)
+
+				_, err := clientInfo.AddNetAttachDef(nadA)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nadA)).To(Succeed()) }()
+
+				_, err = clientInfo.AddNetAttachDef(nadB)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nadB)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-multi-if-cleanup", testNamespace,
+					util.PodTierLabel("wb-multi-if-cleanup"),
+					entities.PodNetworkSelectionElements(networkNameA, networkNameB))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				ips2, err := retrievers.SecondaryIfaceIPValue(p, "net2")
+				Expect(err).NotTo(HaveOccurred())
+
+				verifyAllocations(clientInfo, ipRangeA, ips1[0], testNamespace, "wb-multi-if-cleanup", "net1")
+				verifyAllocations(clientInfo, ipRangeB, ips2[0], testNamespace, "wb-multi-if-cleanup", "net2")
+
+				By("deleting the multi-interface pod")
+				Expect(clientInfo.DeletePod(p)).To(Succeed())
+
+				By("verifying both IPs are released")
+				verifyNoAllocationsForPodRef(clientInfo, ipRangeA, testNamespace, "wb-multi-if-cleanup", ips1)
+				verifyNoAllocationsForPodRef(clientInfo, ipRangeB, testNamespace, "wb-multi-if-cleanup", ips2)
+			})
+		})
+
+		Context("Edge case: StatefulSet scale down and up", func() {
+			It("releases IPs on scale-down and reuses them on scale-up", func() {
+				const (
+					networkName     = "wa-scale"
+					ipRange         = "10.99.5.0/24"
+					serviceName     = "web-scale"
+					statefulSetName = "wb-scale"
+					selector        = "app=" + serviceName
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating StatefulSet with 3 replicas")
+				_, err = clientInfo.ProvisionStatefulSet(
+					statefulSetName, testNamespace, serviceName, 3, networkName)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+				}()
+
+				podList, err := wbtestclient.ListPods(
+					context.Background(), clientInfo.Client, testNamespace, selector)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(podList.Items).To(HaveLen(3))
+
+				originalIPs := make(map[string]string) // podName -> IP
+				for _, p := range podList.Items {
+					ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					originalIPs[p.Name] = ips[0]
+				}
+
+				By("scaling down to 1 replica")
+				var one int32 = 1
+				ss, err := clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
+					context.Background(), statefulSetName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				ss.Spec.Replicas = &one
+				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(
+					context.Background(), ss, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("waiting for pods to scale down")
+				Eventually(func() int {
+					pl, _ := wbtestclient.ListPods(
+						context.Background(), clientInfo.Client, testNamespace, selector)
+					running := 0
+					for _, p := range pl.Items {
+						if p.Status.Phase == corev1.PodRunning && p.DeletionTimestamp == nil {
+							running++
+						}
+					}
+					return running
+				}, 2*time.Minute, 5*time.Second).Should(Equal(1))
+
+				By("scaling back up to 3 replicas")
+				var three int32 = 3
+				ss, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
+					context.Background(), statefulSetName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				ss.Spec.Replicas = &three
+				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(
+					context.Background(), ss, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("waiting for pods to scale up")
+				Eventually(func() int {
+					pl, _ := wbtestclient.ListPods(
+						context.Background(), clientInfo.Client, testNamespace, selector)
+					running := 0
+					for _, p := range pl.Items {
+						if p.Status.Phase == corev1.PodRunning && p.DeletionTimestamp == nil {
+							running++
+						}
+					}
+					return running
+				}, 3*time.Minute, 5*time.Second).Should(Equal(3))
+
+				podList2, err := wbtestclient.ListPods(
+					context.Background(), clientInfo.Client, testNamespace, selector)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("verifying all IPs are within range and unique")
+				ipSet := make(map[string]bool)
+				for _, p := range podList2.Items {
+					if p.DeletionTimestamp != nil {
+						continue
+					}
+					ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					Expect(ipSet).NotTo(HaveKey(ips[0]), "duplicate IP: %s", ips[0])
+					ipSet[ips[0]] = true
+				}
+				Expect(ipSet).To(HaveLen(3))
+			})
+		})
+
+		Context("Edge case: concurrent burst creation", func() {
+			It("allocates unique IPs when many pods are created simultaneously", func() {
+				const (
+					networkName = "wa-burst"
+					ipRange     = "10.99.6.0/24"
+					burstCount  = 10
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating many pods without waiting for each one")
+				podNames := make([]string, burstCount)
+				for i := range burstCount {
+					podNames[i] = fmt.Sprintf("wb-burst-%d", i)
+				}
+
+				// Create all pods quickly (they will be pending/creating concurrently).
+				var pods []*corev1.Pod
+				for _, name := range podNames {
+					p, err := clientInfo.ProvisionPod(
+						name, testNamespace,
+						util.PodTierLabel(name),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					pods = append(pods, p)
+				}
+				defer func() {
+					for _, p := range pods {
+						_ = clientInfo.DeletePod(p)
+					}
+				}()
+
+				By("verifying all pods got unique IPs")
+				ipSet := make(map[string]bool)
+				for _, p := range pods {
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					Expect(ipSet).NotTo(HaveKey(ips[0]),
+						"duplicate IP in burst: %s", ips[0])
+					ipSet[ips[0]] = true
+				}
+				Expect(ipSet).To(HaveLen(burstCount))
+			})
+		})
+
+		Context("Edge case: DS node cordon + eviction", func() {
+			It("releases both v4 and v6 IPs when a dual-stack pod is evicted", func() {
+				const (
+					networkName = "wa-ds-cordon"
+					v4Range     = "10.99.7.0/24"
+					v6Range     = "fd00:b7::/112"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, v4Range, []string{v6Range}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-ds-cordon", testNamespace,
+					util.PodTierLabel("wb-ds-cordon"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).To(HaveLen(2))
+
+				By("cordoning the node")
+				nodeName := p.Spec.NodeName
+				node, err := clientInfo.Client.CoreV1().Nodes().Get(
+					context.Background(), nodeName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				node.Spec.Unschedulable = true
+				_, err = clientInfo.Client.CoreV1().Nodes().Update(
+					context.Background(), node, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					n, e := clientInfo.Client.CoreV1().Nodes().Get(
+						context.Background(), nodeName, metav1.GetOptions{})
+					if e == nil {
+						n.Spec.Unschedulable = false
+						_, _ = clientInfo.Client.CoreV1().Nodes().Update(
+							context.Background(), n, metav1.UpdateOptions{})
+					}
+				}()
+
+				By("evicting the DS pod")
+				eviction := &policyv1.Eviction{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      p.Name,
+						Namespace: testNamespace,
+					},
+				}
+				Expect(clientInfo.Client.PolicyV1().Evictions(testNamespace).Evict(
+					context.Background(), eviction)).To(Succeed())
+
+				Eventually(func() bool {
+					_, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
+						context.Background(), "wb-ds-cordon", metav1.GetOptions{})
+					return errors.IsNotFound(err)
+				}, 2*time.Minute, 5*time.Second).Should(BeTrue())
+
+				By("verifying both v4 and v6 IPs released")
+				verifyNoAllocationsForPodRef(clientInfo, v4Range, testNamespace, "wb-ds-cordon", []string{ips[0]})
+			})
+		})
+
+		Context("Edge case: IPv6 rapid churn", func() {
+			It("deterministically reassigns IPv6 IPs through create/delete cycles", func() {
+				const (
+					networkName = "wa-churn-v6"
+					ipRange     = "fd00:b8::/112"
+					churnCount  = 5
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("cycle 1: creating IPv6 pods")
+				var firstCycleIPs []string
+				var pods []*corev1.Pod
+				for i := range churnCount {
+					name := fmt.Sprintf("wb-churn-v6-a-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						name, testNamespace,
+						util.PodTierLabel(name),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					pods = append(pods, p)
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					firstCycleIPs = append(firstCycleIPs, net.ParseIP(ips[0]).String())
+				}
+
+				By("deleting all pods")
+				for _, p := range pods {
+					Expect(clientInfo.DeletePod(p)).To(Succeed())
+				}
+				for i, ip := range firstCycleIPs {
+					name := fmt.Sprintf("wb-churn-v6-a-%d", i)
+					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, name, []string{ip})
+				}
+
+				By("cycle 2: recreating pods")
+				var secondCycleIPs []string
+				for i := range churnCount {
+					name := fmt.Sprintf("wb-churn-v6-b-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						name, testNamespace,
+						util.PodTierLabel(name),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					secondCycleIPs = append(secondCycleIPs, net.ParseIP(ips[0]).String())
+				}
+
+				By("verifying same IPv6 set reassigned")
+				sort.Strings(firstCycleIPs)
+				sort.Strings(secondCycleIPs)
+				Expect(secondCycleIPs).To(Equal(firstCycleIPs))
+			})
+		})
+
+		Context("Edge case: multi-interface DS pod cleanup", func() {
+			It("releases both DS interfaces when a multi-NAD pod is deleted", func() {
+				const (
+					networkNameA = "wa-ds-mif-a"
+					networkNameB = "wa-ds-mif-b"
+					v4RangeA     = "10.99.8.0/24"
+					v6RangeA     = "fd00:b9::/112"
+					v4RangeB     = "10.99.9.0/24"
+					v6RangeB     = "fd00:ba::/112"
+				)
+
+				nadA := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkNameA, testNamespace, v4RangeA, []string{v6RangeA}, wbstorage.UnnamedNetwork, true)
+				nadB := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkNameB, testNamespace, v4RangeB, []string{v6RangeB}, wbstorage.UnnamedNetwork, true)
+
+				_, err := clientInfo.AddNetAttachDef(nadA)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nadA)).To(Succeed()) }()
+
+				_, err = clientInfo.AddNetAttachDef(nadB)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nadB)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-ds-mif-cleanup", testNamespace,
+					util.PodTierLabel("wb-ds-mif-cleanup"),
+					entities.PodNetworkSelectionElements(networkNameA, networkNameB))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips1).To(HaveLen(2), "net1 should have DS IPs")
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p, "net2")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2).To(HaveLen(2), "net2 should have DS IPs")
+
+				By("deleting the multi-interface DS pod")
+				Expect(clientInfo.DeletePod(p)).To(Succeed())
+
+				By("verifying all 4 IPs are released (v4+v6 × 2 interfaces)")
+				verifyNoAllocationsForPodRef(clientInfo, v4RangeA, testNamespace, "wb-ds-mif-cleanup", []string{ips1[0]})
+				verifyNoAllocationsForPodRef(clientInfo, v4RangeB, testNamespace, "wb-ds-mif-cleanup", []string{ips2[0]})
 			})
 		})
 

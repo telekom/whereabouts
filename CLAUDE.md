@@ -90,9 +90,9 @@ make kind COMPUTE_NODES=3
 - Replaces the old `ip-control-loop` and `node-slice-controller` binaries
 
 **Reconcilers** (`internal/controller/`)
-- `IPPoolReconciler`: Watches IPPool CRDs, removes orphaned allocations by checking podRef against live pods. Uses MergePatch for atomic updates. Handles DisruptionTarget eviction, pending pods (RequeueAfter), IPv6 normalization (net.IP.Equal).
+- `IPPoolReconciler`: Watches IPPool CRDs, removes orphaned allocations by checking podRef against live pods. Uses JSON Patch for atomic updates. Handles DisruptionTarget eviction, pending pods (RequeueAfter), IPv6 normalization (net.IP.Equal). Behavior gated by feature flags: `--cleanup-terminating-pods`, `--cleanup-disrupted-pods`, `--verify-network-status`.
 - `NodeSliceReconciler`: Watches NADs (primary) + Nodes (secondary), manages NodeSlicePool CRDs. Uses SSA for status updates. Parses IPAM config from NAD spec.config JSON.
-- `OverlappingRangeReconciler`: Watches OverlappingRangeIPReservation CRDs, deletes orphaned reservations by checking podRef against live pods.
+- `OverlappingRangeReconciler`: Watches OverlappingRangeIPReservation CRDs, deletes orphaned reservations by checking podRef against live pods. Shares `--cleanup-terminating-pods` and `--cleanup-disrupted-pods` flags with IPPoolReconciler.
 
 **Validating Webhooks** (`internal/webhook/`)
 - `IPPoolValidator`: Validates Range CIDR format, podRef "namespace/name" format in allocations
@@ -221,3 +221,22 @@ The plugin checks for existing allocations by `podRef` and `ifName` before alloc
 
 ### Network Names
 Use `network_name` parameter to allow multiple independent allocations from the same CIDR in multi-tenant scenarios. This creates separate IPPool CRs per network name.
+
+### IPAM Features
+- **L3/Routed Mode** (`enable_l3`): All IPs in the subnet allocatable (no network/broadcast exclusion). For BGP-routed networks, /31 point-to-point links, /32 loopbacks.
+- **Gateway IP Exclusion** (`exclude_gateway`): Automatically adds the gateway IP as a /32 (or /128) exclusion. Opt-in, default `false`.
+- **Optimistic IPAM** (`optimistic_ipam`): Bypasses leader election, relies on Kubernetes optimistic concurrency (resource version checks). Lower latency at scale (600+ pods).
+- **Preferred/Sticky IP**: Pod annotation `whereabouts.cni.cncf.io/preferred-ip` assigns a specific IP if available, falls back to lowest-available.
+- **Small Subnets**: /32, /31, /127, /128 supported (single-host allocation, RFC 3021 point-to-point).
+
+### Operator Feature Flags
+Three flags gate aggressive reconciler behaviors:
+- `--cleanup-terminating-pods` (default `false`): Release IPs from pods with DeletionTimestamp set
+- `--cleanup-disrupted-pods` (default `true`): Release IPs from pods with DisruptionTarget condition
+- `--verify-network-status` (default `true`): Check Multus network-status annotation for IP presence
+
+### Webhook Architecture
+- Webhooks are served by all operator replicas (not just the leader)
+- TLS certificates managed automatically via `cert-controller` library
+- `matchConditions` CEL bypass for the CNI ServiceAccount's high-frequency CRD updates
+- `failurePolicy: Ignore` to avoid blocking CNI operations during webhook outages

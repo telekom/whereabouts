@@ -42,6 +42,15 @@ webhook server from the same process:
 | `NodeSliceReconciler` | NetworkAttachmentDefinitions + Nodes | Manages NodeSlicePool CRDs for Fast IPAM |
 | `OverlappingRangeReconciler` | OverlappingRangeIPReservation CRDs | Deletes orphaned reservations |
 
+Reconciler behavior can be tuned with feature flags:
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `--cleanup-terminating-pods` | `false` | Release IPs from pods that have `DeletionTimestamp` set |
+| `--cleanup-disrupted-pods` | `true` | Release IPs from pods with `DisruptionTarget` condition |
+| `--verify-network-status` | `true` | Verify allocations against Multus `network-status` annotation |
+| `--reconcile-interval` | `30s` | Interval between reconciliation cycles |
+
 ### Webhooks (`internal/webhook/`)
 
 Typed `admission.Validator[T]` implementations:
@@ -54,6 +63,31 @@ Typed `admission.Validator[T]` implementations:
 
 Webhook manifests include `matchConditions` CEL expressions to bypass
 validation for the CNI plugin's own ServiceAccount.
+
+### TLS Certificate Rotation (`internal/webhook/certrotator/`)
+
+The operator wraps [cert-controller](https://github.com/open-policy-agent/cert-controller)
+to automatically manage webhook TLS certificates. Certificates are:
+- Created in a Kubernetes Secret (`--webhook-secret-name`)
+- Rotated before expiry without manual intervention
+- CA bundle injected into the ValidatingWebhookConfiguration
+
+## IPAM Features
+
+The CNI plugin supports several allocation modes and features:
+
+| Feature | Config Parameter | Description |
+|---------|-----------------|-------------|
+| L3/Routed mode | `enable_l3` | Allocate all IPs including `.0` and broadcast addresses |
+| Gateway exclusion | `exclude_gateway` | Auto-exclude the gateway IP from allocation |
+| Optimistic IPAM | `optimistic_ipam` | Bypass leader election for faster allocation at scale |
+| Preferred/Sticky IP | Pod annotation `whereabouts.cni.cncf.io/preferred-ip` | Assign a specific IP if available |
+| Small subnets | N/A | /31, /32, /127, /128 subnets supported out of the box |
+| Dual-stack | `ipRanges` | Multi-range allocation for IPv4 + IPv6 |
+| Named networks | `network_name` | Isolate IPPool CRs per logical network |
+| Fast IPAM | `node_slice_size` | Per-node IP slices to reduce contention at scale |
+
+See [extended-configuration.md](extended-configuration.md) for full details.
 
 ## IP Allocation Flow
 
@@ -105,3 +139,9 @@ Whereabouts merges configuration from multiple sources (high → low priority):
 
 See [extended-configuration.md](extended-configuration.md) for the full
 parameter reference.
+
+## Related Documentation
+
+- [Extended Configuration](extended-configuration.md) — Full IPAM parameter reference, operator flags, webhook config, debugging
+- [Metrics](metrics.md) — Prometheus metrics, alerts, Grafana dashboard
+- [Developer Notes](developer_notes.md) — Build commands, testing, e2e setup, debugging workflows

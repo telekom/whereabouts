@@ -1,14 +1,16 @@
 # Operator Metrics
 
 The whereabouts operator exposes Prometheus metrics via the controller-runtime
-metrics endpoint. Metrics are served on the standard `/metrics` path:
+metrics endpoint. All metrics (controller and webhook) are served from the same
+process on the standard `/metrics` path:
 
-| Binary Command | Default Address |
-|----------------|-----------------|
-| `controller`   | `:8080`         |
-| `webhook`      | `:8082`         |
+| Default Address | Override Flag | Description |
+|-----------------|---------------|-------------|
+| `:8080` | `--metrics-bind-address` | Prometheus metrics endpoint for both reconciler and webhook metrics |
 
-Override with `--metrics-bind-address`.
+> **Note**: The operator uses a single `controller` subcommand that runs both
+> reconcilers and the webhook server in the same process. All metrics are served
+> from one endpoint.
 
 ## Built-in Metrics
 
@@ -135,3 +137,45 @@ A basic dashboard can be built with these panels:
 3. **Reconciliation Latency** — `controller_runtime_reconcile_time_seconds` histogram
 4. **Webhook Validation** — `whereabouts_webhook_validation_total` stacked by result
 5. **Node Slice Assignment** — `whereabouts_nodeslicepool_assigned_nodes` vs `whereabouts_nodeslicepool_slices_total`
+
+## Prometheus Scraping Setup
+
+To scrape metrics from the operator, create a `ServiceMonitor` (requires the
+[Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator)):
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: whereabouts-metrics
+  namespace: kube-system
+  labels:
+    app: whereabouts-controller
+spec:
+  selector:
+    matchLabels:
+      app: whereabouts-controller
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+```
+
+Ensure the operator's metrics Service exposes port `8080` (the default
+`--metrics-bind-address`). The kustomize-based deployment (`make deploy`)
+includes the necessary Service definition.
+
+For non-Prometheus-Operator setups, add a scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: whereabouts
+    kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names: [kube-system]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_label_app]
+        regex: whereabouts-controller
+        action: keep
+```

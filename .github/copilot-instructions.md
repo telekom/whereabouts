@@ -62,3 +62,23 @@ make kind COMPUTE_NODES=3             # Custom worker count
 3. **Overlapping range protection**: `OverlappingRangeIPReservation` CRDs prevent duplicate IPs across ranges (enabled by default)
 4. **Idempotent ADD**: Re-running CNI ADD for the same pod+interface returns the existing allocation
 5. **Two binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconcilers + webhooks via single `controller` subcommand)
+
+## IPAM Features
+
+- **L3/Routed mode** (`enable_l3`): All IPs allocatable including network/broadcast; for BGP-routed, /31, /32
+- **Gateway exclusion** (`exclude_gateway`): Auto-exclude gateway IP from allocation (opt-in)
+- **Optimistic IPAM** (`optimistic_ipam`): Bypass leader election for faster allocation at scale
+- **Preferred/Sticky IP**: Pod annotation `whereabouts.cni.cncf.io/preferred-ip`; falls back to lowest-available
+- **Small subnets**: /32, /31, /127, /128 supported
+- **Dual-stack**: `ipRanges` array with IPv4 + IPv6 CIDRs
+- **Named networks** (`network_name`): Separate IPPool CRs per logical network
+- **Fast IPAM** (`node_slice_size`): Per-node IP slices to reduce contention at scale
+
+## Operator Feature Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cleanup-terminating-pods` | `false` | Release IPs from pods with `DeletionTimestamp` set |
+| `--cleanup-disrupted-pods` | `true` | Release IPs from pods with `DisruptionTarget` condition |
+| `--verify-network-status` | `true` | Check Multus network-status annotation for IP presence |
+| `--reconcile-interval` | `30s` | How often to re-check IP pools for orphaned allocations |

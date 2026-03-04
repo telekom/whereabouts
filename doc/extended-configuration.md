@@ -21,7 +21,7 @@ via the `--reconcile-interval` flag on the operator's `controller` subcommand
 
 The daemonset installation as shown on the README is for use with Kubernetes version 1.16 and later. It may also be useful with previous versions, however you'll need to change the `apiVersion` of the daemonset in the provided yaml, [see the deprecation notice](https://kubernetes.io/blog/2019/07/18/api-deprecations-in-1-16/).
 
-You can compile from this repo (with `make build
+You can compile from this repo (with `make build`) to produce a CNI binary, or deploy the operator image via `make deploy`.
 
 Note that we're also including a Custom Resource Definition (CRD) to use the `kubernetes` datastore option. This installs the kubernetes CRD specification for the `ippools.whereabouts.cni.cncf.io/v1alpha1` type.
 
@@ -492,4 +492,155 @@ regardless of the network-status annotation contents.
 | `--verify-network-status` | `true` | Check Multus network-status annotation for IP presence |
 | `--reconcile-interval` | `30s` | How often to re-check IP pools for orphaned allocations |
 
+## Webhook Configuration
 
+The operator runs validating webhooks for IPPool, NodeSlicePool, and
+OverlappingRangeIPReservation CRDs. Webhooks are served by **all replicas** of
+the operator Deployment (not just the leader), providing high availability for
+admission requests.
+
+### Webhook Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--webhook-port` | `9443` | Port the webhook server listens on |
+| `--cert-dir` | `/var/run/webhook-certs` | Directory for TLS certificates |
+| `--webhook-service-name` | `whereabouts-webhook-service` | Name of the Service for TLS certificate DNS SAN |
+| `--webhook-secret-name` | `whereabouts-webhook-cert` | Name of the Secret storing webhook TLS certificates |
+| `--webhook-config-name` | `whereabouts-validating-webhook-configuration` | Name of the ValidatingWebhookConfiguration to inject CA into |
+
+### TLS Certificate Rotation
+
+TLS certificates for the webhook server are automatically managed using the
+[cert-controller](https://github.com/open-policy-agent/cert-controller)
+library. The operator:
+
+1. Creates a self-signed CA certificate in the Secret named by
+   `--webhook-secret-name`.
+2. Issues a server certificate with the DNS SAN based on the Service name and
+   namespace (`<service-name>.<namespace>.svc`).
+3. Injects the CA bundle into the `ValidatingWebhookConfiguration` named by
+   `--webhook-config-name`.
+4. Automatically rotates certificates before expiry.
+
+No manual certificate management is required.
+
+### Failure Policy
+
+The default webhook manifests use `failurePolicy: Ignore`. This means that if
+the webhook server is unavailable (e.g. during operator upgrades), admission
+requests are allowed through. This is intentional: the CNI plugin must be able
+to allocate IPs even if the webhook server is temporarily down. The trade-off is
+that invalid CRD modifications could slip through during brief outages —
+however, the reconciler will detect and fix any inconsistencies on its next run.
+
+### CEL matchConditions Bypass
+
+Webhook manifests include `matchConditions` CEL expressions that bypass
+validation for the CNI plugin's ServiceAccount. This is necessary because the
+CNI plugin creates and updates IPPool and OverlappingRangeIPReservation CRDs as
+part of normal IP allocation, and webhook validation of these high-frequency
+operations would add unnecessary latency and create a circular dependency (the
+webhook server needs the CNI plugin to work, and the CNI plugin needs webhook
+admission to pass).
+
+### Validation Behavior
+
+| Webhook | Validated Fields |
+|---------|-----------------|
+| `IPPoolValidator` | `spec.range` must be valid CIDR; allocations must have `podRef` in `"namespace/name"` format |
+| `NodeSlicePoolValidator` | `spec.range` must be valid CIDR; `spec.sliceSize` must be integer 1–128 |
+| `OverlappingRangeValidator` | `spec.podRef` must be in `"namespace/name"` format |
+
+## Operator Flag Reference
+
+Complete list of all operator flags:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--metrics-bind-address` | `:8080` | Address the Prometheus metrics endpoint binds to |
+| `--health-probe-bind-address` | `:8081` | Address the health/readiness probes bind to |
+| `--leader-elect` | `true` | Enable leader election for reconcilers |
+| `--leader-elect-namespace` | `""` | Namespace for the leader election lease (defaults to pod namespace) |
+| `--namespace` | `""` | Namespace where the operator runs (required for webhook cert DNS) |
+| `--reconcile-interval` | `30s` | How often to re-check IP pools for orphaned allocations |
+| `--webhook-port` | `9443` | Port the webhook server listens on |
+| `--cert-dir` | `/var/run/webhook-certs` | Directory for TLS certificates |
+| `--webhook-service-name` | `whereabouts-webhook-service` | Service name for TLS certificate DNS SAN |
+| `--webhook-secret-name` | `whereabouts-webhook-cert` | Secret storing webhook TLS certificates |
+| `--webhook-config-name` | `whereabouts-validating-webhook-configuration` | ValidatingWebhookConfiguration to inject CA into |
+| `--cleanup-terminating-pods` | `false` | Release IPs from pods with `DeletionTimestamp` set |
+| `--cleanup-disrupted-pods` | `true` | Release IPs from pods with `DisruptionTarget` condition |
+| `--verify-network-status` | `true` | Check Multus network-status annotation for IP presence |
+
+## Debugging
+
+### CNI Plugin Debugging
+
+Enable debug logging in the IPAM configuration:
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "192.168.2.0/24",
+    "log_file": "/var/log/whereabouts.log",
+    "log_level": "debug"
+  }
+}
+```
+
+The log file is written on the node where the CNI plugin runs (inside the
+DaemonSet pod at `/host/var/log/whereabouts.log`). To read it:
+
+```bash
+# Find the whereabouts DaemonSet pod on the target node
+kubectl get pods -n kube-system -l app=whereabouts -o wide
+
+# Read the log file
+kubectl exec -n kube-system <whereabouts-pod> -- cat /host/var/log/whereabouts.log
+```
+
+### Operator Debugging
+
+The operator uses controller-runtime's structured logging via `klog`. Increase
+verbosity by adding `-v` flags to the operator Deployment:
+
+```yaml
+command:
+- /whereabouts-operator
+- controller
+- -v=4    # Increase log verbosity (0=info, 4=debug, 8=trace)
+```
+
+View operator logs:
+
+```bash
+kubectl logs -n kube-system deploy/whereabouts-controller-manager -f
+```
+
+### Inspecting IP Pools
+
+```bash
+# List all IP pools
+kubectl get ippools -A
+
+# View allocations in a specific pool
+kubectl get ippool -n kube-system <pool-name> -o jsonpath='{.spec.allocations}' | jq .
+
+# List overlapping range reservations
+kubectl get overlappingrangeipreservations -A
+
+# List node slice pools (Fast IPAM)
+kubectl get nodeslicepools -A
+```
+
+### Common Debugging Scenarios
+
+| Scenario | Commands |
+|----------|----------|
+| Pod stuck without IP | Check CNI logs: `cat /var/log/whereabouts.log`, inspect IPPool for exhaustion: `kubectl get ippools -A -o yaml` |
+| Orphaned IPs not cleaned | Check operator is running: `kubectl get pods -n kube-system -l app=whereabouts-controller`, verify reconcile interval: `kubectl logs -n kube-system deploy/whereabouts-controller-manager \| grep reconcil` |
+| Webhook rejecting requests | Check webhook logs: `kubectl logs -n kube-system deploy/whereabouts-controller-manager \| grep webhook`, verify cert Secret exists: `kubectl get secret -n kube-system whereabouts-webhook-cert` |
+| Duplicate IPs across pods | Check `enable_overlapping_ranges` is `true` (default); inspect OverlappingRangeIPReservation CRDs |
+| Slow allocation at scale | Enable `optimistic_ipam` or `node_slice_size` in IPAM config; check leader election logs for contention |

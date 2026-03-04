@@ -9,6 +9,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// We intentionally reuse FluxCD's generic kstatus-compatible condition helpers
+// (meta and runtime/conditions) instead of Cluster-API's util/conditions or
+// hand-rolled metav1.Condition updates. This keeps the common
+// Reconciling/Ready/Stalled pattern well-tested and consistent without
+// introducing a dependency on Cluster-API itself.
+
 // Kstatus-compatible condition reasons used across all controllers.
 const (
 	// ReasonReconciling indicates the controller is actively processing.

@@ -57,19 +57,19 @@ func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, re
 	}
 
 	if oldRes.Spec.PodRef != res.Spec.PodRef {
-		err := fmt.Errorf("spec.podref is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
+		err := fmt.Errorf("spec.podRef is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	if oldRes.Spec.IfName != res.Spec.IfName {
-		err := fmt.Errorf("spec.ifname is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
+		err := fmt.Errorf("spec.ifName is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	if oldRes.Spec.ContainerID != res.Spec.ContainerID {
-		err := fmt.Errorf("spec.containerid is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
+		err := fmt.Errorf("spec.containerID is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
@@ -90,7 +90,7 @@ func (v *OverlappingRangeValidator) ValidateDelete(_ context.Context, _ *whereab
 
 func validateOverlappingRange(res *whereaboutsv1alpha1.OverlappingRangeIPReservation) error {
 	if err := validation.ValidatePodRef(res.Spec.PodRef, true); err != nil {
-		return fmt.Errorf("spec.podref: %w", err)
+		return fmt.Errorf("spec.podRef: %w", err)
 	}
 	return nil
 }

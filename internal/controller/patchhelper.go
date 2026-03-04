@@ -205,8 +205,8 @@ func splitObject(obj client.Object) (spec, status []byte, err error) {
 }
 
 // jsonEqual performs a byte-level comparison of two JSON blobs.
-// This is sufficient because encoding/json sorts map keys alphabetically
-// (per the Go spec), so even for types with map fields (e.g.
+// This is sufficient because the encoding/json package sorts map keys
+// alphabetically when marshaling, so even for types with map fields (e.g.
 // IPPoolSpec.Allocations map[string]IPAllocation), the byte output from
 // json.Marshal is deterministic for the same data.
 func jsonEqual(a, b []byte) bool {

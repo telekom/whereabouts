@@ -92,4 +92,4 @@ spec:
       - name: webhook-certs
         secret:
           secretName: whereabouts-webhook-cert
-          optional: true
+          optional: false

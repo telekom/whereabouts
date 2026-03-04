@@ -49,8 +49,10 @@ func TestValidatePodRefExtended(t *testing.T) {
 		// DNS-1123 resource name validation. Unicode and long strings are accepted
 		// because the CNI plugin stores podRefs as-is from the runtime, and
 		// Kubernetes itself enforces naming constraints at the API server level.
-		// Whitespace-only namespace or name components are rejected to avoid
-		// orphaned reservations that can never match a real pod.
+		// orphaned reservations that can never match a real pod. Namespaces with
+		// embedded spaces (e.g. "name space") cannot exist in Kubernetes but are
+		// still accepted here to keep this validator focused purely on shape, not
+		// full Kubernetes name validity.
 		{name: "unicode namespace", podRef: "ünïcödé/pod", required: true, wantErr: false},
 		{name: "very long podRef", podRef: strings.Repeat("a", 253) + "/" + strings.Repeat("b", 253), required: true, wantErr: false},
 		{name: "spaces in namespace", podRef: "name space/pod", required: true, wantErr: false},

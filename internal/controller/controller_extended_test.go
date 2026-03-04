@@ -362,6 +362,22 @@ var _ = Describe("IPPoolReconciler extended", func() {
 		}
 	}
 
+	buildReconcilerWithFlags := func(cleanupTerminating, cleanupDisrupted, verifyNetworkStatus bool, objs ...client.Object) {
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(newTestScheme()).
+			WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}, &whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+			WithObjects(objs...).
+			Build()
+		reconciler = &IPPoolReconciler{
+			client:              fakeClient,
+			recorder:            events.NewFakeRecorder(10),
+			reconcileInterval:   interval,
+			cleanupTerminating:  cleanupTerminating,
+			cleanupDisrupted:    cleanupDisrupted,
+			verifyNetworkStatus: verifyNetworkStatus,
+		}
+	}
+
 	Context("when the pool has a DeletionTimestamp (being deleted)", func() {
 		It("should return immediately without error", func() {
 			now := metav1.Now()
@@ -388,51 +404,103 @@ var _ = Describe("IPPoolReconciler extended", func() {
 	})
 
 	Context("when a pod is running but IP not in network-status annotation", func() {
-		It("should remove the orphaned allocation", func() {
-			statuses := []nadv1.NetworkStatus{
-				{Name: "default/net1", Default: false, IPs: []string{"10.0.0.99"}},
-			}
-			statusJSON, _ := json.Marshal(statuses)
+		Context("with verifyNetworkStatus enabled", func() {
+			It("should remove the orphaned allocation", func() {
+				statuses := []nadv1.NetworkStatus{
+					{Name: "default/net1", Default: false, IPs: []string{"10.0.0.99"}},
+				}
+				statusJSON, _ := json.Marshal(statuses)
 
-			pod := &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "mismatch-pod",
-					Namespace: "default",
-					Annotations: map[string]string{
-						nadv1.NetworkStatusAnnot: string(statusJSON),
-					},
-				},
-				Status: corev1.PodStatus{
-					Phase: corev1.PodRunning,
-				},
-			}
-			pool := &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:       poolName,
-					Namespace:  poolNamespace,
-					Finalizers: []string{ippoolFinalizer},
-				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range: poolRange,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
-						"1": {
-							ContainerID: "abc123",
-							PodRef:      "default/mismatch-pod",
-							IfName:      "eth0",
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "mismatch-pod",
+						Namespace: "default",
+						Annotations: map[string]string{
+							nadv1.NetworkStatusAnnot: string(statusJSON),
 						},
 					},
-				},
-			}
-			buildReconciler(pool, pod)
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       poolName,
+						Namespace:  poolNamespace,
+						Finalizers: []string{ippoolFinalizer},
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: poolRange,
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							"1": {
+								ContainerID: "abc123",
+								PodRef:      "default/mismatch-pod",
+								IfName:      "eth0",
+							},
+						},
+					},
+				}
+				buildReconcilerWithFlags(false, false, true, pool, pod)
 
-			result, err := reconciler.Reconcile(ctx, req)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RequeueAfter).To(Equal(interval))
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
 
-			// Verify allocation was removed.
-			var updated whereaboutsv1alpha1.IPPool
-			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
-			Expect(updated.Spec.Allocations).To(BeEmpty())
+				// Verify allocation was removed.
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(BeEmpty())
+			})
+		})
+
+		Context("with verifyNetworkStatus disabled", func() {
+			It("should keep the allocation despite IP mismatch", func() {
+				statuses := []nadv1.NetworkStatus{
+					{Name: "default/net1", Default: false, IPs: []string{"10.0.0.99"}},
+				}
+				statusJSON, _ := json.Marshal(statuses)
+
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "mismatch-pod",
+						Namespace: "default",
+						Annotations: map[string]string{
+							nadv1.NetworkStatusAnnot: string(statusJSON),
+						},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       poolName,
+						Namespace:  poolNamespace,
+						Finalizers: []string{ippoolFinalizer},
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: poolRange,
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							"1": {
+								ContainerID: "abc123",
+								PodRef:      "default/mismatch-pod",
+								IfName:      "eth0",
+							},
+						},
+					},
+				}
+				buildReconciler(pool, pod) // verifyNetworkStatus defaults to false
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				// Verify allocation was kept.
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(HaveLen(1))
+				Expect(updated.Spec.Allocations).To(HaveKey("1"))
+			})
 		})
 	})
 
@@ -904,6 +972,7 @@ var _ = Describe("OverlappingRangeReconciler extended", func() {
 	buildReconciler := func(objs ...client.Object) {
 		fakeClient := fake.NewClientBuilder().
 			WithScheme(newTestScheme()).
+			WithStatusSubresource(&whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
 			WithObjects(objs...).
 			Build()
 		reconciler = &OverlappingRangeReconciler{
@@ -913,54 +982,214 @@ var _ = Describe("OverlappingRangeReconciler extended", func() {
 		}
 	}
 
-	Context("when the pod is marked for deletion", func() {
-		It("should delete the reservation", func() {
-			ctx = context.Background()
-			resName := "ext-or-deletion"
-			req = ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: resNamespace, Name: resName,
-				},
-			}
+	buildReconcilerWithFlags := func(cleanupTerminating, cleanupDisrupted bool, objs ...client.Object) {
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(newTestScheme()).
+			WithStatusSubresource(&whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+			WithObjects(objs...).
+			Build()
+		reconciler = &OverlappingRangeReconciler{
+			client:             fakeClient,
+			recorder:           events.NewFakeRecorder(10),
+			reconcileInterval:  interval,
+			cleanupTerminating: cleanupTerminating,
+			cleanupDisrupted:   cleanupDisrupted,
+		}
+	}
 
-			pod := &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "evicted-pod",
-					Namespace: "default",
-				},
-				Status: corev1.PodStatus{
-					Phase: corev1.PodRunning,
-					Conditions: []corev1.PodCondition{
-						{
-							Type:   corev1.DisruptionTarget,
-							Status: corev1.ConditionTrue,
-							Reason: "DeletionByTaintManager",
+	Context("when the pod is marked for deletion (DisruptionTarget)", func() {
+		Context("with cleanupDisrupted enabled", func() {
+			It("should delete the reservation", func() {
+				ctx = context.Background()
+				resName := "ext-or-deletion"
+				req = ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: resNamespace, Name: resName,
+					},
+				}
+
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "evicted-pod",
+						Namespace: "default",
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+						Conditions: []corev1.PodCondition{
+							{
+								Type:   corev1.DisruptionTarget,
+								Status: corev1.ConditionTrue,
+								Reason: "DeletionByTaintManager",
+							},
 						},
 					},
-				},
-			}
-			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      resName,
-					Namespace: resNamespace,
-				},
-				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
-					ContainerID: "abc123",
-					PodRef:      "default/evicted-pod",
-					IfName:      "eth0",
-				},
-			}
-			buildReconciler(reservation, pod)
+				}
+				reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resName,
+						Namespace: resNamespace,
+					},
+					Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+						ContainerID: "abc123",
+						PodRef:      "default/evicted-pod",
+						IfName:      "eth0",
+					},
+				}
+				buildReconcilerWithFlags(false, true, reservation, pod)
 
-			result, err := reconciler.Reconcile(ctx, req)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(result.RequeueAfter).To(BeZero())
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(BeZero())
 
-			// Verify reservation was deleted.
-			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
-			err = reconciler.client.Get(ctx, req.NamespacedName, &updated)
-			Expect(err).To(HaveOccurred())
-			Expect(client.IgnoreNotFound(err)).To(Succeed())
+				// Verify reservation was deleted.
+				var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+				err = reconciler.client.Get(ctx, req.NamespacedName, &updated)
+				Expect(err).To(HaveOccurred())
+				Expect(client.IgnoreNotFound(err)).To(Succeed())
+			})
+		})
+
+		Context("with cleanupDisrupted disabled", func() {
+			It("should keep the reservation for a disrupted pod", func() {
+				ctx = context.Background()
+				resName := "ext-or-disrupted-disabled"
+				req = ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: resNamespace, Name: resName,
+					},
+				}
+
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "evicted-pod-2",
+						Namespace: "default",
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+						Conditions: []corev1.PodCondition{
+							{
+								Type:   corev1.DisruptionTarget,
+								Status: corev1.ConditionTrue,
+								Reason: "DeletionByTaintManager",
+							},
+						},
+					},
+				}
+				reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resName,
+						Namespace: resNamespace,
+					},
+					Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+						ContainerID: "abc123",
+						PodRef:      "default/evicted-pod-2",
+						IfName:      "eth0",
+					},
+				}
+				buildReconciler(reservation, pod) // cleanupDisrupted defaults to false
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				// Verify reservation still exists.
+				var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			})
+		})
+	})
+
+	Context("when the pod is terminating (DeletionTimestamp set)", func() {
+		Context("with cleanupTerminating enabled", func() {
+			It("should delete the reservation", func() {
+				ctx = context.Background()
+				resName := "ext-or-terminating"
+				req = ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: resNamespace, Name: resName,
+					},
+				}
+
+				now := metav1.Now()
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "terminating-pod",
+						Namespace:         "default",
+						DeletionTimestamp: &now,
+						Finalizers:        []string{"test.example.com/block-deletion"},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resName,
+						Namespace: resNamespace,
+					},
+					Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+						ContainerID: "abc123",
+						PodRef:      "default/terminating-pod",
+						IfName:      "eth0",
+					},
+				}
+				buildReconcilerWithFlags(true, false, reservation, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(BeZero())
+
+				// Verify reservation was deleted.
+				var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+				err = reconciler.client.Get(ctx, req.NamespacedName, &updated)
+				Expect(err).To(HaveOccurred())
+				Expect(client.IgnoreNotFound(err)).To(Succeed())
+			})
+		})
+
+		Context("with cleanupTerminating disabled (default)", func() {
+			It("should keep the reservation for a terminating pod", func() {
+				ctx = context.Background()
+				resName := "ext-or-terminating-disabled"
+				req = ctrl.Request{
+					NamespacedName: types.NamespacedName{
+						Namespace: resNamespace, Name: resName,
+					},
+				}
+
+				now := metav1.Now()
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:              "terminating-pod-2",
+						Namespace:         "default",
+						DeletionTimestamp: &now,
+						Finalizers:        []string{"test.example.com/block-deletion"},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resName,
+						Namespace: resNamespace,
+					},
+					Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+						ContainerID: "abc123",
+						PodRef:      "default/terminating-pod-2",
+						IfName:      "eth0",
+					},
+				}
+				buildReconciler(reservation, pod) // cleanupTerminating defaults to false
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				// Verify reservation still exists.
+				var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			})
 		})
 	})
 })

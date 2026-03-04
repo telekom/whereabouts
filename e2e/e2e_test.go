@@ -2203,6 +2203,48 @@ var _ = Describe("Whereabouts functionality", func() {
 						"pod should not receive the gateway IP %s", gateway)
 				}
 			})
+
+			It("excludes the gateway IP for IPv6 when exclude_gateway is enabled", func() {
+				const (
+					networkName = "wa-gw-excl-v6"
+					ipRange     = "fd00:75::/124"
+					gateway     = "fd00:75::1"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsGatewayExclusion(
+					networkName, testNamespace, ipRange, gateway)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating multiple IPv6 pods to verify gateway exclusion")
+				var pods []*corev1.Pod
+				defer func() {
+					for _, p := range pods {
+						_ = clientInfo.DeletePod(p)
+					}
+				}()
+
+				// /124 = 16 addresses. Create 5 pods and verify none got the gateway.
+				gatewayIP := net.ParseIP(gateway)
+				for i := range 5 {
+					podName := fmt.Sprintf("wb-gw-excl-v6-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					pods = append(pods, p)
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.IsIPv6(ips[0])).To(BeTrue(), "expected IPv6, got %s", ips[0])
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					Expect(net.ParseIP(ips[0]).Equal(gatewayIP)).To(BeFalse(),
+						"pod should not receive the gateway IP %s, got %s", gateway, ips[0])
+				}
+			})
 		})
 
 		Context("L3/Routed mode", func() {
@@ -2251,6 +2293,54 @@ var _ = Describe("Whereabouts functionality", func() {
 				By("verifying network (.0) and broadcast (.3) addresses were allocated")
 				Expect(ipSet).To(HaveKey("10.76.0.0"))
 				Expect(ipSet).To(HaveKey("10.76.0.3"))
+			})
+
+			It("allocates all addresses in L3 mode for IPv6", func() {
+				const (
+					networkName     = "wa-l3-v6"
+					ipRange         = "fd00:76::/126"
+					serviceName     = "web-l3-v6"
+					statefulSetName = "wb-l3-v6"
+					selector        = "app=" + serviceName
+				)
+
+				// /126 = 4 addresses. Without L3, only 2 are usable (::1, ::2).
+				// With L3: all 4 are usable (::0, ::1, ::2, ::3).
+				nad := util.MacvlanNetworkWithWhereaboutsL3Mode(
+					networkName, testNamespace, ipRange)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating statefulset with 4 replicas (only possible in L3 mode for /126)")
+				_, err = clientInfo.ProvisionStatefulSet(
+					statefulSetName, testNamespace, serviceName, 4, networkName)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+				}()
+
+				By("verifying all 4 pods got unique IPv6 IPs")
+				podList, err := wbtestclient.ListPods(
+					context.Background(), clientInfo.Client, testNamespace, selector)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(podList.Items).To(HaveLen(4))
+
+				ipSet := make(map[string]bool)
+				for _, p := range podList.Items {
+					ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.IsIPv6(ips[0])).To(BeTrue(), "expected IPv6, got %s", ips[0])
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					normalized := net.ParseIP(ips[0]).String()
+					Expect(ipSet).NotTo(HaveKey(normalized), "duplicate IP: %s", ips[0])
+					ipSet[normalized] = true
+				}
+
+				By("verifying network (::0) and last (::3) addresses were allocated")
+				Expect(ipSet).To(HaveKey(net.ParseIP("fd00:76::0").String()))
+				Expect(ipSet).To(HaveKey(net.ParseIP("fd00:76::3").String()))
 			})
 		})
 

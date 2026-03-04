@@ -422,16 +422,74 @@ Both `10.0.0.4` and `10.0.0.5` are allocatable.
 
 When a Kubernetes node undergoes graceful shutdown, the kubelet sets
 `DeletionTimestamp` on all pods before draining them. The Whereabouts IP
-reconciler detects these terminating pods and proactively releases their IP
-allocations, making the addresses available for immediate reuse on other nodes.
+reconciler can optionally detect these terminating pods and proactively release
+their IP allocations, making the addresses available for immediate reuse on
+other nodes.
 
 This prevents IP address leaks during:
 - Graceful node shutdown / reboot events.
 - `kubectl drain` operations.
 - Node scaling events in autoscaled clusters.
 
-No configuration is required — this behavior is always active in the reconciler.
-The reconciler also handles pods evicted by the taint manager (via the
-`DisruptionTarget` condition), covering sudden shutdown scenarios as well.
+**Because the IP may still be in use while the pod is terminating, this
+behavior is disabled by default.** Enable it via the operator flag:
+
+```bash
+whereabouts-operator controller --cleanup-terminating-pods
+```
+
+When disabled (the default), IPs are only released after the pod is fully
+deleted. This flag applies to both the IPPool and OverlappingRangeIPReservation
+reconcilers.
+
+## Disrupted Pod Cleanup
+
+Pods evicted by the taint manager receive a `DisruptionTarget` condition with
+reason `DeletionByTaintManager`. By default, the reconcilers treat these pods
+as orphaned and release their IP allocations immediately, since the taint
+manager has already decided to evict them (e.g. during sudden node failures or
+NoExecute taint application).
+
+If you need to retain IP allocations for disrupted pods (for example, to allow
+disruption budgets or custom eviction controllers to re-schedule the pod before
+the IP is reclaimed), disable this behavior:
+
+```bash
+whereabouts-operator controller --cleanup-disrupted-pods=false
+```
+
+When disabled, pods with the `DisruptionTarget` condition keep their IP
+allocations until they are fully deleted. This flag applies to both the IPPool
+and OverlappingRangeIPReservation reconcilers.
+
+## Network Status Verification
+
+The IPPool reconciler verifies that allocated IPs are actually present in the
+pod's Multus `k8s.v1.cni.cncf.io/network-status` annotation. If an allocated
+IP is not found in any non-default network entry, the allocation is considered
+orphaned and removed.
+
+This check is enabled by default and provides an additional layer of orphan
+detection: even if the pod exists and is running, a missing IP in the
+network-status annotation indicates a stale allocation.
+
+**If your CNI does not populate the `network-status` annotation** (e.g. when
+not using Multus, or using a custom meta-plugin), disable this check:
+
+```bash
+whereabouts-operator controller --verify-network-status=false
+```
+
+When disabled, a running pod's allocations are always considered valid
+regardless of the network-status annotation contents.
+
+## Operator Feature Flag Summary
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cleanup-terminating-pods` | `false` | Release IPs from pods with `DeletionTimestamp` set |
+| `--cleanup-disrupted-pods` | `true` | Release IPs from pods with `DisruptionTarget` condition |
+| `--verify-network-status` | `true` | Check Multus network-status annotation for IP presence |
+| `--reconcile-interval` | `30s` | How often to re-check IP pools for orphaned allocations |
 
 

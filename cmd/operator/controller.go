@@ -31,6 +31,9 @@ func newControllerCommand() *cobra.Command {
 		webhookServiceName   string
 		webhookSecretName    string
 		webhookConfigName    string
+		cleanupTerminating   bool
+		cleanupDisrupted     bool
+		verifyNetworkStatus  bool
 	)
 
 	cmd := &cobra.Command{
@@ -70,7 +73,11 @@ func newControllerCommand() *cobra.Command {
 			}
 
 			// Reconcilers (leader-elected).
-			if err := controller.SetupWithManager(mgr, reconcileInterval); err != nil {
+			if err := controller.SetupWithManager(mgr, reconcileInterval, controller.ReconcilerOptions{
+				CleanupTerminating:  cleanupTerminating,
+				CleanupDisrupted:    cleanupDisrupted,
+				VerifyNetworkStatus: verifyNetworkStatus,
+			}); err != nil {
 				return err
 			}
 
@@ -117,6 +124,9 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().StringVar(&webhookServiceName, "webhook-service-name", "whereabouts-webhook-service", "Name of the webhook Service (used for TLS certificate DNS SAN)")
 	cmd.Flags().StringVar(&webhookSecretName, "webhook-secret-name", "whereabouts-webhook-cert", "Name of the Secret storing webhook TLS certificates")
 	cmd.Flags().StringVar(&webhookConfigName, "webhook-config-name", "whereabouts-validating-webhook-configuration", "Name of the ValidatingWebhookConfiguration to inject CA into")
+	cmd.Flags().BoolVar(&cleanupTerminating, "cleanup-terminating-pods", false, "Treat terminating pods (DeletionTimestamp set) as orphaned and release their IPs immediately")
+	cmd.Flags().BoolVar(&cleanupDisrupted, "cleanup-disrupted-pods", true, "Treat pods with DisruptionTarget condition (taint-manager eviction) as orphaned")
+	cmd.Flags().BoolVar(&verifyNetworkStatus, "verify-network-status", true, "Verify allocated IPs against Multus network-status annotation on pods")
 
 	return cmd
 }

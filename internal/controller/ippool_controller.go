@@ -37,6 +37,25 @@ type IPPoolReconciler struct {
 	client            client.Client
 	recorder          events.EventRecorder
 	reconcileInterval time.Duration
+
+	// cleanupTerminating controls whether pods with a DeletionTimestamp
+	// (i.e. terminating pods) are treated as orphaned. When false (default),
+	// terminating pods keep their IP allocation until fully deleted.
+	// When true, their allocations are released immediately.
+	cleanupTerminating bool
+
+	// cleanupDisrupted controls whether pods with a DisruptionTarget
+	// condition (DeletionByTaintManager) are treated as orphaned. When true
+	// (default), these pods are cleaned up immediately because the taint
+	// manager has already decided to evict them.
+	cleanupDisrupted bool
+
+	// verifyNetworkStatus controls whether the reconciler verifies that an
+	// allocated IP is still present in the pod's Multus network-status
+	// annotation. When true (default), a mismatch marks the allocation as
+	// orphaned. Disable this if your environment uses a CNI that does not
+	// populate the k8s.v1.cni.cncf.io/network-status annotation.
+	verifyNetworkStatus bool
 }
 
 // computePoolStats populates the IPPool's status with total, used, free IPs,
@@ -130,11 +149,14 @@ const (
 
 // SetupIPPoolReconciler creates and registers the IPPoolReconciler with the
 // manager. The reconcileInterval controls the periodic re-queue interval.
-func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration) error {
+func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, opts ReconcilerOptions) error {
 	r := &IPPoolReconciler{
-		client:            mgr.GetClient(),
-		recorder:          mgr.GetEventRecorder("ippool-controller"),
-		reconcileInterval: reconcileInterval,
+		client:              mgr.GetClient(),
+		recorder:            mgr.GetEventRecorder("ippool-controller"),
+		reconcileInterval:   reconcileInterval,
+		cleanupTerminating:  opts.CleanupTerminating,
+		cleanupDisrupted:    opts.CleanupDisrupted,
+		verifyNetworkStatus: opts.VerifyNetworkStatus,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -256,7 +278,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		// Pod marked for deletion by taint manager — treat as orphaned.
-		if isPodMarkedForDeletion(pod.Status.Conditions) {
+		// Gated behind cleanupDisrupted (default true) because the taint
+		// manager has already decided to evict the pod.
+		if r.cleanupDisrupted && isPodMarkedForDeletion(pod.Status.Conditions) {
 			logger.V(1).Info("pod marked for deletion, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
 			orphanedKeys = append(orphanedKeys, key)
@@ -264,10 +288,10 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		// Pod is terminating (DeletionTimestamp set) — this covers graceful
-		// node shutdown and standard pod deletion. The IP should be released
-		// so it can be re-used immediately rather than waiting for the pod to
-		// fully terminate. See upstream #550.
-		if pod.DeletionTimestamp != nil {
+		// node shutdown and standard pod deletion. Gated behind the
+		// cleanupTerminating flag because the IP may still be in use by
+		// the container until it fully terminates. See upstream #550.
+		if r.cleanupTerminating && pod.DeletionTimestamp != nil {
 			logger.V(1).Info("pod is terminating, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
 			orphanedKeys = append(orphanedKeys, key)
@@ -281,12 +305,16 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 
 		// Verify the IP is actually present on the pod (Multus network-status).
-		poolIP := allocationKeyToIP(&pool, key)
-		if poolIP != nil && !isPodUsingIP(&pod, poolIP) {
-			logger.V(1).Info("IP not found on pod, marking allocation orphaned",
-				"key", key, "podRef", alloc.PodRef, "ip", poolIP)
-			orphanedKeys = append(orphanedKeys, key)
-			continue
+		// Gated behind verifyNetworkStatus (default true). Disable this if
+		// your CNI does not populate the network-status annotation.
+		if r.verifyNetworkStatus {
+			poolIP := allocationKeyToIP(&pool, key)
+			if poolIP != nil && !isPodUsingIP(&pod, poolIP) {
+				logger.V(1).Info("IP not found on pod, marking allocation orphaned",
+					"key", key, "podRef", alloc.PodRef, "ip", poolIP)
+				orphanedKeys = append(orphanedKeys, key)
+				continue
+			}
 		}
 	}
 

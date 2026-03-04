@@ -29,14 +29,24 @@ type OverlappingRangeReconciler struct {
 	client            client.Client
 	recorder          events.EventRecorder
 	reconcileInterval time.Duration
+
+	// cleanupTerminating controls whether terminating pods (DeletionTimestamp
+	// set) are treated as orphaned. See IPPoolReconciler for details.
+	cleanupTerminating bool
+
+	// cleanupDisrupted controls whether pods with a DisruptionTarget
+	// condition are treated as orphaned. See IPPoolReconciler for details.
+	cleanupDisrupted bool
 }
 
 // SetupOverlappingRangeReconciler creates and registers the reconciler.
-func SetupOverlappingRangeReconciler(mgr ctrl.Manager, reconcileInterval time.Duration) error {
+func SetupOverlappingRangeReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, opts ReconcilerOptions) error {
 	r := &OverlappingRangeReconciler{
-		client:            mgr.GetClient(),
-		recorder:          mgr.GetEventRecorder("overlappingrange-controller"),
-		reconcileInterval: reconcileInterval,
+		client:             mgr.GetClient(),
+		recorder:           mgr.GetEventRecorder("overlappingrange-controller"),
+		reconcileInterval:  reconcileInterval,
+		cleanupTerminating: opts.CleanupTerminating,
+		cleanupDisrupted:   opts.CleanupDisrupted,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -94,9 +104,18 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, fmt.Errorf("getting pod %s: %w", reservation.Spec.PodRef, err)
 	}
 
-	// Pod marked for deletion.
-	if isPodMarkedForDeletion(pod.Status.Conditions) {
+	// Pod marked for deletion by taint manager. Gated behind
+	// cleanupDisrupted (default true).
+	if r.cleanupDisrupted && isPodMarkedForDeletion(pod.Status.Conditions) {
 		logger.V(1).Info("pod marked for deletion, deleting overlapping reservation",
+			"name", reservation.Name, "podRef", reservation.Spec.PodRef)
+		return r.deleteReservation(ctx, &reservation)
+	}
+
+	// Pod is terminating (DeletionTimestamp set). Gated behind
+	// cleanupTerminating (default false). See upstream #550.
+	if r.cleanupTerminating && pod.DeletionTimestamp != nil {
+		logger.V(1).Info("pod is terminating, deleting overlapping reservation",
 			"name", reservation.Name, "podRef", reservation.Spec.PodRef)
 		return r.deleteReservation(ctx, &reservation)
 	}

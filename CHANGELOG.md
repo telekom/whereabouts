@@ -19,8 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `predicate.GenerationChangedPredicate` on IPPool and OverlappingRange watches
   to skip reconciliation on status-only updates.
 - Path traversal validation on `configuration_path` in IPAM configuration.
+- Operator feature flags for reconciler behavior:
+  - `--cleanup-terminating-pods` (default `false`): Release IPs from pods with
+    `DeletionTimestamp` set (graceful node shutdown / drain scenarios).
+  - `--cleanup-disrupted-pods` (default `true`): Release IPs from pods with
+    `DisruptionTarget` condition (taint-manager eviction).
+  - `--verify-network-status` (default `true`): Verify allocated IPs against
+    Multus `network-status` annotation on pods.
+- Comprehensive e2e test coverage across IPv4, IPv6, and dual-stack for all
+  features: gateway exclusion, L3 mode, optimistic IPAM, named networks,
+  multi-pool, exclude ranges, preferred IP, small subnets, pool exhaustion,
+  reallocation cycles, and allocation verification.
+- Edge case e2e tests for operational scenarios: node cordon + eviction, pod
+  eviction via Policy API, rapid pod churn, multi-interface cleanup, StatefulSet
+  scale down/up, and concurrent burst creation.
 - Comprehensive IPAM configuration reference in `doc/extended-configuration.md`.
 - Architecture documentation in `doc/architecture.md`.
+- Operator metrics documentation in `doc/metrics.md`.
 - `CONTRIBUTING.md` with build, test, and code convention guidelines.
 - `.dockerignore` to reduce Docker build context size.
 

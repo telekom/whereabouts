@@ -48,8 +48,11 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 
 ### Error Handling
 
-- Wrap errors with `fmt.Errorf("context: %s", err)` — use `%s`, **not** `%w` (codebase convention).
+- Wrap errors with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping in new code (operator, webhooks, controllers).
+- Legacy CNI plugin code (`pkg/`, `cmd/whereabouts.go`) still uses `%s` — migrate to `%w` opportunistically.
 - Use `logging.Errorf("msg: %v", err)` to both log AND return an error in one call.
+- When discarding the returned error: `_ = logging.Errorf(...)`.
+- Custom error types use struct + `Error() string` + constructor (e.g. `NewInvalidPluginError()`).
 
 ### Logging
 
@@ -78,6 +81,23 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 ### JSON Tags
 
 All configuration struct JSON tags use **snake_case** (e.g., `range_start`, `enable_overlapping_ranges`).
+
+## Running E2E Tests
+
+End-to-end tests verify the full CNI plugin lifecycle against a real Kubernetes cluster.
+
+1. Install [godotenv](https://github.com/joho/godotenv): `go install github.com/joho/godotenv/cmd/godotenv@latest`
+2. Create a kind cluster: `make kind` (or `make kind COMPUTE_NODES=3` for multi-node tests)
+3. Create `e2e/.env` with: `KUBECONFIG=$HOME/.kube/config`
+4. Run the tests:
+   ```bash
+   cd e2e && godotenv -f .env go test -v . -timeout=1h
+   ```
+
+For Fast IPAM (NodeSlice) e2e tests:
+```bash
+cd e2e/e2e_node_slice && godotenv -f ../e2e/.env go test -v . -timeout=1h
+```
 
 ## Pull Requests
 

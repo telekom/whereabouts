@@ -133,10 +133,10 @@ func FirstUsableIP(ipnet net.IPNet) (net.IP, error) {
 	}
 	ones, totalBits := ipnet.Mask.Size()
 	hostBits := totalBits - ones
-	switch {
-	case hostBits == 0: // /32 or /128 — single address
+	switch hostBits {
+	case 0: // /32 or /128 — single address
 		return ipnet.IP.Mask(ipnet.Mask), nil
-	case hostBits == 1: // /31 or /127 — RFC 3021, both IPs usable
+	case 1: // /31 or /127 — RFC 3021, both IPs usable
 		return NetworkIP(ipnet), nil
 	default:
 		return IncIP(NetworkIP(ipnet)), nil
@@ -153,10 +153,10 @@ func LastUsableIP(ipnet net.IPNet) (net.IP, error) {
 	}
 	ones, totalBits := ipnet.Mask.Size()
 	hostBits := totalBits - ones
-	switch {
-	case hostBits == 0: // /32 or /128 — single address
+	switch hostBits {
+	case 0: // /32 or /128 — single address
 		return ipnet.IP.Mask(ipnet.Mask), nil
-	case hostBits == 1: // /31 or /127 — RFC 3021, both IPs usable
+	case 1: // /31 or /127 — RFC 3021, both IPs usable
 		return SubnetBroadcastIP(ipnet), nil
 	default:
 		return DecIP(SubnetBroadcastIP(ipnet)), nil

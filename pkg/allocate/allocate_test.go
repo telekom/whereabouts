@@ -550,7 +550,7 @@ var _ = Describe("Allocation operations", func() {
 			_, ipnet, err := net.ParseCIDR("192.168.0.0/30")
 			Expect(err).NotTo(HaveOccurred())
 			var ipres []types.IPReservation
-			for i := 0; i < 4; i++ {
+			for i := range 4 {
 				var newip net.IP
 				newip, ipres, err = IterateForAssignment(*ipnet, nil, nil, ipres, nil, "c1", fmt.Sprintf("default/pod%d", i), "eth0", true)
 				Expect(err).NotTo(HaveOccurred())

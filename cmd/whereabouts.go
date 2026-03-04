@@ -23,12 +23,12 @@ import (
 func cmdAddFunc(args *skel.CmdArgs) error {
 	ipamConf, confVersion, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
-		return logging.Errorf("IPAM configuration load failed: %s", err)
+		return logging.Errorf("IPAM configuration load failed: %w", err)
 	}
 	logging.Debugf("ADD - IPAM configuration successfully read: %+v", *ipamConf)
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 	if err != nil {
-		return logging.Errorf("failed to create Kubernetes IPAM manager: %v", err)
+		return logging.Errorf("failed to create Kubernetes IPAM manager: %w", err)
 	}
 	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
 
@@ -48,7 +48,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 	if err != nil {
 		// CNI spec: DEL should be lenient about missing/invalid config.
 		// Log the error but do not return it — the container is already gone.
-		logging.Errorf("IPAM configuration load failed (DEL tolerant): %s", err)
+		logging.Errorf("IPAM configuration load failed (DEL tolerant): %w", err)
 		return nil
 	}
 	logging.Debugf("DEL - IPAM configuration successfully read: %+v", *ipamConf)
@@ -65,7 +65,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 		if err != nil {
 			lastErr = err
-			logging.Errorf("IPAM client initialization error (attempt %d/%d): %v", attempt+1, delMaxRetries, err)
+			logging.Errorf("IPAM client initialization error (attempt %d/%d): %w", attempt+1, delMaxRetries, err)
 			continue
 		}
 
@@ -75,13 +75,13 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		if lastErr == nil {
 			return nil
 		}
-		logging.Errorf("DEL attempt %d/%d failed: %v", attempt+1, delMaxRetries, lastErr)
+		logging.Errorf("DEL attempt %d/%d failed: %w", attempt+1, delMaxRetries, lastErr)
 	}
 
 	// All retries exhausted — return the error so the container runtime
 	// can retry the DEL call. Swallowing the error here would cause
 	// permanent IP leaks that only the reconciler could clean up.
-	return logging.Errorf("DEL failed after %d attempts: %s", delMaxRetries, lastErr)
+	return logging.Errorf("DEL failed after %d attempts: %w", delMaxRetries, lastErr)
 }
 
 func main() {
@@ -96,20 +96,20 @@ func main() {
 
 func safeCloseKubernetesBackendConnection(ipam *kubernetes.KubernetesIPAM) {
 	if err := ipam.Close(); err != nil {
-		_ = logging.Errorf("failed to close the connection to the K8s backend: %v", err)
+		_ = logging.Errorf("failed to close the connection to the K8s backend: %w", err)
 	}
 }
 
 func cmdCheck(args *skel.CmdArgs) error {
 	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
-		return logging.Errorf("IPAM configuration load failed: %s", err)
+		return logging.Errorf("IPAM configuration load failed: %w", err)
 	}
 	logging.Debugf("CHECK - IPAM configuration successfully read: %+v", *ipamConf)
 
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 	if err != nil {
-		return logging.Errorf("failed to create Kubernetes IPAM manager: %v", err)
+		return logging.Errorf("failed to create Kubernetes IPAM manager: %w", err)
 	}
 	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
 
@@ -131,9 +131,9 @@ func cmdCheck(args *skel.CmdArgs) error {
 		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
 		if err != nil {
 			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
-				return logging.Errorf("CHECK: transient error reading pool %s: %s", ipRange.Range, err)
+				return logging.Errorf("CHECK: transient error reading pool %s: %w", ipRange.Range, err)
 			}
-			return logging.Errorf("CHECK: error reading pool %s: %s", ipRange.Range, err)
+			return logging.Errorf("CHECK: error reading pool %s: %w", ipRange.Range, err)
 		}
 
 		found := false
@@ -191,7 +191,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 		newips, err = kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
 	}
 	if err != nil {
-		return logging.Errorf("error at storage engine: %s", err)
+		return logging.Errorf("error at storage engine: %w", err)
 	}
 
 	logging.Verbosef("ADD: allocated %d IP(s) for containerID %q podRef %q", len(newips), client.ContainerID, client.Config.GetPodRef())
@@ -228,7 +228,7 @@ func cmdDel(client *kubernetes.KubernetesIPAM) error {
 		_, err = kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
 	}
 	if err != nil {
-		return logging.Errorf("error deallocating IP: %s", err)
+		return logging.Errorf("error deallocating IP: %w", err)
 	}
 	logging.Verbosef("DEL: released IP(s) for containerID %q podRef %q", client.ContainerID, client.Config.GetPodRef())
 	return nil

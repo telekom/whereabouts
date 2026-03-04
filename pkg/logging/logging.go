@@ -95,8 +95,10 @@ func Verbosef(format string, a ...interface{}) {
 }
 
 // Errorf defines our printf for error level.
+// It supports %w for proper error wrapping in the returned error.
+// The log output substitutes %w with %v so fmt.Sprintf renders the message.
 func Errorf(format string, a ...interface{}) error {
-	Printf(ErrorLevel, format, a...)
+	Printf(ErrorLevel, strings.ReplaceAll(format, "%w", "%v"), a...)
 	return fmt.Errorf(format, a...)
 }
 

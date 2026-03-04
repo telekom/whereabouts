@@ -34,7 +34,7 @@ func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservati
 	// Setup the basics here.
 	_, ipnet, err := net.ParseCIDR(ipamConf.Range)
 	if err != nil {
-		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %s", ipamConf.Range, err)
+		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %w", ipamConf.Range, err)
 	}
 
 	// Verify if podRef and ifName have already an allocation.
@@ -153,7 +153,7 @@ func IterateForAssignment(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, r
 		// L2 mode: exclude network and broadcast addresses.
 		firstIP, lastIP, err = iphelpers.GetIPRange(ipnet, rangeStart, rangeEnd)
 		if err != nil {
-			logging.Errorf("GetIPRange request failed with: %s", err)
+			logging.Errorf("GetIPRange request failed with: %w", err)
 			return net.IP{}, reserveList, err
 		}
 	}

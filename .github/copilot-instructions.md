@@ -27,9 +27,8 @@ make kind COMPUTE_NODES=3             # Custom worker count
 ## Code Conventions
 
 ### Error Handling
-- Wrap with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping in new code (operator, webhooks, controllers)
-- Legacy CNI plugin code (`pkg/`, `cmd/whereabouts.go`) still uses `%s` — migrate to `%w` opportunistically
-- Use `logging.Errorf("msg: %v", err)` to both log AND return an error in one call
+- Wrap with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping everywhere
+- Use `logging.Errorf("msg: %w", err)` to both log AND return a wrapped error in one call
 - When discarding the returned error: `_ = logging.Errorf(...)`
 - Custom error types use struct + `Error() string` + constructor: `NewInvalidPluginError()`
 - Retryable errors implement `Temporary() bool` interface (checked via type assertion in retry loops)
@@ -61,7 +60,7 @@ make kind COMPUTE_NODES=3             # Custom worker count
 2. **Optimistic concurrency**: IPPool updates use K8s resource version checks with retry (100 attempts, exponential backoff)
 3. **Overlapping range protection**: `OverlappingRangeIPReservation` CRDs prevent duplicate IPs across ranges (enabled by default)
 4. **Idempotent ADD**: Re-running CNI ADD for the same pod+interface returns the existing allocation
-5. **Two binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconcilers + webhooks via single `controller` subcommand)
+5. **Three binaries**: `whereabouts` (CNI plugin), `whereabouts-operator` (reconcilers + webhooks via single `controller` subcommand), `install-cni` (DaemonSet entry-point: copies CNI binary, generates kubeconfig/conf, watches token rotation)
 
 ## IPAM Features
 

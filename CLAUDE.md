@@ -179,6 +179,7 @@ make kind COMPUTE_NODES=3
 
 - `whereabouts`: CNI plugin binary (called by container runtime via Multus)
 - `whereabouts-operator`: Operator binary — `controller` subcommand runs reconcilers + webhook server
+- `install-cni`: DaemonSet entry-point — copies CNI binary to host, generates kubeconfig/conf, watches token rotation
 
 ## Testing Strategy
 

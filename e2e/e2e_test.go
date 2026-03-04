@@ -1991,6 +1991,464 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
+		// ────────────────────────────────────────────────────────────────
+		// Upstream feature tests (#573, #601, #510, #621, L3 mode)
+		// ────────────────────────────────────────────────────────────────
+
+		Context("Small subnet support (#573)", func() {
+			Context("/31 point-to-point links (RFC 3021)", func() {
+				const (
+					networkName = "wa-slash31"
+					ipRange     = "10.73.0.0/31"
+				)
+
+				It("allocates both IPs in a /31 subnet", func() {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					By("creating first pod — should get 10.73.0.0")
+					p1, err := clientInfo.ProvisionPod(
+						"wb-s31-1", testNamespace,
+						util.PodTierLabel("wb-s31-1"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p1) }()
+
+					ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips1).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips1[0])).To(Succeed())
+
+					By("creating second pod — should get 10.73.0.1")
+					p2, err := clientInfo.ProvisionPod(
+						"wb-s31-2", testNamespace,
+						util.PodTierLabel("wb-s31-2"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p2) }()
+
+					ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips2).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips2[0])).To(Succeed())
+
+					By("verifying both IPs are different")
+					Expect(ips1[0]).NotTo(Equal(ips2[0]))
+				})
+			})
+
+			Context("/32 single-host routes", func() {
+				const (
+					networkName = "wa-slash32"
+					ipRange     = "10.74.0.5/32"
+				)
+
+				It("allocates the single IP in a /32 subnet", func() {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					p1, err := clientInfo.ProvisionPod(
+						"wb-s32-1", testNamespace,
+						util.PodTierLabel("wb-s32-1"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p1) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(ips[0]).To(Equal("10.74.0.5"))
+				})
+
+				It("exhausts the pool with 1 pod", func() {
+					const (
+						serviceName     = "web-s32-exhaust"
+						statefulSetName = "wb-s32-exhaust"
+						selector        = "app=" + serviceName
+					)
+
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName+"-ex", testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					By("filling the /32 pool with 1 pod")
+					_, err = clientInfo.ProvisionStatefulSet(
+						statefulSetName, testNamespace, serviceName, 1, networkName+"-ex")
+					Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+					}()
+
+					By("scaling up by 1 — should fail")
+					Expect(clientInfo.ScaleStatefulSet(serviceName, testNamespace, 1)).To(Succeed())
+					Expect(
+						wbtestclient.WaitForStatefulSetCondition(
+							context.Background(), clientInfo.Client, testNamespace,
+							serviceName, 2, 20*time.Second,
+							wbtestclient.IsStatefulSetReadyPredicate),
+					).To(HaveOccurred(), "should fail because /32 pool is exhausted")
+				})
+			})
+
+			Context("IPv6 /128 single-host routes", func() {
+				const (
+					networkName = "wa-slash128"
+					ipRange     = "fd00:73::5/128"
+				)
+
+				It("allocates the single IP in a /128 subnet", func() {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					p1, err := clientInfo.ProvisionPod(
+						"wb-s128-1", testNamespace,
+						util.PodTierLabel("wb-s128-1"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p1) }()
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.IsIPv6(ips[0])).To(BeTrue())
+				})
+			})
+
+			Context("IPv6 /127 point-to-point links", func() {
+				const (
+					networkName = "wa-slash127"
+					ipRange     = "fd00:74::/127"
+				)
+
+				It("allocates both IPs in a /127 subnet", func() {
+					nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+						networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+					_, err := clientInfo.AddNetAttachDef(nad)
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+					p1, err := clientInfo.ProvisionPod(
+						"wb-s127-1", testNamespace,
+						util.PodTierLabel("wb-s127-1"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p1) }()
+
+					p2, err := clientInfo.ProvisionPod(
+						"wb-s127-2", testNamespace,
+						util.PodTierLabel("wb-s127-2"),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					defer func() { _ = clientInfo.DeletePod(p2) }()
+
+					ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips1[0]).NotTo(Equal(ips2[0]))
+					Expect(util.IsIPv6(ips1[0])).To(BeTrue())
+					Expect(util.IsIPv6(ips2[0])).To(BeTrue())
+				})
+			})
+		})
+
+		Context("Gateway IP exclusion (#601)", func() {
+			It("excludes the gateway IP when exclude_gateway is enabled", func() {
+				const (
+					networkName = "wa-gw-excl"
+					ipRange     = "10.75.0.0/28"
+					gateway     = "10.75.0.1"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsGatewayExclusion(
+					networkName, testNamespace, ipRange, gateway)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating multiple pods to exhaust lower IPs")
+				var pods []*corev1.Pod
+				defer func() {
+					for _, p := range pods {
+						_ = clientInfo.DeletePod(p)
+					}
+				}()
+
+				// The /28 has ~14 usable IPs. Create 5 pods and verify none got the gateway.
+				for i := range 5 {
+					podName := fmt.Sprintf("wb-gw-excl-%d", i)
+					p, err := clientInfo.ProvisionPod(
+						podName, testNamespace,
+						util.PodTierLabel(podName),
+						entities.PodNetworkSelectionElements(networkName))
+					Expect(err).NotTo(HaveOccurred())
+					pods = append(pods, p)
+
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					Expect(ips[0]).NotTo(Equal(gateway),
+						"pod should not receive the gateway IP %s", gateway)
+				}
+			})
+		})
+
+		Context("L3/Routed mode", func() {
+			It("allocates network and broadcast addresses in L3 mode", func() {
+				const (
+					networkName     = "wa-l3-mode"
+					ipRange         = "10.76.0.0/30"
+					serviceName     = "web-l3"
+					statefulSetName = "wb-l3"
+					selector        = "app=" + serviceName
+				)
+
+				// /30 normally yields 2 usable IPs (.1, .2).
+				// With L3: all 4 are usable (.0, .1, .2, .3).
+				nad := util.MacvlanNetworkWithWhereaboutsL3Mode(
+					networkName, testNamespace, ipRange)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating statefulset with 4 replicas (only possible in L3 mode for /30)")
+				_, err = clientInfo.ProvisionStatefulSet(
+					statefulSetName, testNamespace, serviceName, 4, networkName)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() {
+					Expect(clientInfo.DeleteStatefulSet(testNamespace, serviceName, selector)).To(Succeed())
+				}()
+
+				By("verifying all 4 pods got unique IPs including .0 and .3")
+				podList, err := wbtestclient.ListPods(
+					context.Background(), clientInfo.Client, testNamespace, selector)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(podList.Items).To(HaveLen(4))
+
+				ipSet := make(map[string]struct{})
+				for _, p := range podList.Items {
+					ips, err := retrievers.SecondaryIfaceIPValue(&p, "net1")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ips).NotTo(BeEmpty())
+					Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+					_, dup := ipSet[ips[0]]
+					Expect(dup).To(BeFalse(), "duplicate IP: %s", ips[0])
+					ipSet[ips[0]] = struct{}{}
+				}
+
+				By("verifying network (.0) and broadcast (.3) addresses were allocated")
+				Expect(ipSet).To(HaveKey("10.76.0.0"))
+				Expect(ipSet).To(HaveKey("10.76.0.3"))
+			})
+		})
+
+		Context("Optimistic IPAM (#510)", func() {
+			It("allocates IPs without leader election when optimistic_ipam is enabled", func() {
+				const (
+					networkName = "wa-optimistic"
+					ipRange     = "10.77.0.0/24"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsOptimisticIPAM(
+					networkName, testNamespace, ipRange)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating a pod with optimistic IPAM")
+				p, err := clientInfo.ProvisionPod(
+					"wb-optimistic-1", testNamespace,
+					util.PodTierLabel("wb-optimistic-1"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).NotTo(BeEmpty())
+				Expect(util.InRange(ipRange, ips[0])).To(Succeed())
+
+				By("verifying IPPool allocation exists")
+				verifyAllocations(clientInfo, ipRange, ips[0], testNamespace, "wb-optimistic-1", "net1")
+
+				By("creating a second pod for concurrent test")
+				p2, err := clientInfo.ProvisionPod(
+					"wb-optimistic-2", testNamespace,
+					util.PodTierLabel("wb-optimistic-2"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2).NotTo(BeEmpty())
+				Expect(util.InRange(ipRange, ips2[0])).To(Succeed())
+				Expect(ips[0]).NotTo(Equal(ips2[0]),
+					"two pods should have different IPs")
+			})
+
+			It("correctly deallocates with optimistic IPAM", func() {
+				const (
+					networkName = "wa-optimistic-dealloc"
+					ipRange     = "10.78.0.0/28"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsOptimisticIPAM(
+					networkName, testNamespace, ipRange)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-opt-dealloc", testNamespace,
+					util.PodTierLabel("wb-opt-dealloc"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				firstIP := ips[0]
+
+				By("deleting the pod")
+				Expect(clientInfo.DeletePod(p)).To(Succeed())
+
+				By("waiting for deallocation and verifying IP is freed")
+				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, "wb-opt-dealloc", ips)
+
+				By("creating a new pod — should get the same IP (lowest available)")
+				p2, err := clientInfo.ProvisionPod(
+					"wb-opt-dealloc-2", testNamespace,
+					util.PodTierLabel("wb-opt-dealloc-2"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2[0]).To(Equal(firstIP),
+					"after deallocation, lowest-available reassignment should work with optimistic IPAM")
+			})
+		})
+
+		Context("Preferred/sticky IP assignment (#621)", func() {
+			It("assigns the requested preferred IP when available", func() {
+				const (
+					networkName = "wa-preferred"
+					ipRange     = "10.79.0.0/24"
+					preferredIP = "10.79.0.42"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating a pod with preferred-ip annotation")
+				p, err := clientInfo.ProvisionPod(
+					"wb-preferred-1", testNamespace,
+					util.PodTierLabel("wb-preferred-1"),
+					entities.PodNetworkSelectionWithAnnotations(
+						map[string]string{"whereabouts.cni.cncf.io/preferred-ip": preferredIP},
+						networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).NotTo(BeEmpty())
+				Expect(ips[0]).To(Equal(preferredIP),
+					"pod should receive the preferred IP %s", preferredIP)
+			})
+
+			It("falls back to lowest available when preferred IP is taken", func() {
+				const (
+					networkName = "wa-preferred-taken"
+					ipRange     = "10.80.0.0/28"
+					preferredIP = "10.80.0.1"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				By("creating first pod — should get the lowest IP (10.80.0.1)")
+				p1, err := clientInfo.ProvisionPod(
+					"wb-pref-taken-1", testNamespace,
+					util.PodTierLabel("wb-pref-taken-1"),
+					entities.PodNetworkSelectionElements(networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p1) }()
+
+				ips1, err := retrievers.SecondaryIfaceIPValue(p1, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips1[0]).To(Equal(preferredIP),
+					"first pod should get lowest available which is %s", preferredIP)
+
+				By("creating second pod requesting the same preferred IP — should fall back")
+				p2, err := clientInfo.ProvisionPod(
+					"wb-pref-taken-2", testNamespace,
+					util.PodTierLabel("wb-pref-taken-2"),
+					entities.PodNetworkSelectionWithAnnotations(
+						map[string]string{"whereabouts.cni.cncf.io/preferred-ip": preferredIP},
+						networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p2) }()
+
+				ips2, err := retrievers.SecondaryIfaceIPValue(p2, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips2).NotTo(BeEmpty())
+				Expect(ips2[0]).NotTo(Equal(preferredIP),
+					"preferred IP %s is taken, pod should fall back to another IP", preferredIP)
+				Expect(util.InRange(ipRange, ips2[0])).To(Succeed())
+			})
+
+			It("preferred IP works for IPv6", func() {
+				const (
+					networkName = "wa-preferred-v6"
+					ipRange     = "fd00:75::/112"
+					preferredIP = "fd00:75::2a"
+				)
+
+				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
+					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				_, err := clientInfo.AddNetAttachDef(nad)
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
+
+				p, err := clientInfo.ProvisionPod(
+					"wb-pref-v6-1", testNamespace,
+					util.PodTierLabel("wb-pref-v6-1"),
+					entities.PodNetworkSelectionWithAnnotations(
+						map[string]string{"whereabouts.cni.cncf.io/preferred-ip": preferredIP},
+						networkName))
+				Expect(err).NotTo(HaveOccurred())
+				defer func() { _ = clientInfo.DeletePod(p) }()
+
+				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ips).NotTo(BeEmpty())
+				Expect(util.IsIPv6(ips[0])).To(BeTrue())
+				// Compare as net.IP to handle normalization (fd00:75::2a vs fd00:75::002a)
+				Expect(net.ParseIP(ips[0]).Equal(net.ParseIP(preferredIP))).To(BeTrue(),
+					"pod should receive the preferred IPv6 %s, got %s", preferredIP, ips[0])
+			})
+		})
+
 	})
 })
 

@@ -324,6 +324,88 @@ func MacvlanNetworkWithWhereaboutsRangeStartEnd(networkName, namespaceName, ipRa
 	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
 }
 
+// MacvlanNetworkWithWhereaboutsL3Mode returns a NAD with enable_l3 mode enabled.
+func MacvlanNetworkWithWhereaboutsL3Mode(networkName, namespaceName, ipRange string) *nettypes.NetworkAttachmentDefinition {
+	macvlanConfig := fmt.Sprintf(`{
+        "cniVersion": "0.3.0",
+        "disableCheck": true,
+        "plugins": [
+            {
+                "type": "macvlan",
+                "master": "eth0",
+                "mode": "bridge",
+                "ipam": {
+                    "type": "whereabouts",
+                    "leader_lease_duration": 1500,
+                    "leader_renew_deadline": 1000,
+                    "leader_retry_period": 500,
+                    "range": "%s",
+                    "enable_l3": true,
+                    "log_level": "debug",
+                    "log_file": "/tmp/wb",
+                    "enable_overlapping_ranges": true
+                }
+            }
+        ]
+    }`, ipRange)
+	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
+}
+
+// MacvlanNetworkWithWhereaboutsGatewayExclusion returns a NAD with exclude_gateway and a gateway.
+func MacvlanNetworkWithWhereaboutsGatewayExclusion(networkName, namespaceName, ipRange, gateway string) *nettypes.NetworkAttachmentDefinition {
+	macvlanConfig := fmt.Sprintf(`{
+        "cniVersion": "0.3.0",
+        "disableCheck": true,
+        "plugins": [
+            {
+                "type": "macvlan",
+                "master": "eth0",
+                "mode": "bridge",
+                "ipam": {
+                    "type": "whereabouts",
+                    "leader_lease_duration": 1500,
+                    "leader_renew_deadline": 1000,
+                    "leader_retry_period": 500,
+                    "range": "%s",
+                    "gateway": "%s",
+                    "exclude_gateway": true,
+                    "log_level": "debug",
+                    "log_file": "/tmp/wb",
+                    "enable_overlapping_ranges": true
+                }
+            }
+        ]
+    }`, ipRange, gateway)
+	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
+}
+
+// MacvlanNetworkWithWhereaboutsOptimisticIPAM returns a NAD with optimistic_ipam enabled.
+func MacvlanNetworkWithWhereaboutsOptimisticIPAM(networkName, namespaceName, ipRange string) *nettypes.NetworkAttachmentDefinition {
+	macvlanConfig := fmt.Sprintf(`{
+        "cniVersion": "0.3.0",
+        "disableCheck": true,
+        "plugins": [
+            {
+                "type": "macvlan",
+                "master": "eth0",
+                "mode": "bridge",
+                "ipam": {
+                    "type": "whereabouts",
+                    "leader_lease_duration": 1500,
+                    "leader_renew_deadline": 1000,
+                    "leader_retry_period": 500,
+                    "range": "%s",
+                    "optimistic_ipam": true,
+                    "log_level": "debug",
+                    "log_file": "/tmp/wb",
+                    "enable_overlapping_ranges": true
+                }
+            }
+        ]
+    }`, ipRange)
+	return GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
+}
+
 // IsIPv6 returns true if the given IP string is an IPv6 address.
 func IsIPv6(ip string) bool {
 	parsed := net.ParseIP(ip)

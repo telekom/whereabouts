@@ -377,6 +377,79 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(updated.Spec.Allocations).To(BeEmpty())
 		})
 	})
+
+	// ── Graceful node shutdown / pod termination tests (#550) ────────────────
+	Context("when the pool has an allocation for a terminating pod (DeletionTimestamp set)", func() {
+		It("should remove the allocation for a pod being gracefully terminated (#550)", func() {
+			now := metav1.Now()
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "terminating-pod",
+					Namespace:         "default",
+					DeletionTimestamp: &now,
+					// DeletionTimestamp requires at least one finalizer on the object
+					// in the fake client, otherwise the object would already be gone.
+					Finalizers: []string{"test.example.com/block-deletion"},
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {
+					ContainerID: "abc123",
+					PodRef:      "default/terminating-pod",
+					IfName:      "eth0",
+				},
+			})
+			buildReconciler(pool, pod)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(interval))
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Spec.Allocations).To(BeEmpty())
+			Expect(updated.Status.OrphanedIPs).To(Equal(int32(1)))
+		})
+
+		It("should release IPs from multiple terminating pods during graceful node shutdown", func() {
+			now := metav1.Now()
+			pod1 := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "node-shutdown-pod-1",
+					Namespace:         "default",
+					DeletionTimestamp: &now,
+					Finalizers:        []string{"test.example.com/block-deletion"},
+				},
+				Status: corev1.PodStatus{Phase: corev1.PodRunning},
+			}
+			pod2 := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "node-shutdown-pod-2",
+					Namespace:         "default",
+					DeletionTimestamp: &now,
+					Finalizers:        []string{"test.example.com/block-deletion"},
+				},
+				Status: corev1.PodStatus{Phase: corev1.PodRunning},
+			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"3": {ContainerID: "c1", PodRef: "default/node-shutdown-pod-1", IfName: "eth0"},
+				"7": {ContainerID: "c2", PodRef: "default/node-shutdown-pod-2", IfName: "eth0"},
+			})
+			buildReconciler(pool, pod1, pod2)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Spec.Allocations).To(BeEmpty())
+			Expect(updated.Status.OrphanedIPs).To(Equal(int32(2)))
+			Expect(updated.Status.UsedIPs).To(Equal(int32(0)))
+		})
+	})
 })
 
 var _ = Describe("allocationKeyToIP", func() {

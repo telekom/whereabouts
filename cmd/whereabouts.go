@@ -180,7 +180,16 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
 	defer cancel()
 
-	newips, err := kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
+	var err error
+	if client.Config.OptimisticIPAM {
+		// Optimistic mode: bypass leader election and rely on Kubernetes
+		// resourceVersion-based optimistic concurrency control. This reduces
+		// latency significantly in large clusters (600+ pods). See #510.
+		logging.Debugf("Using optimistic IPAM (no leader election)")
+		newips, err = kubernetes.IPManagementKubernetesUpdate(ctx, types.Allocate, client, client.Config)
+	} else {
+		newips, err = kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
+	}
 	if err != nil {
 		return logging.Errorf("error at storage engine: %s", err)
 	}
@@ -211,7 +220,13 @@ func cmdDel(client *kubernetes.KubernetesIPAM) error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.DelTimeLimit)
 	defer cancel()
 
-	_, err := kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
+	var err error
+	if client.Config.OptimisticIPAM {
+		logging.Debugf("Using optimistic IPAM for deallocation (no leader election)")
+		_, err = kubernetes.IPManagementKubernetesUpdate(ctx, types.Deallocate, client, client.Config)
+	} else {
+		_, err = kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
+	}
 	if err != nil {
 		return logging.Errorf("error deallocating IP: %s", err)
 	}

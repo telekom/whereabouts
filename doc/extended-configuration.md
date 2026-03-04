@@ -123,6 +123,9 @@ are specified inside the `"ipam"` object in CNI configuration JSON.
 | `range_end` | string | no | Last IP to allocate within the range |
 | `exclude` | string[] | no | CIDRs to exclude from allocation |
 | `gateway` | string | no | Gateway IP address for the interface |
+| `exclude_gateway` | bool | no | When `true`, automatically excludes the gateway IP from allocation. Useful for L2 networks. See [Gateway IP Exclusion](#gateway-ip-exclusion-exclude_gateway). |
+| `optimistic_ipam` | bool | no | Bypass leader election and rely on Kubernetes optimistic concurrency. See [Optimistic IPAM](#optimistic-ipam-optimistic_ipam). |
+| `enable_l3` | bool | no | Enable L3/routed mode where all IPs in the subnet are allocatable (no network/broadcast exclusion). See [L3/Routed Mode](#l3routed-mode-enable_l3). |
 
 *\*Required unless using `ipRanges`.*
 
@@ -221,5 +224,214 @@ spec:
 
 For the complete kustomize-based installation, run `make deploy`.
 See `config/manager/manager.yaml` for the full Deployment manifest.
+
+## L3/Routed Mode (`enable_l3`)
+
+In pure L3/routed environments (BGP, ECMP, etc.), there is no broadcast domain.
+Every IP address in the subnet is individually routable — there are no special
+"network address" or "broadcast address" IPs that need to be reserved.
+
+By default, Whereabouts reserves the first and last IP in each subnet (network
+and broadcast addresses) for L2 compatibility. When `enable_l3` is set to `true`,
+all IPs in the subnet become allocatable, including `.0` and `.255` addresses
+(or their IPv6 equivalents).
+
+### When to use L3 mode
+
+- **BGP-routed pod networks**: Each pod IP is announced via BGP; no gateway needed.
+- **/31 point-to-point links**: RFC 3021 subnets work out of the box.
+- **/32 loopback IPs**: Single-host allocations for BGP peering or VIPs.
+- **No gateway required**: L3 pools do not require a `gateway` parameter.
+
+### Configuration
+
+Set `enable_l3` at the top level to apply to all ranges:
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "enable_l3": true,
+    "range": "10.0.0.0/24"
+  }
+}
+```
+
+Or set it per range in `ipRanges` for mixed L2/L3 setups:
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "ipRanges": [
+      {"range": "10.0.0.0/24", "enable_l3": true},
+      {"range": "192.168.1.0/24"}
+    ]
+  }
+}
+```
+
+In the example above, `10.0.0.0/24` allocates all 256 IPs (`.0` through `.255`),
+while `192.168.1.0/24` uses the standard L2 range (`.1` through `.254`).
+
+## Gateway IP Exclusion (`exclude_gateway`)
+
+When a gateway IP is configured on an L2 network, it should never be allocated
+to a pod. By setting `exclude_gateway` to `true`, Whereabouts automatically adds
+the gateway IP as a `/32` (or `/128` for IPv6) exclusion to every IP range.
+
+This is **opt-in** (default: `false`) because:
+- L3/routed pools typically have no gateway.
+- Some deployments manage gateway exclusion via explicit `exclude` ranges.
+
+### Configuration
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "192.168.1.0/24",
+    "gateway": "192.168.1.1",
+    "exclude_gateway": true
+  }
+}
+```
+
+This is equivalent to manually specifying:
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "192.168.1.0/24",
+    "gateway": "192.168.1.1",
+    "exclude": ["192.168.1.1/32"]
+  }
+}
+```
+
+When `exclude_gateway` is `true` but no gateway is configured, the option has
+no effect.
+
+## Optimistic IPAM (`optimistic_ipam`)
+
+By default, Whereabouts uses leader election to serialize IP allocation across
+the cluster. While this minimizes contention, it introduces latency because only
+one node can allocate at a time.
+
+Setting `optimistic_ipam` to `true` bypasses leader election entirely. Instead,
+IP allocation relies solely on Kubernetes' built-in optimistic concurrency
+control (resource version checks with automatic retries). This provides:
+
+- **Lower average allocation latency** — especially in large clusters (600+ pods).
+- **Higher parallelism** — multiple nodes can attempt allocation simultaneously.
+- **Trade-off**: Slightly higher retry rates under heavy concurrent allocation,
+  but the exponential backoff strategy handles this gracefully.
+
+### Configuration
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "10.0.0.0/16",
+    "optimistic_ipam": true
+  }
+}
+```
+
+> **Note**: In benchmarks this mode significantly reduces pod attach time at
+> scale. If you are experiencing slow attaches at 600+ pods, try enabling this.
+
+## Preferred/Sticky IP Assignment
+
+Whereabouts supports assigning a preferred IP address to a pod. When the
+preferred IP is available (not already allocated and not excluded), it will be
+assigned directly instead of the lowest-available IP. If the preferred IP is
+unavailable, allocation falls back to the standard lowest-available behavior.
+
+This is useful for:
+- **StatefulSets** that should retain the same IP across restarts.
+- **Migration scenarios** where pods need specific IPs.
+- **DNS/service discovery** setups that rely on stable IPs.
+
+### Configuration
+
+Add a pod annotation with the desired IP:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+  annotations:
+    whereabouts.cni.cncf.io/preferred-ip: "192.168.1.100"
+spec:
+  containers:
+  - name: app
+    image: my-app:latest
+```
+
+The annotation value must be a valid IP address within one of the configured
+ranges. If the IP is outside all configured ranges, or is already allocated to
+another pod, or falls in an exclude range, the annotation is silently ignored
+and the standard lowest-available allocation is used.
+
+> **Note**: This is a *preference*, not a guarantee. The idempotent allocation
+> check takes precedence — if the pod already has an allocation (e.g., from a
+> previous CNI ADD), that existing allocation is returned regardless of the
+> annotation.
+
+## Small Subnet Support (/32, /31, /127, /128)
+
+Whereabouts supports allocation from very small subnets:
+
+| Prefix | IPs | Use Case |
+|--------|-----|----------|
+| `/32` (`/128`) | 1 | Single-host allocation, BGP loopback, VIPs |
+| `/31` (`/127`) | 2 | RFC 3021 point-to-point links |
+
+### /32 Example
+
+Allocate exactly one IP address:
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "10.0.0.5/32"
+  }
+}
+```
+
+### /31 Example (RFC 3021 point-to-point)
+
+Allocate from a two-address point-to-point subnet:
+
+```json
+{
+  "ipam": {
+    "type": "whereabouts",
+    "range": "10.0.0.4/31"
+  }
+}
+```
+
+Both `10.0.0.4` and `10.0.0.5` are allocatable.
+
+## Graceful Node Shutdown
+
+When a Kubernetes node undergoes graceful shutdown, the kubelet sets
+`DeletionTimestamp` on all pods before draining them. The Whereabouts IP
+reconciler detects these terminating pods and proactively releases their IP
+allocations, making the addresses available for immediate reuse on other nodes.
+
+This prevents IP address leaks during:
+- Graceful node shutdown / reboot events.
+- `kubectl drain` operations.
+- Node scaling events in autoscaled clusters.
+
+No configuration is required — this behavior is always active in the reconciler.
+The reconciler also handles pods evicted by the taint manager (via the
+`DisruptionTarget` condition), covering sudden shutdown scenarios as well.
 
 

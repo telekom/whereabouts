@@ -123,33 +123,60 @@ func SubnetBroadcastIP(ipnet net.IPNet) net.IP {
 	return addrToNetIP(last, ipnet.IP)
 }
 
-// FirstUsableIP returns the first usable IP (not the network IP) in a given net.IPNet.
-// This does not work for IPv4 /31 to /32 or IPv6 /127 to /128 netmasks.
+// FirstUsableIP returns the first usable IP in a given net.IPNet.
+// For /32 (/128 IPv6): returns the single IP in the subnet.
+// For /31 (/127 IPv6): returns the first IP (RFC 3021 point-to-point, both usable).
+// For /30 and wider: returns the first IP after the network address.
 func FirstUsableIP(ipnet net.IPNet) (net.IP, error) {
 	if !HasUsableIPs(ipnet) {
 		return nil, fmt.Errorf("net mask is too short, subnet %s has no usable IP addresses, it is too small", ipnet)
 	}
-	return IncIP(NetworkIP(ipnet)), nil
+	ones, totalBits := ipnet.Mask.Size()
+	hostBits := totalBits - ones
+	switch {
+	case hostBits == 0: // /32 or /128 — single address
+		return ipnet.IP.Mask(ipnet.Mask), nil
+	case hostBits == 1: // /31 or /127 — RFC 3021, both IPs usable
+		return NetworkIP(ipnet), nil
+	default:
+		return IncIP(NetworkIP(ipnet)), nil
+	}
 }
 
-// LastUsableIP returns the last usable IP (not the broadcast IP in a given net.IPNet).
-// This does not work for IPv4 /31 to /32 or IPv6 /127 to /128 netmasks.
+// LastUsableIP returns the last usable IP in a given net.IPNet.
+// For /32 (/128 IPv6): returns the single IP in the subnet.
+// For /31 (/127 IPv6): returns the second IP (RFC 3021, both usable).
+// For /30 and wider: returns the last IP before the broadcast address.
 func LastUsableIP(ipnet net.IPNet) (net.IP, error) {
 	if !HasUsableIPs(ipnet) {
 		return nil, fmt.Errorf("net mask is too short, subnet %s has no usable IP addresses, it is too small", ipnet)
 	}
-	return DecIP(SubnetBroadcastIP(ipnet)), nil
-}
-
-// HasUsableIPs returns true if this subnet has usable IPs (i.e. not the network nor the broadcast IP).
-func HasUsableIPs(ipnet net.IPNet) bool {
 	ones, totalBits := ipnet.Mask.Size()
-	return totalBits-ones > 1
+	hostBits := totalBits - ones
+	switch {
+	case hostBits == 0: // /32 or /128 — single address
+		return ipnet.IP.Mask(ipnet.Mask), nil
+	case hostBits == 1: // /31 or /127 — RFC 3021, both IPs usable
+		return SubnetBroadcastIP(ipnet), nil
+	default:
+		return DecIP(SubnetBroadcastIP(ipnet)), nil
+	}
 }
 
-// CountUsableIPs returns the number of usable IPs in a CIDR range (excluding
-// the network address and broadcast address). The result is clamped to
-// math.MaxInt32 for safe conversion to int32 status fields.
+// HasUsableIPs returns true if this subnet contains at least one usable IP.
+// For /32 (/128): 1 usable IP (the address itself).
+// For /31 (/127): 2 usable IPs (RFC 3021 point-to-point link).
+// For all other valid subnets: usable IPs exist between network and broadcast.
+func HasUsableIPs(ipnet net.IPNet) bool {
+	_, totalBits := ipnet.Mask.Size()
+	return totalBits > 0
+}
+
+// CountUsableIPs returns the number of usable IPs in a CIDR range.
+// For /32 (/128): returns 1 (the single address).
+// For /31 (/127): returns 2 (RFC 3021 point-to-point, both usable).
+// For wider subnets: excludes the network and broadcast addresses.
+// The result is clamped to math.MaxInt32 for safe conversion to int32.
 func CountUsableIPs(cidr string) (int32, error) {
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -158,6 +185,17 @@ func CountUsableIPs(cidr string) (int32, error) {
 	if !HasUsableIPs(*ipNet) {
 		return 0, nil
 	}
+
+	// Handle /32 (/128) and /31 (/127) specially.
+	ones, totalBits := ipNet.Mask.Size()
+	hostBits := totalBits - ones
+	if hostBits == 0 {
+		return 1, nil // /32 or /128
+	}
+	if hostBits == 1 {
+		return 2, nil // /31 or /127
+	}
+
 	first, err := FirstUsableIP(*ipNet)
 	if err != nil {
 		return 0, err

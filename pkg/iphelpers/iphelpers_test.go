@@ -281,16 +281,18 @@ var _ = Describe("SubnetBroadcastIP operations", func() {
 
 var _ = Describe("FirstUsableIP operations", func() {
 	Context("IPv4", func() {
-		It("throws an error when running FirstUsableIP for a /32", func() {
+		It("correctly gets the FirstUsableIP for a /32 (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/32")
-			_, err := FirstUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := FirstUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("192.168.0.0").To16()))
 		})
 
-		It("throws an error when running FirstUsableIP for a /31", func() {
+		It("correctly gets the FirstUsableIP for a /31 (RFC 3021)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/31")
-			_, err := FirstUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := FirstUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("192.168.0.0").To16()))
 		})
 
 		It("correctly gets the FirstUsableIP for a /30", func() {
@@ -309,16 +311,18 @@ var _ = Describe("FirstUsableIP operations", func() {
 	})
 
 	Context("IPv6", func() {
-		It("throws an error when running FirstUsableIP for a /128", func() {
+		It("correctly gets the FirstUsableIP for a /128 (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/128")
-			_, err := FirstUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := FirstUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("2000::").To16()))
 		})
 
-		It("throws an error when running FirstUsableIP for a /127", func() {
+		It("correctly gets the FirstUsableIP for a /127 (RFC 3021)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/127")
-			_, err := FirstUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := FirstUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("2000::").To16()))
 		})
 
 		It("correctly gets the FirstUsableIP for a /126", func() {
@@ -339,16 +343,18 @@ var _ = Describe("FirstUsableIP operations", func() {
 
 var _ = Describe("LastUsableIP operations", func() {
 	Context("IPv4", func() {
-		It("throws an error when running LastUsableIP for a /32", func() {
+		It("correctly gets the LastUsableIP for a /32 (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/32")
-			_, err := LastUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := LastUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("192.168.0.0").To16()))
 		})
 
-		It("throws an error when running LastUsableIP for a /31", func() {
+		It("correctly gets the LastUsableIP for a /31 (RFC 3021)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/31")
-			_, err := LastUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := LastUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("192.168.0.1").To16()))
 		})
 
 		It("correctly gets the LastUsableIP for a /30", func() {
@@ -367,16 +373,18 @@ var _ = Describe("LastUsableIP operations", func() {
 	})
 
 	Context("IPv6", func() {
-		It("throws an error when running LastUsableIP for a /128", func() {
+		It("correctly gets the LastUsableIP for a /128 (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/128")
-			_, err := LastUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := LastUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("2000::").To16()))
 		})
 
-		It("throws an error when running LastUsableIP for a /127", func() {
+		It("correctly gets the LastUsableIP for a /127 (RFC 3021)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/127")
-			_, err := LastUsableIP(*ipnet)
-			Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+			ip, err := LastUsableIP(*ipnet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ip.To16()).To(Equal(net.ParseIP("2000::1").To16()))
 		})
 
 		It("correctly gets the LastUsableIP for a /126", func() {
@@ -397,24 +405,24 @@ var _ = Describe("LastUsableIP operations", func() {
 
 var _ = Describe("HasUsableIPs operations", func() {
 	Context("small subnets", func() {
-		It("IPv4 /32 has no usable IPs", func() {
+		It("IPv4 /32 has usable IPs (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/32")
-			Expect(HasUsableIPs(*ipnet)).To(BeFalse())
+			Expect(HasUsableIPs(*ipnet)).To(BeTrue())
 		})
 
-		It("IPv4 /31 has no usable IPs", func() {
+		It("IPv4 /31 has usable IPs (RFC 3021 point-to-point)", func() {
 			_, ipnet, _ := net.ParseCIDR("192.168.0.0/31")
-			Expect(HasUsableIPs(*ipnet)).To(BeFalse())
+			Expect(HasUsableIPs(*ipnet)).To(BeTrue())
 		})
 
-		It("IPv6 /128 has no usable IPs", func() {
+		It("IPv6 /128 has usable IPs (single address)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/128")
-			Expect(HasUsableIPs(*ipnet)).To(BeFalse())
+			Expect(HasUsableIPs(*ipnet)).To(BeTrue())
 		})
 
-		It("IPv6 /127 has no usable IPs", func() {
+		It("IPv6 /127 has usable IPs (RFC 3021 point-to-point)", func() {
 			_, ipnet, _ := net.ParseCIDR("2000::/127")
-			Expect(HasUsableIPs(*ipnet)).To(BeFalse())
+			Expect(HasUsableIPs(*ipnet)).To(BeTrue())
 		})
 	})
 
@@ -751,11 +759,13 @@ var _ = Describe("GetIPRange operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("fails when the mask is too short", func() {
+	It("succeeds for /31 (RFC 3021 has 2 usable IPs)", func() {
 		_, badIPNet, err := net.ParseCIDR("192.168.21.100/31")
 		Expect(err).NotTo(HaveOccurred())
-		_, _, err = GetIPRange(*badIPNet, nil, nil)
-		Expect(err).To(MatchError(HavePrefix("net mask is too short")))
+		first, last, err := GetIPRange(*badIPNet, nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(first.Equal(net.ParseIP("192.168.21.100"))).To(BeTrue())
+		Expect(last.Equal(net.ParseIP("192.168.21.101"))).To(BeTrue())
 	})
 })
 
@@ -1005,16 +1015,16 @@ var _ = Describe("CountUsableIPs", func() {
 		Expect(count).To(Equal(int32(2)))
 	})
 
-	It("returns 0 for a /31 (no usable IPs)", func() {
+	It("returns 2 for a /31 (RFC 3021 point-to-point)", func() {
 		count, err := CountUsableIPs("10.0.0.0/31")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(int32(0)))
+		Expect(count).To(Equal(int32(2)))
 	})
 
-	It("returns 0 for a /32 (single host)", func() {
+	It("returns 1 for a /32 (single host)", func() {
 		count, err := CountUsableIPs("10.0.0.1/32")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(count).To(Equal(int32(0)))
+		Expect(count).To(Equal(int32(1)))
 	})
 
 	It("counts usable IPs in a /16 IPv4 range", func() {

@@ -31,7 +31,7 @@ Issues and PRs are welcome! Some of the known limitations are found at the botto
 
 ## Prerequisites
 
-* Kubernetes 1.16+
+* Kubernetes 1.28+
 * [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed on the cluster (Whereabouts is used as a secondary IPAM plugin via Multus `NetworkAttachmentDefinition`s)
 * A secondary CNI plugin (e.g., macvlan, ipvlan, bridge) configured through Multus
 * `kubectl` configured with cluster-admin access

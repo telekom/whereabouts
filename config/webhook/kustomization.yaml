@@ -19,7 +19,7 @@ patches:
     metadata:
       name: validating-webhook-configuration
       annotations:
-        cert-controller.io/inject-ca-from: kube-system/whereabouts-webhook-cert
+        cert-controller.cert-rotation/inject-ca-from: kube-system/whereabouts-webhook-cert
     webhooks:
     - name: vippool.whereabouts.cni.cncf.io
       matchConditions:

@@ -47,10 +47,16 @@ func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereab
 func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
 	var warnings admission.Warnings
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
-		warnings = append(warnings, fmt.Sprintf("spec.range changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.Range, pool.Spec.Range))
+		err := fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range)
+		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("nodeslicepool", "update", err)
+		return warnings, err
 	}
 	if oldPool != nil && oldPool.Spec.SliceSize != pool.Spec.SliceSize {
-		warnings = append(warnings, fmt.Sprintf("spec.sliceSize changed from %q to %q — existing node slice assignments may become invalid", oldPool.Spec.SliceSize, pool.Spec.SliceSize))
+		err := fmt.Errorf("spec.sliceSize is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.SliceSize, pool.Spec.SliceSize)
+		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("nodeslicepool", "update", err)
+		return warnings, err
 	}
 	err := validateNodeSlicePool(pool)
 	if err != nil {

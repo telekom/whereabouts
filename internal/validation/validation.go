@@ -48,6 +48,10 @@ func ValidateSliceSize(s string) (int, error) {
 		return 0, fmt.Errorf("sliceSize is required")
 	}
 	trimmed := strings.TrimPrefix(s, "/")
+	if strings.Contains(trimmed, "/") {
+		// Only a single optional leading slash is allowed; any additional slash is invalid.
+		return 0, fmt.Errorf("invalid sliceSize %q: must be a CIDR prefix length", s)
+	}
 	size, err := strconv.Atoi(trimmed)
 	if err != nil {
 		return 0, fmt.Errorf("invalid sliceSize %q: must be a CIDR prefix length", s)

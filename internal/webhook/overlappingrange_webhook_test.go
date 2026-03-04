@@ -112,7 +112,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			newRes.Spec.PodRef = "default/other-pod"
 			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.podref is immutable"))
+			Expect(err.Error()).To(ContainSubstring("spec.podRef is immutable"))
 		})
 
 		It("should reject an IfName change", func() {
@@ -131,7 +131,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			newRes.Spec.IfName = "net1"
 			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.ifname is immutable"))
+			Expect(err.Error()).To(ContainSubstring("spec.ifName is immutable"))
 		})
 
 		It("should reject a ContainerID change", func() {
@@ -150,7 +150,7 @@ var _ = Describe("OverlappingRangeValidator", func() {
 			newRes.Spec.ContainerID = "def456"
 			_, err := validator.ValidateUpdate(ctx, oldRes, newRes)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("spec.containerid is immutable"))
+			Expect(err.Error()).To(ContainSubstring("spec.containerID is immutable"))
 		})
 	})
 

@@ -18,6 +18,12 @@ import (
 	"github.com/telekom/whereabouts/internal/webhook/certrotator"
 )
 
+// leaderElectionID is the identity used for the controller-manager leader
+// election lease. Extracted as a constant so it is easy to locate and update,
+// e.g. to avoid conflicts during migration from the old ip-control-loop leader
+// lock.
+const leaderElectionID = "whereabouts-controller.whereabouts.cni.cncf.io"
+
 func newControllerCommand() *cobra.Command {
 	var (
 		metricsAddr          string
@@ -59,7 +65,7 @@ func newControllerCommand() *cobra.Command {
 				},
 				HealthProbeBindAddress:        healthProbeAddr,
 				LeaderElection:                leaderElect,
-				LeaderElectionID:              "whereabouts-controller.whereabouts.cni.cncf.io",
+				LeaderElectionID:              leaderElectionID,
 				LeaderElectionNamespace:       leaderElectNamespace,
 				LeaderElectionReleaseOnCancel: true,
 				// All replicas serve webhooks; only the leader runs reconcilers.

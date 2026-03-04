@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "whereabouts.labels" . | nindent 4 }}
   annotations:
-    cert-controller.io/inject-ca-from: {{ .Values.namespaceOverride | default .Release.Namespace }}/{{ include "whereabouts.fullname" . }}-webhook-cert
+    cert-controller.cert-rotation/inject-ca-from: {{ .Values.namespaceOverride | default .Release.Namespace }}/{{ include "whereabouts.fullname" . }}-webhook-cert
 webhooks:
 - admissionReviewVersions:
   - v1

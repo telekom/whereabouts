@@ -117,7 +117,7 @@ pushd "$ROOT"
 make kustomize
 bin/kustomize build config/default | \
   sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" | \
-  awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' | \
+  awk '/^[[:space:]]*image:/{print; indent=substr($0,1,match($0,/image:/)-1); print indent "imagePullPolicy: Never"; next}1' | \
   retry kubectl apply -f -
 popd
 retry kubectl wait -n kube-system --for=condition=ready -l name=whereabouts pod --timeout=$TIMEOUT_K8

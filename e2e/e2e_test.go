@@ -2179,7 +2179,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("creating multiple pods to exhaust lower IPs")
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 5)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -2219,7 +2219,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("creating multiple IPv6 pods to verify gateway exclusion")
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 5)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -2560,7 +2560,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				v6GatewayIP := net.ParseIP(v6Gateway)
 
 				By("creating multiple pods to exercise both gateway exclusions")
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 5)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -2668,7 +2668,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				Expect(err).NotTo(HaveOccurred())
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 4)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -2713,7 +2713,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				Expect(err).NotTo(HaveOccurred())
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 3)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -3031,7 +3031,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("filling the pool with 3 pods")
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 3)
 				for i := range 3 {
 					name := fmt.Sprintf("wb-exhaust-v6-%d", i)
 					p, err := clientInfo.ProvisionPod(
@@ -3081,7 +3081,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			It("allocates dual-stack IPs from minimal subnets", func() {
 				const (
 					networkName = "wa-tiny-ds"
-					v4Range     = "10.93.0.0/31" // 2 v4 addresses
+					v4Range     = "10.93.0.0/31"  // 2 v4 addresses
 					v6Range     = "fd00:93::/127" // 2 v6 addresses
 				)
 
@@ -3092,7 +3092,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("creating 2 pods to use all addresses in both families")
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, 2)
 				defer func() {
 					for _, p := range pods {
 						_ = clientInfo.DeletePod(p)
@@ -3581,8 +3581,8 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("cycle 1: creating pods and recording IPs")
-				var firstCycleIPs []string
-				var pods []*corev1.Pod
+				firstCycleIPs := make([]string, 0, churnCount)
+				pods := make([]*corev1.Pod, 0, churnCount)
 				for i := range churnCount {
 					name := fmt.Sprintf("wb-churn-a-%d", i)
 					p, err := clientInfo.ProvisionPod(
@@ -3609,7 +3609,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				}
 
 				By("cycle 2: creating same number of pods — should get same IPs (deterministic lowest-available)")
-				var secondCycleIPs []string
+				secondCycleIPs := make([]string, 0, churnCount)
 				for i := range churnCount {
 					name := fmt.Sprintf("wb-churn-b-%d", i)
 					p, err := clientInfo.ProvisionPod(
@@ -3800,7 +3800,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				}
 
 				// Create all pods quickly (they will be pending/creating concurrently).
-				var pods []*corev1.Pod
+				pods := make([]*corev1.Pod, 0, len(podNames))
 				for _, name := range podNames {
 					p, err := clientInfo.ProvisionPod(
 						name, testNamespace,
@@ -3908,8 +3908,8 @@ var _ = Describe("Whereabouts functionality", func() {
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
 
 				By("cycle 1: creating IPv6 pods")
-				var firstCycleIPs []string
-				var pods []*corev1.Pod
+				firstCycleIPs := make([]string, 0, churnCount)
+				pods := make([]*corev1.Pod, 0, churnCount)
 				for i := range churnCount {
 					name := fmt.Sprintf("wb-churn-v6-a-%d", i)
 					p, err := clientInfo.ProvisionPod(
@@ -3934,7 +3934,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				}
 
 				By("cycle 2: recreating pods")
-				var secondCycleIPs []string
+				secondCycleIPs := make([]string, 0, churnCount)
 				for i := range churnCount {
 					name := fmt.Sprintf("wb-churn-v6-b-%d", i)
 					p, err := clientInfo.ProvisionPod(

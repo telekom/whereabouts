@@ -16,9 +16,7 @@ import (
 	"github.com/telekom/whereabouts/pkg/types"
 )
 
-// ===========================================================================
-// upstream #666: NodeSlice exclude ranges (OmitRanges) preserved
-// ===========================================================================
+// upstream #666: NodeSlice exclude ranges (OmitRanges) preserved.
 
 // TestNodeSlicePreservesOmitRanges verifies that when a node-slice
 // reassignment occurs in IPManagementKubernetesUpdate, the OmitRanges
@@ -130,9 +128,7 @@ func TestNodeSlicePreservesOmitRanges(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #110: JSON Patch conflict retry (optimistic locking)
-// ===========================================================================
+// upstream #110: JSON Patch conflict retry (optimistic locking).
 
 // TestUpdateReturnsTemporaryErrorOnConflict verifies that KubernetesIPPool.Update
 // returns a temporaryError when the resourceVersion does not match.
@@ -277,9 +273,7 @@ func TestRetryWithPoolCreation(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #558 / per-retry fresh context
-// ===========================================================================
+// upstream #558 / per-retry fresh context.
 
 // TestPerRetryContextTimeout verifies that each retry iteration gets a fresh
 // context with its own timeout, rather than sharing a single context that could
@@ -334,7 +328,7 @@ func TestPerRetryContextTimeout(t *testing.T) {
 	}
 }
 
-// TestContextCancellationStopsRetryLoop verifies that cancelling the parent
+// TestContextCancellationStopsRetryLoop verifies that canceling the parent
 // context causes the RETRYLOOP to break out promptly.
 func TestContextCancellationStopsRetryLoop(t *testing.T) {
 	// Use a very short context that will expire quickly.
@@ -381,9 +375,7 @@ func TestContextCancellationStopsRetryLoop(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #518: nil leader elector guard
-// ===========================================================================
+// upstream #518: nil leader elector guard.
 
 // TestIPManagementNilLeaderElector verifies that IPManagement returns a
 // descriptive error instead of panicking when newLeaderElector returns nil.
@@ -431,9 +423,7 @@ func TestIPManagementNilLeaderElector(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #38: broadcast/network address exclusion
-// ===========================================================================
+// upstream #38: broadcast/network address exclusion.
 
 // TestAllocateSkipsNetworkAndBroadcast verifies that the allocation engine
 // does not assign the network address (.0) or the broadcast address (.255)
@@ -535,9 +525,7 @@ func TestAllocateSkipsNetworkAndBroadcast(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #163: overlapping ranges disable via config
-// ===========================================================================
+// upstream #163: overlapping ranges disable via config.
 
 // TestOverlappingRangesRespected verifies end-to-end that when
 // OverlappingRanges=true, allocations are tracked in the overlapping range
@@ -655,9 +643,7 @@ func TestOverlappingRangesDisabledNoReservation(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// Dual-stack / multi-range rollback
-// ===========================================================================
+// Dual-stack / multi-range rollback.
 
 // TestMultiRangeRollbackOnFailure verifies that when a dual-stack allocation
 // succeeds for the first range but fails for the second, the first allocation
@@ -728,9 +714,7 @@ func TestMultiRangeRollbackOnFailure(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// Idempotent ADD (upstream requirement)
-// ===========================================================================
+// Idempotent ADD (upstream requirement).
 
 // TestIdempotentAllocation verifies that re-running ADD for the same
 // pod+interface returns the same IP without double-allocating.
@@ -807,9 +791,7 @@ func TestIdempotentAllocation(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// Deallocate round-trip
-// ===========================================================================
+// Deallocate round-trip.
 
 // TestAllocateThenDeallocate verifies the full lifecycle: allocate an IP,
 // then deallocate it, verifying the pool is clean afterward.
@@ -870,9 +852,7 @@ func TestAllocateThenDeallocate(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// Exponential backoff with jitter
-// ===========================================================================
+// Exponential backoff with jitter.
 
 // TestRetryBackoffWithinExpectedRange verifies that the retryBackoff function
 // sleeps for approximately the expected duration with jitter.
@@ -917,22 +897,20 @@ func TestExponentialBackoffGrowth(t *testing.T) {
 	}
 }
 
-// ===========================================================================
-// upstream #178: CronJob replaced by reconciler
-// ===========================================================================
+// upstream #178: CronJob replaced by reconciler.
 
 // TestNoCronJobReferences is a meta-test verifying that the fork has no
 // CronJob-based IP reconciliation. The reconciler is in internal/controller/
 // instead. This test is purely structural — it validates the IPAM storage
 // layer has no cronjob dependencies.
-func TestNoCronJobReferences(t *testing.T) {
+func TestNoCronJobReferences(_ *testing.T) {
 	// The KubernetesIPAM type should not have any CronJob-related fields.
 	// This is a compile-time guarantee — if someone adds a CronJob field,
 	// this test serves as documentation that it's not the intended approach.
 	ipam := &KubernetesIPAM{}
-	_ = ipam.Config     // IPAMConfig, not CronJob config
-	_ = ipam.Client     // Client, not CronJob
-	_ = ipam.Namespace  // string
+	_ = ipam.Config    // IPAMConfig, not CronJob config
+	_ = ipam.Client    // Client, not CronJob
+	_ = ipam.Namespace // string
 	_ = ipam.ContainerID
 	_ = ipam.IfName
 	// The struct has exactly these fields — no CronJob references.

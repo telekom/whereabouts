@@ -159,7 +159,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DualStack", func() {
+		Context("DS: basic IPRanges", func() {
 			const (
 				testDualStackNetworkName = "wa-dualstack-nad"
 				dualStackIPv4Range       = "11.11.0.0/16"
@@ -257,7 +257,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Replicaset tests", func() {
+		Context("ReplicaSet", func() {
 			const (
 				emptyReplicaSet = 0
 				rsSteadyTimeout = 1200 * time.Second
@@ -337,7 +337,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("stateful set tests", func() {
+		Context("StatefulSet", func() {
 			const (
 				initialReplicaNumber = 20
 				namespace            = "default"
@@ -653,7 +653,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("OverlappingRangeIPReservation", func() {
+		Context("Overlapping ranges", func() {
 			const (
 				testNetwork2Name = "wa-nad-2"
 			)
@@ -736,7 +736,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			}
 		})
 
-		Context("Named ranges test", func() {
+		Context("Named ranges", func() {
 			const (
 				namedNetworkName = "named-range"
 				testNetwork2Name = "wa-nad-2"
@@ -1354,7 +1354,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			)
 		})
 
-		Context("Reconciler stale IP cleanup", func() {
+		Context("Reconciler cleanup", func() {
 			const singlePodName = "whereabouts-reconciler-test"
 
 			AfterEach(func() {
@@ -1621,7 +1621,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		// Multi-pool combination tests
 		// ────────────────────────────────────────────────────────────────
 
-		Context("Multi-pool: pod attached to two different NADs", func() {
+		Context("Multi-pool: two NADs", func() {
 			It("allocates IPs from two separate pools simultaneously", func() {
 				const (
 					nad1Name = "wa-mp-pool1"
@@ -1666,7 +1666,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Multi-pool: named networks with same CIDR", func() {
+		Context("Multi-pool: named networks", func() {
 			It("isolates allocations via network_name even for identical CIDRs", func() {
 				const (
 					nad1Name     = "wa-nn-first"
@@ -1729,7 +1729,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Multi-pool: dual-stack pod attached to two different NADs", func() {
+		Context("Multi-pool: DS two NADs", func() {
 			It("allocates dual-stack IPs from two separate pools", func() {
 				const (
 					nad1Name = "wa-mp-ds-1"
@@ -1780,7 +1780,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		// Failure and edge-case tests
 		// ────────────────────────────────────────────────────────────────
 
-		Context("Failure: fully excluded range leaves no IPs", func() {
+		Context("Failure: fully excluded range", func() {
 			It("prevents pod from getting an IP when all addresses are excluded", func() {
 				const (
 					networkName     = "wa-full-excl"
@@ -1817,7 +1817,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Failure: allocate-deallocate-reallocate cycle", func() {
+		Context("Failure: alloc-dealloc-realloc", func() {
 			It("correctly frees and reassigns IPs across allocation cycles", func() {
 				const (
 					networkName = "wa-realloc"
@@ -1876,7 +1876,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Failure: pool exhaustion and recovery after pod deletion", func() {
+		Context("Failure: pool exhaustion recovery", func() {
 			It("recovers from exhaustion when pods are deleted", func() {
 				const (
 					networkName = "wa-exhaust-recov"
@@ -1941,7 +1941,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Pod cleanup controller", func() {
+		Context("Pod cleanup", func() {
 			const singlePodName = "whereabouts-pod-cleanup-controller-test"
 			var err error
 
@@ -1996,7 +1996,7 @@ var _ = Describe("Whereabouts functionality", func() {
 		// Upstream feature tests (#573, #601, #510, #621, L3 mode)
 		// ────────────────────────────────────────────────────────────────
 
-		Context("Small subnet support (#573)", func() {
+		Context("Small subnets", func() {
 			Context("/31 point-to-point links (RFC 3021)", func() {
 				const (
 					networkName = "wa-slash31"
@@ -2164,7 +2164,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Gateway IP exclusion (#601)", func() {
+		Context("Gateway exclusion", func() {
 			It("excludes the gateway IP when exclude_gateway is enabled", func() {
 				const (
 					networkName = "wa-gw-excl"
@@ -2345,7 +2345,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Optimistic IPAM (#510)", func() {
+		Context("Optimistic IPAM", func() {
 			It("allocates IPs without leader election when optimistic_ipam is enabled", func() {
 				const (
 					networkName = "wa-optimistic"
@@ -2433,7 +2433,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Preferred/sticky IP assignment (#621)", func() {
+		Context("Preferred IP", func() {
 			It("assigns the requested preferred IP when available", func() {
 				const (
 					networkName = "wa-preferred"
@@ -2540,7 +2540,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Dual-stack gateway exclusion", func() {
+		Context("DS: gateway exclusion", func() {
 			It("excludes the gateway IP for both address families", func() {
 				const (
 					networkName = "wa-ds-gw-excl"
@@ -2593,7 +2593,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Dual-stack L3 / routed mode", func() {
+		Context("DS: L3/routed mode", func() {
 			It("allocates all addresses including network and broadcast in both families", func() {
 				const (
 					networkName     = "wa-ds-l3"
@@ -2655,7 +2655,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 optimistic IPAM (#510)", func() {
+		Context("IPv6: optimistic IPAM", func() {
 			It("allocates unique IPs concurrently without leader election", func() {
 				const (
 					networkName = "wa-optimistic-v6"
@@ -2699,7 +2699,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Dual-stack optimistic IPAM (#510)", func() {
+		Context("DS: optimistic IPAM", func() {
 			It("allocates correct dual-stack IPs without leader election", func() {
 				const (
 					networkName = "wa-ds-optimistic"
@@ -2749,7 +2749,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Node drain cleanup", func() {
+		Context("Node drain", func() {
 			It("releases IP allocations after pods are evicted by node drain", func() {
 				const (
 					networkName = "wa-drain-test"
@@ -2797,7 +2797,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 named networks / multi-pool isolation", func() {
+		Context("IPv6: named network isolation", func() {
 			It("isolates IPv6 allocations via network_name for identical CIDRs", func() {
 				const (
 					networkNameA = "wa-named-v6-a"
@@ -2851,7 +2851,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 multi-pool (pod attached to two different NADs)", func() {
+		Context("IPv6: multi-pool", func() {
 			It("allocates IPv6 IPs from two separate pools simultaneously", func() {
 				const (
 					networkNameA = "wa-multi-pool-v6-a"
@@ -2894,7 +2894,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 fully excluded range", func() {
+		Context("IPv6: fully excluded range", func() {
 			It("prevents pod from getting an IP when all IPv6 addresses are excluded", func() {
 				const (
 					networkName = "wa-full-excl-v6"
@@ -2919,7 +2919,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 alloc-dealloc-realloc cycle", func() {
+		Context("IPv6: alloc-dealloc-realloc", func() {
 			It("correctly frees and reassigns IPv6 IPs across allocation cycles", func() {
 				const (
 					networkName = "wa-realloc-v6"
@@ -2966,7 +2966,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS alloc-dealloc-realloc cycle", func() {
+		Context("DS: alloc-dealloc-realloc", func() {
 			It("correctly frees and reassigns dual-stack IPs across cycles", func() {
 				const (
 					networkName = "wa-realloc-ds"
@@ -3017,7 +3017,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 pool exhaustion and recovery", func() {
+		Context("IPv6: pool exhaustion", func() {
 			It("recovers from exhaustion when IPv6 pods are deleted", func() {
 				const (
 					networkName = "wa-exhaust-recv-v6"
@@ -3077,7 +3077,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS small subnets (/31 + /127 combined)", func() {
+		Context("DS: small subnets", func() {
 			It("allocates dual-stack IPs from minimal subnets", func() {
 				const (
 					networkName = "wa-tiny-ds"
@@ -3128,7 +3128,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 optimistic IPAM dealloc", func() {
+		Context("IPv6: optimistic IPAM dealloc", func() {
 			It("correctly deallocates with optimistic IPAM for IPv6", func() {
 				const (
 					networkName = "wa-opt-dealloc-v6"
@@ -3173,7 +3173,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS optimistic IPAM dealloc", func() {
+		Context("DS: optimistic IPAM dealloc", func() {
 			It("correctly deallocates with optimistic IPAM for dual-stack", func() {
 				const (
 					networkName = "wa-opt-dealloc-ds"
@@ -3219,7 +3219,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS preferred/sticky IP assignment", func() {
+		Context("DS: preferred IP", func() {
 			It("assigns the requested preferred IPv4 in a dual-stack config", func() {
 				const (
 					networkName = "wa-pref-ds"
@@ -3254,7 +3254,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 preferred IP taken fallback", func() {
+		Context("IPv6: preferred IP fallback", func() {
 			It("falls back to lowest available when preferred IPv6 is taken", func() {
 				const (
 					networkName = "wa-pref-taken-v6"
@@ -3300,7 +3300,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("IPv6 node drain cleanup", func() {
+		Context("IPv6: node drain", func() {
 			It("releases IPv6 IP allocations after pod deletion (drain)", func() {
 				const (
 					networkName = "wa-drain-v6"
@@ -3344,7 +3344,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS allocation verification", func() {
+		Context("DS: allocation verification", func() {
 			It("verifies IPPool allocations match pod dual-stack IPs", func() {
 				const (
 					networkName = "wa-verify-ds"
@@ -3379,7 +3379,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("DS named networks", func() {
+		Context("DS: named networks", func() {
 			It("isolates dual-stack allocations via network_name", func() {
 				const (
 					networkNameA = "wa-named-ds-a"
@@ -3436,7 +3436,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: node cordon + pod eviction", func() {
+		Context("Edge: node cordon + pod eviction", func() {
 			It("releases IPs when pods are evicted from a cordoned node", func() {
 				const (
 					networkName = "wa-cordon"
@@ -3521,7 +3521,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: pod eviction via Policy API", func() {
+		Context("Edge: pod eviction via Policy API", func() {
 			It("releases the IP immediately after eviction", func() {
 				const (
 					networkName = "wa-evict-policy"
@@ -3566,7 +3566,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: rapid pod churn (stress test)", func() {
+		Context("Edge: rapid pod churn (stress test)", func() {
 			It("deterministically reassigns IPs through create/delete cycles", func() {
 				const (
 					networkName = "wa-churn"
@@ -3632,7 +3632,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: multi-interface pod cleanup", func() {
+		Context("Edge: multi-interface pod cleanup", func() {
 			It("releases IPs from all interfaces when pod is deleted", func() {
 				const (
 					networkNameA = "wa-multi-if-a"
@@ -3677,7 +3677,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: StatefulSet scale down and up", func() {
+		Context("Edge: StatefulSet scale down and up", func() {
 			It("releases IPs on scale-down and reuses them on scale-up", func() {
 				const (
 					networkName     = "wa-scale"
@@ -3779,7 +3779,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: concurrent burst creation", func() {
+		Context("Edge: concurrent burst creation", func() {
 			It("allocates unique IPs when many pods are created simultaneously", func() {
 				const (
 					networkName = "wa-burst"
@@ -3829,7 +3829,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: DS node cordon + eviction", func() {
+		Context("Edge: DS node cordon + eviction", func() {
 			It("releases both v4 and v6 IPs when a dual-stack pod is evicted", func() {
 				const (
 					networkName = "wa-ds-cordon"
@@ -3893,7 +3893,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: IPv6 rapid churn", func() {
+		Context("Edge: IPv6 rapid churn", func() {
 			It("deterministically reassigns IPv6 IPs through create/delete cycles", func() {
 				const (
 					networkName = "wa-churn-v6"
@@ -3956,7 +3956,7 @@ var _ = Describe("Whereabouts functionality", func() {
 			})
 		})
 
-		Context("Edge case: multi-interface DS pod cleanup", func() {
+		Context("Edge: multi-interface DS pod cleanup", func() {
 			It("releases both DS interfaces when a multi-NAD pod is deleted", func() {
 				const (
 					networkNameA = "wa-ds-mif-a"

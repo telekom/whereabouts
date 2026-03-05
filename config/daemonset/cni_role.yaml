@@ -39,6 +39,13 @@ rules:
   - create
   - update
   - delete
+# Preferred/sticky IP: CNI reads pod annotations to determine preferred IP
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
 - apiGroups:
   - ""
   - events.k8s.io

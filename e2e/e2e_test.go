@@ -3021,11 +3021,13 @@ var _ = Describe("Whereabouts functionality", func() {
 			It("recovers from exhaustion when IPv6 pods are deleted", func() {
 				const (
 					networkName = "wa-exhaust-recv-v6"
-					ipRange     = "fd00:92::/126" // 4 addresses, .0 skipped → 3 usable
+					ipRange     = "fd00:92::/120" // large enough CIDR
+					rangeStart  = "fd00:92::1"    // 3-IP window: ::1, ::2, ::3
+					rangeEnd    = "fd00:92::3"
 				)
 
-				nad := util.MacvlanNetworkWithWhereaboutsIPAMNetwork(
-					networkName, testNamespace, ipRange, []string{}, wbstorage.UnnamedNetwork, true)
+				nad := util.MacvlanNetworkWithWhereaboutsRangeStartEnd(
+					networkName, testNamespace, ipRange, rangeStart, rangeEnd)
 				_, err := clientInfo.AddNetAttachDef(nad)
 				Expect(err).NotTo(HaveOccurred())
 				defer func() { Expect(clientInfo.DelNetAttachDef(nad)).To(Succeed()) }()
@@ -3043,7 +3045,9 @@ var _ = Describe("Whereabouts functionality", func() {
 				}
 				defer func() {
 					for _, p := range pods {
-						_ = clientInfo.DeletePod(p)
+						if p != nil {
+							_ = clientInfo.DeletePod(p)
+						}
 					}
 				}()
 
@@ -3716,7 +3720,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				By("scaling down to 1 replica")
 				var one int32 = 1
 				ss, err := clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
-					context.Background(), statefulSetName, metav1.GetOptions{})
+					context.Background(), serviceName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 				ss.Spec.Replicas = &one
 				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(
@@ -3739,7 +3743,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				By("scaling back up to 3 replicas")
 				var three int32 = 3
 				ss, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
-					context.Background(), statefulSetName, metav1.GetOptions{})
+					context.Background(), serviceName, metav1.GetOptions{})
 				Expect(err).NotTo(HaveOccurred())
 				ss.Spec.Replicas = &three
 				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(

@@ -408,6 +408,9 @@ func MacvlanNetworkWithWhereaboutsOptimisticIPAM(networkName, namespaceName, ipR
 
 // MacvlanNetworkWithWhereaboutsDualStackGatewayExclusion returns a dual-stack NAD
 // with gateway exclusion enabled for both address families.
+// The top-level gateway + exclude_gateway handles the v4 gateway automatically.
+// For the v6 range, the gateway is added as an explicit /128 exclusion because
+// per-range gateway/exclude_gateway is not supported by RangeConfiguration.
 func MacvlanNetworkWithWhereaboutsDualStackGatewayExclusion(networkName, namespaceName, v4Range, v4Gateway, v6Range, v6Gateway string) *nettypes.NetworkAttachmentDefinition {
 	macvlanConfig := fmt.Sprintf(`{
         "cniVersion": "0.3.0",
@@ -425,7 +428,7 @@ func MacvlanNetworkWithWhereaboutsDualStackGatewayExclusion(networkName, namespa
                     "range": "%s",
                     "gateway": "%s",
                     "exclude_gateway": true,
-                    "ipRanges": [{"range": "%s", "gateway": "%s", "exclude_gateway": true}],
+                    "ipRanges": [{"range": "%s", "exclude": ["%s/128"]}],
                     "log_level": "debug",
                     "log_file": "/tmp/wb",
                     "enable_overlapping_ranges": true

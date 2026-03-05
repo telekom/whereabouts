@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -45,25 +46,27 @@ func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereab
 
 // ValidateUpdate validates a NodeSlicePool on update.
 func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
-	var warnings admission.Warnings
-	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
-		err := fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range)
-		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-		recordValidation("nodeslicepool", "update", err)
-		return warnings, err
+	var errs []error
+	if oldPool != nil {
+		if oldPool.Spec.Range != pool.Spec.Range {
+			errs = append(errs, fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range))
+		}
+		if oldPool.Spec.SliceSize != pool.Spec.SliceSize {
+			errs = append(errs, fmt.Errorf("spec.sliceSize is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.SliceSize, pool.Spec.SliceSize))
+		}
 	}
-	if oldPool != nil && oldPool.Spec.SliceSize != pool.Spec.SliceSize {
-		err := fmt.Errorf("spec.sliceSize is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.SliceSize, pool.Spec.SliceSize)
+	if len(errs) > 0 {
+		err := fmt.Errorf("immutable field(s) changed: %w", kerrors.NewAggregate(errs))
 		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
 		recordValidation("nodeslicepool", "update", err)
-		return warnings, err
+		return nil, err
 	}
 	err := validateNodeSlicePool(pool)
 	if err != nil {
 		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
 	}
 	recordValidation("nodeslicepool", "update", err)
-	return warnings, err
+	return nil, err
 }
 
 // ValidateDelete is a no-op.

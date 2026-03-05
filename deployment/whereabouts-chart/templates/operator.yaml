@@ -27,12 +27,9 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /whereabouts-operator
+        args:
         - controller
         - --leader-elect=true
-        # Explicit namespace for the leader election lease — matches the release
-        # namespace. Functionally equivalent to controller-runtime's default
-        # in-cluster namespace detection, but makes the value visible in the
-        # deployment manifest for clarity.
         - --leader-elect-namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
         - --metrics-bind-address=:8080
         - --health-probe-bind-address=:8081
@@ -43,12 +40,6 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
-        env:
-        - name: WHEREABOUTS_NAMESPACE
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
         ports:
         - containerPort: 8080
           name: metrics
@@ -86,7 +77,6 @@ spec:
         volumeMounts:
         - name: webhook-certs
           mountPath: /var/run/webhook-certs
-          readOnly: true
       volumes:
       - name: webhook-certs
         secret:

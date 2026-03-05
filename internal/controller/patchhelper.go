@@ -12,10 +12,10 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -204,11 +204,17 @@ func splitObject(obj client.Object) (spec, status []byte, err error) {
 	return spec, status, nil
 }
 
-// jsonEqual performs a byte-level comparison of two JSON blobs.
-// This is sufficient because the encoding/json package sorts map keys
-// alphabetically when marshaling, so even for types with map fields (e.g.
-// IPPoolSpec.Allocations map[string]IPAllocation), the byte output from
-// json.Marshal is deterministic for the same data.
+// jsonEqual compares two JSON blobs for semantic equality.
+// It unmarshals both blobs into generic interface{} values and uses
+// reflect.DeepEqual, which correctly handles map key ordering differences.
+// Falls back to byte-level comparison if unmarshaling fails.
 func jsonEqual(a, b []byte) bool {
-	return bytes.Equal(a, b)
+	var aVal, bVal interface{}
+	if err := json.Unmarshal(a, &aVal); err != nil {
+		return reflect.DeepEqual(a, b)
+	}
+	if err := json.Unmarshal(b, &bVal); err != nil {
+		return reflect.DeepEqual(a, b)
+	}
+	return reflect.DeepEqual(aVal, bVal)
 }

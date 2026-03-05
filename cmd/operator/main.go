@@ -64,9 +64,12 @@ func setupLogger(cmd *cobra.Command) {
 	switch logLevel {
 	case "debug":
 		opts.Development = true
+	case "info":
+		opts.Development = false
 	case "error":
 		opts.Level = zapcore.ErrorLevel
 	default:
+		fmt.Fprintf(os.Stderr, "unrecognized log-level %q, defaulting to info\n", logLevel)
 		opts.Development = false
 	}
 

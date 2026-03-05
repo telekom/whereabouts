@@ -10,6 +10,7 @@ while true; do
   case "$1" in
     -n|--number-of-compute)
       NUMBER_OF_COMPUTE_NODES=$2
+      shift 2
       break
       ;;
     *)

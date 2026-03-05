@@ -30,6 +30,8 @@ spec:
         args:
         - controller
         - --leader-elect=true
+        # Explicit namespace for the leader election lease — matches the Helm release
+        # namespace rather than relying on controller-runtime's auto-detection.
         - --leader-elect-namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
         - --metrics-bind-address=:8080
         - --health-probe-bind-address=:8081

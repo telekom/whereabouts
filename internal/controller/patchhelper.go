@@ -188,7 +188,7 @@ func splitObject(obj client.Object) (spec, status []byte, err error) {
 
 	// Extract status.
 	statusVal, ok := m["status"]
-	if !ok || len(statusVal) == 0 {
+	if !ok || len(statusVal) == 0 || string(statusVal) == "null" {
 		status = []byte("{}")
 	} else {
 		status = statusVal

@@ -92,7 +92,8 @@ func newControllerCommand() *cobra.Command {
 				DNSName:     fmt.Sprintf("%s.%s.svc", webhookServiceName, namespace),
 				SecretName:  webhookSecretName,
 				WebhookName: webhookConfigName,
-				IsReady:     certReady,
+				// CAOrganization defaults to "whereabouts" (see certrotator.Options).
+				IsReady: certReady,
 			}); err != nil {
 				return err
 			}

@@ -42,7 +42,9 @@ rules:
 - apiGroups: ["", events.k8s.io]
   resources: [events]
   verbs: [create, patch, update, get]
-# cert-controller needs secret management for TLS certs
+# cert-controller uses a cache-backed informer (source.Kind) to watch the
+# webhook TLS Secret for rotation. This requires list/watch on secrets in
+# addition to create for initial bootstrap.
 - apiGroups: [""]
   resources: [secrets]
   verbs: [create, list, watch]

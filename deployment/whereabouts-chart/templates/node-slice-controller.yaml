@@ -15,6 +15,7 @@ spec:
     metadata:
       labels:
         app: {{ include "whereabouts.fullname" . }}-operator
+        control-plane: controller-manager
     spec:
       {{- with .Values.operator.priorityClassName }}
       priorityClassName: {{ . }}
@@ -38,6 +39,9 @@ spec:
         - --reconcile-interval=30s
         - --webhook-port=9443
         - --cert-dir=/var/run/webhook-certs
+        - --webhook-secret-name={{ include "whereabouts.fullname" . }}-webhook-cert
+        - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
+        - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
         env:
         - name: WHEREABOUTS_NAMESPACE
@@ -87,7 +91,11 @@ spec:
       - name: webhook-certs
         secret:
           secretName: {{ include "whereabouts.fullname" . }}-webhook-cert
-          optional: false
+          # optional: true is required because cert-controller creates and
+          # populates the secret after the pod starts. The ensureSecret
+          # function in certrotator.go bootstraps an empty secret, but the
+          # pod must be schedulable first.
+          optional: true
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

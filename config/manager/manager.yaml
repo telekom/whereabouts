@@ -92,4 +92,8 @@ spec:
       - name: webhook-certs
         secret:
           secretName: whereabouts-webhook-cert
-          optional: false
+          # optional: true is required because cert-controller creates and
+          # populates the secret after the pod starts. The ensureSecret
+          # function in certrotator.go bootstraps an empty secret, but the
+          # pod must be schedulable first.
+          optional: true

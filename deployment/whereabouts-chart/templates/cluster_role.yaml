@@ -17,6 +17,10 @@ rules:
 - apiGroups: [coordination.k8s.io]
   resources: [leases]
   verbs: [get, create, update, delete]
+# Preferred/sticky IP: CNI reads pod annotations to determine preferred IP
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [get]
 # Events for allocation logging
 - apiGroups: ["", events.k8s.io]
   resources: [events]

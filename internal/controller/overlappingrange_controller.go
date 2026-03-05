@@ -146,8 +146,8 @@ func (r *OverlappingRangeReconciler) deleteReservation(ctx context.Context, rese
 	overlappingReservationsCleaned.Inc()
 	logger.Info("deleted orphaned overlapping reservation",
 		"name", reservation.Name, "podRef", reservation.Spec.PodRef)
-	r.recorder.Eventf(reservation, nil, corev1.EventTypeNormal, "OrphanedReservationDeleted", "Reconcile",
-		"deleted orphaned reservation for pod %s", reservation.Spec.PodRef)
+	r.recorder.Eventf(reservation, reservation, corev1.EventTypeNormal, "OrphanedReservationDeleted", "Reconcile",
+		fmt.Sprintf("deleted orphaned reservation for pod %s", reservation.Spec.PodRef))
 	return ctrl.Result{}, nil
 }
 

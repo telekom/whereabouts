@@ -28,7 +28,7 @@ make kind COMPUTE_NODES=3             # Custom worker count
 
 ### Error Handling
 - Wrap with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping everywhere
-- Use `logging.Errorf("msg: %w", err)` to both log AND return a wrapped error in one call
+- Use `logging.Errorf("msg: %v", err)` to both log AND return an error in one call (note: `logging.Errorf` internally calls `fmt.Errorf` for the returned error and replaces `%w` with `%v` for the log line, so `%w` also works but `%v` is clearer)
 - When discarding the returned error: `_ = logging.Errorf(...)`
 - Custom error types use struct + `Error() string` + constructor: `NewInvalidPluginError()`
 - Retryable errors implement `Temporary() bool` interface (checked via type assertion in retry loops)

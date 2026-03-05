@@ -61,10 +61,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: core
+          - suite: core-basic
             test-dir: e2e
             test-pkg: "."
-            focus: "Single pod tests|ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Pod cleanup|Small subnets|Gateway exclusion|L3.Routed|Optimistic IPAM|Preferred IP|Node drain|Reconciler cleanup"
+            focus: "Single pod tests|Small subnets|Gateway exclusion|L3.Routed|Preferred IP"
+          - suite: core-workloads
+            test-dir: e2e
+            test-pkg: "."
+            focus: "ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Optimistic IPAM"
+          - suite: core-lifecycle
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Pod cleanup|Node drain|Reconciler cleanup"
           - suite: v4
             test-dir: e2e
             test-pkg: "."
@@ -174,10 +182,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: core
+          - suite: core-basic
             test-dir: e2e
             test-pkg: "."
-            focus: "Single pod tests|ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Pod cleanup|Small subnets|Gateway exclusion|L3.Routed|Optimistic IPAM|Preferred IP|Node drain|Reconciler cleanup"
+            focus: "Single pod tests|Small subnets|Gateway exclusion|L3.Routed|Preferred IP"
+          - suite: core-workloads
+            test-dir: e2e
+            test-pkg: "."
+            focus: "ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Optimistic IPAM"
+          - suite: core-lifecycle
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Pod cleanup|Node drain|Reconciler cleanup"
           - suite: v4
             test-dir: e2e
             test-pkg: "."

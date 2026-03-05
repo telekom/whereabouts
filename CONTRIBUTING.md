@@ -76,7 +76,7 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 | Alias                    | Package                                              |
 |--------------------------|------------------------------------------------------|
 | `whereaboutstypes`       | `pkg/types`                                          |
-| `whereaboutsv1alpha1`    | `api/v1alpha1`           |
+| `whereaboutsv1alpha1`    | `api/whereabouts.cni.cncf.io/v1alpha1` |
 
 ### JSON Tags
 

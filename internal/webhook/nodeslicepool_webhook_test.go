@@ -209,6 +209,26 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("spec.sliceSize is immutable"))
 		})
+
+		It("should report both violations when range and sliceSize change", func() {
+			oldPool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+			}
+			newPool := oldPool.DeepCopy()
+			newPool.Spec.Range = "10.1.0.0/16"
+			newPool.Spec.SliceSize = "/28"
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.range is immutable"))
+			Expect(err.Error()).To(ContainSubstring("spec.sliceSize is immutable"))
+		})
 	})
 
 	Context("ValidateDelete", func() {

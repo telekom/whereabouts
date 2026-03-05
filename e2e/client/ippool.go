@@ -5,8 +5,6 @@ package client
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,10 +16,12 @@ import (
 func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string) wait.ConditionWithContextFunc {
 	return func(context.Context) (bool, error) {
 		ipPool, err := k8sIPAM.GetIPPool(ctx, kubeClient.PoolIdentifier{IPRange: ipPoolCIDR, NetworkName: kubeClient.UnnamedNetwork})
-		noPoolError := fmt.Errorf("k8s pool initialized")
-		if errors.Is(err, noPoolError) {
-			return true, nil
-		} else if err != nil {
+		if err != nil {
+			// "k8s pool initialized" is a temporaryError returned when the pool
+			// doesn't exist and is freshly created — treat as zero allocations.
+			if err.Error() == "k8s pool initialized" {
+				return true, nil
+			}
 			return false, err
 		}
 

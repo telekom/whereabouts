@@ -151,8 +151,12 @@ undeploy: $(KUSTOMIZE) ## Undeploy controller from the cluster.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found -f -
 
 .PHONY: kind
-kind: ## Create a KinD cluster with whereabouts installed.
+kind: ## Create a KinD cluster with whereabouts installed (kustomize).
 	hack/e2e-setup-kind-cluster.sh -n $(COMPUTE_NODES)
+
+.PHONY: kind-helm
+kind-helm: ## Create a KinD cluster with whereabouts installed (Helm).
+	hack/e2e-setup-kind-cluster-helm.sh -n $(COMPUTE_NODES)
 
 ##@ Dependencies
 

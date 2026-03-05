@@ -45,11 +45,11 @@ rules:
 # cert-controller needs secret management for TLS certs
 - apiGroups: [""]
   resources: [secrets]
-  verbs: [create]
+  verbs: [create, list, watch]
 - apiGroups: [""]
   resources: [secrets]
   resourceNames: [{{ include "whereabouts.fullname" . }}-webhook-cert]
-  verbs: [get, list, watch, update, patch]
+  verbs: [get, update, patch]
 # cert-controller updates webhook configurations with CA bundle
 - apiGroups: [admissionregistration.k8s.io]
   resources: [validatingwebhookconfigurations]

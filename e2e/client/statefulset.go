@@ -20,26 +20,25 @@ func WaitForStatefulSetGone(ctx context.Context, cs *kubernetes.Clientset, names
 
 func isStatefulSetGone(ctx context.Context, cs *kubernetes.Clientset, serviceName string, namespace string, labelSelector string) wait.ConditionWithContextFunc {
 	return func(context.Context) (done bool, err error) {
-		statefulSet, err := cs.AppsV1().StatefulSets(namespace).Get(ctx, serviceName, metav1.GetOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return false, fmt.Errorf("something weird happened with the stateful set whose status is: [%s]. Errors: %w", statefulSet.Status.String(), err)
+		_, err = cs.AppsV1().StatefulSets(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			// StatefulSet fully deleted — verify associated pods are also gone.
+			associatedPods, listErr := cs.CoreV1().Pods(namespace).List(ctx, selectViaLabels(labelSelector))
+			if listErr != nil {
+				return false, listErr
+			}
+			return areAssociatedPodsGone(associatedPods), nil
 		}
-
-		associatedPods, err := cs.CoreV1().Pods(namespace).List(ctx, selectViaLabels(labelSelector))
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("failed to get stateful set %q: %w", serviceName, err)
 		}
-
-		return isStatefulSetEmpty(statefulSet) && areAssociatedPodsGone(associatedPods), nil
+		// StatefulSet still exists (possibly with DeletionTimestamp) — keep waiting.
+		return false, nil
 	}
 }
 
 func selectViaLabels(labelSelector string) metav1.ListOptions {
 	return metav1.ListOptions{LabelSelector: labelSelector}
-}
-
-func isStatefulSetEmpty(statefulSet *appsv1.StatefulSet) bool {
-	return statefulSet.Status.CurrentReplicas == int32(0)
 }
 
 func areAssociatedPodsGone(pods *corev1.PodList) bool {

@@ -6,18 +6,33 @@
 # Usage: hack/e2e-setup-kind-cluster-helm.sh -n <number-of-compute-nodes>
 set -eo pipefail
 
-while true; do
+NUMBER_OF_COMPUTE_NODES=""
+
+while [ $# -gt 0 ]; do
   case "$1" in
     -n|--number-of-compute)
+      if [ -z "${2:-}" ]; then
+        echo "option '$1' requires an argument: -n <number-of-compute-nodes>" >&2
+        exit 1
+      fi
       NUMBER_OF_COMPUTE_NODES=$2
       shift 2
+      ;;
+    --)
+      shift
       break
       ;;
     *)
-      echo "define argument -n (number of compute nodes)"
+      echo "Usage: $0 -n <number-of-compute-nodes>" >&2
       exit 1
+      ;;
   esac
 done
+
+if [ -z "${NUMBER_OF_COMPUTE_NODES:-}" ]; then
+  echo "Missing required argument: -n <number-of-compute-nodes>" >&2
+  exit 1
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"

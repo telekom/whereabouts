@@ -7,7 +7,7 @@ metadata:
   labels:
     {{- include "whereabouts.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.operator.replicas | default 2 }}
+  replicas: {{ .Values.operator.replicas }}
   selector:
     matchLabels:
       app: {{ include "whereabouts.fullname" . }}-operator
@@ -15,7 +15,7 @@ spec:
     metadata:
       labels:
         app: {{ include "whereabouts.fullname" . }}-operator
-        control-plane: controller-manager
+        control-plane: {{ .Values.operator.controlPlaneLabel | default "controller-manager" }}
     spec:
       {{- with .Values.operator.priorityClassName }}
       priorityClassName: {{ . }}

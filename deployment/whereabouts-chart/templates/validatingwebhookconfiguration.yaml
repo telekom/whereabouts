@@ -18,11 +18,7 @@ webhooks:
   failurePolicy: {{ .Values.webhook.failurePolicy | default "Fail" }}
   matchPolicy: Equivalent
   name: vippool.whereabouts.cni.cncf.io
-  matchConditions:
-  - name: bypass-cni-plugin
-    expression: >-
-      !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ .Values.webhook.cniServiceAccountName | default "whereabouts" }}")
-      && !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.fullname" . }}-operator")
+  {{- include "whereabouts.webhookBypassCondition" . | nindent 2 }}
   rules:
   - apiGroups: [whereabouts.cni.cncf.io]
     apiVersions: [v1alpha1]
@@ -39,11 +35,7 @@ webhooks:
   failurePolicy: {{ .Values.webhook.failurePolicy | default "Fail" }}
   matchPolicy: Equivalent
   name: vnodeslicepool.whereabouts.cni.cncf.io
-  matchConditions:
-  - name: bypass-cni-plugin
-    expression: >-
-      !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ .Values.webhook.cniServiceAccountName | default "whereabouts" }}")
-      && !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.fullname" . }}-operator")
+  {{- include "whereabouts.webhookBypassCondition" . | nindent 2 }}
   rules:
   - apiGroups: [whereabouts.cni.cncf.io]
     apiVersions: [v1alpha1]
@@ -60,11 +52,7 @@ webhooks:
   failurePolicy: {{ .Values.webhook.failurePolicy | default "Fail" }}
   matchPolicy: Equivalent
   name: voverlappingrangeipreservation.whereabouts.cni.cncf.io
-  matchConditions:
-  - name: bypass-cni-plugin
-    expression: >-
-      !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ .Values.webhook.cniServiceAccountName | default "whereabouts" }}")
-      && !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.fullname" . }}-operator")
+  {{- include "whereabouts.webhookBypassCondition" . | nindent 2 }}
   rules:
   - apiGroups: [whereabouts.cni.cncf.io]
     apiVersions: [v1alpha1]

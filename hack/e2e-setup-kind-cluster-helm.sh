@@ -38,7 +38,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset.yml"
 CNIS_DAEMONSET_PATH="$ROOT/hack/cni-install.yml"
-TIMEOUT_K8="5000s"
 RETRY_MAX=10
 INTERVAL=10
 TIMEOUT=120
@@ -86,9 +85,9 @@ check_requirements() {
 
 retry() {
   local status=0
-  local retries=${RETRY_MAX:=5}
-  local delay=${INTERVAL:=5}
-  local to=${TIMEOUT:=20}
+  local retries=${RETRY_MAX:-5}
+  local delay=${INTERVAL:-5}
+  local to=${TIMEOUT:-20}
   cmd="$*"
 
   while [ $retries -gt 0 ]

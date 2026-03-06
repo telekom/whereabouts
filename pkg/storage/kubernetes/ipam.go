@@ -535,7 +535,7 @@ func IPManagement(ctx context.Context, mode int, ipamConf whereaboutstypes.IPAMC
 	go func() {
 		defer wg.Done()
 		res := make(chan error)
-		leCtx, leCancel := context.WithCancel(context.Background())
+		leCtx, leCancel := context.WithCancel(ctx)
 
 		go func() {
 			logging.Debugf("Started leader election")

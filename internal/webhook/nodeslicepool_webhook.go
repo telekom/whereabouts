@@ -56,10 +56,12 @@ func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool
 		}
 	}
 	if len(errs) > 0 {
-		err := fmt.Errorf("immutable field(s) changed: %w", kerrors.NewAggregate(errs))
-		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-		recordValidation("nodeslicepool", "update", err)
-		return nil, err
+		if agg := kerrors.NewAggregate(errs); agg != nil {
+			err := fmt.Errorf("immutable field(s) changed: %s", agg)
+			nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+			recordValidation("nodeslicepool", "update", err)
+			return nil, err
+		}
 	}
 	err := validateNodeSlicePool(pool)
 	if err != nil {

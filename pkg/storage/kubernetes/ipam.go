@@ -187,7 +187,7 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 		}
 		// if the pool was created for the first time, trigger another retry of the allocation loop
 		// so all of the metadata / resourceVersions are populated as necessary by the `client.Get` call
-		return nil, &temporaryError{fmt.Errorf("k8s pool initialized")}
+		return nil, &temporaryError{ErrPoolInitialized}
 	} else if err != nil {
 		return nil, fmt.Errorf("k8s get error: %w", err)
 	}

@@ -41,7 +41,7 @@ type ReconcilerOptions struct {
 // (leader election and event recording) and are not tied to a specific
 // reconciler:
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;create;update;delete
-// +kubebuilder:rbac:groups="";events.k8s.io,resources=events,verbs=create;patch;update;get
+// +kubebuilder:rbac:groups="",events.k8s.io,resources=events,verbs=create;patch;update;get
 func SetupWithManager(mgr ctrl.Manager, reconcileInterval time.Duration, opts ReconcilerOptions) error {
 	if err := SetupIPPoolReconciler(mgr, reconcileInterval, opts); err != nil {
 		return err

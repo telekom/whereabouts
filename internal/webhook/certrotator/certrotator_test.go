@@ -56,7 +56,7 @@ var _ = Describe("ensureSecret", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(created.Name).To(Equal(secretKey.Name))
 		Expect(created.Namespace).To(Equal(secretKey.Namespace))
-		Expect(created.Type).To(Equal(corev1.SecretTypeOpaque))
+		Expect(created.Type).To(Equal(corev1.SecretTypeTLS))
 	})
 
 	It("should not error when the secret already exists", func() {

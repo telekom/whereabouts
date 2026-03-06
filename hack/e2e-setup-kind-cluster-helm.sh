@@ -39,7 +39,7 @@ HELM_NAMESPACE="kube-system"
 CHART_DIR="$ROOT/deployment/whereabouts-chart"
 
 create_cluster() {
-workers="$(for i in $(seq $NUMBER_OF_COMPUTE_NODES); do echo "  - role: worker"; done)"
+  workers="$(for i in $(seq $NUMBER_OF_COMPUTE_NODES); do echo "  - role: worker"; done)"
   # deploy cluster with kind
   cat <<EOF | kind create cluster --name $KIND_CLUSTER_NAME --config=-
 kind: Cluster

@@ -37,6 +37,7 @@ kube::codegen::gen_openapi \
 # applyconfiguration-gen needs this to populate the structured-merge-diff
 # schema used by fake.NewClientset().
 OPENAPI_JSON="${SCRIPT_ROOT}/bin/openapi-schema.json"
+mkdir -p "${SCRIPT_ROOT}/bin"
 (cd "${SCRIPT_ROOT}" && go build -o bin/openapi-schema ./hack/tools/openapi-schema/)
 "${SCRIPT_ROOT}/bin/openapi-schema" > "${OPENAPI_JSON}"
 

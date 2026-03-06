@@ -16,8 +16,6 @@ cleanup() {
 }
 trap "cleanup" EXIT SIGINT
 
-cleanup
-
 mkdir -p "${TMP_DIFFROOT_PKG}" "${TMP_DIFFROOT_API}"
 cp -a "${DIFFROOT_PKG}"/* "${TMP_DIFFROOT_PKG}"
 cp -a "${DIFFROOT_API}"/* "${TMP_DIFFROOT_API}"

@@ -5,6 +5,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,9 +18,9 @@ func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.Kubernete
 	return func(context.Context) (bool, error) {
 		ipPool, err := k8sIPAM.GetIPPool(ctx, kubeClient.PoolIdentifier{IPRange: ipPoolCIDR, NetworkName: kubeClient.UnnamedNetwork})
 		if err != nil {
-			// "k8s pool initialized" is a temporaryError returned when the pool
+			// ErrPoolInitialized is a temporaryError returned when the pool
 			// doesn't exist and is freshly created — treat as zero allocations.
-			if err.Error() == "k8s pool initialized" {
+			if errors.Is(err, kubeClient.ErrPoolInitialized) {
 				return true, nil
 			}
 			return false, err
@@ -43,11 +44,10 @@ func isIPPoolAllocationsEmptyForNodeSlices(ctx context.Context, k8sIPAM *kubeCli
 			node := &nodes.Items[i]
 			ipPool, err := k8sIPAM.GetIPPool(ctx, kubeClient.PoolIdentifier{NodeName: node.Name, IPRange: ipPoolCIDR, NetworkName: k8sIPAM.Config.NetworkName})
 			if err != nil {
-				if err.Error() == "k8s pool initialized" {
+				if errors.Is(err, kubeClient.ErrPoolInitialized) {
 					continue
-				} else {
-					return false, err
 				}
+				return false, err
 			}
 
 			if len(ipPool.Allocations()) != 0 {

@@ -14,7 +14,7 @@ import (
 //
 // All metrics use the "whereabouts" namespace and are registered with the
 // controller-runtime metrics registry so they are served on the same
-// /metrics endpoint (default :8080 for the controller, :8082 for webhooks).
+// /metrics endpoint exposed by the controller-runtime manager (default :8080).
 var (
 	// IPPool reconciler metrics.
 

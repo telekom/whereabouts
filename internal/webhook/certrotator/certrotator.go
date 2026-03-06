@@ -59,7 +59,7 @@ func ensureSecret(ctx context.Context, c client.Client, key types.NamespacedName
 			Name:      key.Name,
 			Namespace: key.Namespace,
 		},
-		Type: corev1.SecretTypeOpaque,
+		Type: corev1.SecretTypeTLS,
 	}
 	err = c.Create(ctx, secret)
 	if apierrors.IsAlreadyExists(err) {

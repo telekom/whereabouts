@@ -64,6 +64,7 @@ func setupLogger(cmd *cobra.Command) {
 	switch logLevel {
 	case "debug":
 		opts.Development = true
+		opts.Level = zapcore.DebugLevel
 	case "info":
 		opts.Development = false
 	case "error":

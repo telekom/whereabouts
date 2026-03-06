@@ -1,4 +1,4 @@
-{{- if .Values.operator.enabled }}
+{{- if and .Values.operator.enabled (gt (int .Values.operator.replicas) 1) }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

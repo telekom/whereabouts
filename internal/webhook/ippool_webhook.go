@@ -49,7 +49,7 @@ func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *where
 	// Warn (but allow) range changes to support expansion/resizing.
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
 		warnings = append(warnings, fmt.Sprintf(
-			"spec.range changed from %q to %q — existing allocations outside the new range will be orphaned",
+			"spec.range changed from %q to %q - existing allocations outside the new range will be orphaned",
 			oldPool.Spec.Range, pool.Spec.Range))
 	}
 	w, err := validateIPPool(pool)

@@ -50,9 +50,15 @@ var _ = Describe("OverlappingRangeReconciler", func() {
 			WithStatusSubresource(&whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
 			WithObjects(objs...).
 			Build()
+		fakeRecorder := events.NewFakeRecorder(10)
+		go func() {
+			for event := range fakeRecorder.Events {
+				_ = event
+			}
+		}()
 		reconciler = &OverlappingRangeReconciler{
 			client:            fakeClient,
-			recorder:          events.NewFakeRecorder(10),
+			recorder:          fakeRecorder,
 			reconcileInterval: interval,
 		}
 	}

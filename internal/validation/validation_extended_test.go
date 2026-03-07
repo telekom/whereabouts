@@ -57,8 +57,12 @@ func TestValidatePodRefExtended(t *testing.T) {
 		{name: "unicode namespace", podRef: "ünïcödé/pod", required: true, wantErr: false},
 		{name: "very long podRef", podRef: strings.Repeat("a", 253) + "/" + strings.Repeat("b", 253), required: true, wantErr: false},
 		{name: "spaces in namespace", podRef: "name space/pod", required: true, wantErr: false},
-		{name: "only whitespace namespace", podRef: " /pod", required: true, wantErr: true},
-		{name: "only whitespace name", podRef: "ns/ ", required: true, wantErr: true},
+		{name: "single-space namespace", podRef: " /pod", required: true, wantErr: true},
+		// Note: ValidatePodRef trims namespace/name segments with strings.TrimSpace.
+		// A segment containing only spaces (e.g. "ns/ ") becomes empty and is rejected,
+		// whereas embedded spaces (e.g. "name space/pod") survive trimming and are
+		// accepted because this validator only enforces the "namespace/name" shape.
+		{name: "single-space name", podRef: "ns/ ", required: true, wantErr: true},
 		{name: "slash only", podRef: "/", required: false, wantErr: true},
 		{name: "double slash", podRef: "//", required: false, wantErr: true, errMsg: "namespace/name"},
 	}

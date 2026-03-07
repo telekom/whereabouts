@@ -52,9 +52,15 @@ func NewPatchHelper(obj client.Object, c client.Client) (*PatchHelper, error) {
 		return nil, fmt.Errorf("snapshot object: %w", err)
 	}
 
+	copied := obj.DeepCopyObject()
+	beforeObject, ok := copied.(client.Object)
+	if !ok {
+		return nil, fmt.Errorf("snapshot object: DeepCopyObject() returned type %T which does not implement client.Object", copied)
+	}
+
 	return &PatchHelper{
 		client:       c,
-		beforeObject: obj.DeepCopyObject().(client.Object),
+		beforeObject: beforeObject,
 		beforeSpec:   spec,
 		beforeStatus: status,
 	}, nil
@@ -95,7 +101,11 @@ func (h *PatchHelper) Patch(ctx context.Context, obj client.Object) error {
 	case specChanged && statusChanged:
 		// Save the desired object (with both spec+status changes) so we
 		// can restore its status after the spec patch resets it.
-		desired := obj.DeepCopyObject().(client.Object)
+		copied := obj.DeepCopyObject()
+		desired, ok := copied.(client.Object)
+		if !ok {
+			return fmt.Errorf("snapshot object: DeepCopyObject() returned type %T which does not implement client.Object", copied)
+		}
 
 		if err := h.client.Patch(ctx, obj, client.MergeFrom(h.beforeObject)); err != nil {
 			errs = append(errs, fmt.Errorf("patching spec/metadata: %w", err))

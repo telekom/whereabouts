@@ -17,19 +17,23 @@ cleanup() {
 trap "cleanup" EXIT SIGINT
 
 mkdir -p "${TMP_DIFFROOT_PKG}" "${TMP_DIFFROOT_API}"
-cp -a "${DIFFROOT_PKG}"/* "${TMP_DIFFROOT_PKG}"
-cp -a "${DIFFROOT_API}"/* "${TMP_DIFFROOT_API}"
+cp -a "${DIFFROOT_PKG}/." "${TMP_DIFFROOT_PKG}/"
+cp -a "${DIFFROOT_API}/." "${TMP_DIFFROOT_API}/"
 
 "${SCRIPT_ROOT}/hack/update-codegen.sh"
 
 echo "diffing pkg/ against freshly generated codegen"
 ret=0
-diff -Naupr "${DIFFROOT_PKG}" "${TMP_DIFFROOT_PKG}" || ret=$?
-cp -a "${TMP_DIFFROOT_PKG}"/* "${DIFFROOT_PKG}"
+if ! diff -Naupr "${DIFFROOT_PKG}" "${TMP_DIFFROOT_PKG}"; then
+  ret=1
+fi
+cp -a "${TMP_DIFFROOT_PKG}/." "${DIFFROOT_PKG}/"
 
 echo "diffing api/ against freshly generated codegen"
-diff -Naupr "${DIFFROOT_API}" "${TMP_DIFFROOT_API}" || ret=$?
-cp -a "${TMP_DIFFROOT_API}"/* "${DIFFROOT_API}"
+if ! diff -Naupr "${DIFFROOT_API}" "${TMP_DIFFROOT_API}"; then
+  ret=1
+fi
+cp -a "${TMP_DIFFROOT_API}/." "${DIFFROOT_API}/"
 
 if [[ $ret -eq 0 ]]
 then

@@ -67,4 +67,7 @@ spec:
           path: /etc/cni/net.d
       - name: cni-args
         hostPath:
+          # Shared host directory used by install-cni/token-watcher scripts
+          # to exchange CNI argument material with the running DaemonSet.
+          # See script/token-watcher.sh and script/install-cni.sh.
           path: /var/run/whereabouts/cni-args

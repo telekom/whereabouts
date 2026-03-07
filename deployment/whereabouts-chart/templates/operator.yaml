@@ -83,16 +83,16 @@ spec:
       - name: webhook-certs
         secret:
           secretName: {{ include "whereabouts.fullname" . }}-webhook-cert
-          # optional: true is required because cert-controller creates and
-          # populates the secret after the pod starts. The ensureSecret
-          # function in certrotator.go bootstraps an empty secret, but the
-          # pod must be schedulable first.
+          # Keep optional=true to avoid startup deadlock when the secret does
+          # not exist yet. The operator process bootstraps it via ensureSecret,
+          # cert-controller rotates contents, and readiness is gated via
+          # webhookSetup.ReadyCheck() before traffic is served.
           optional: true
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.operator.nodeSelector | default .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.operator.tolerations | default .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

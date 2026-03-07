@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -124,9 +125,7 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().IntVar(&webhookPort, "webhook-port", 9443, "Port the webhook server listens on")
 	cmd.Flags().StringVar(&certDir, "cert-dir", "/var/run/webhook-certs", "Directory for TLS certificates")
 	cmd.Flags().StringVar(&namespace, "namespace", "", "Namespace where the operator runs (required for webhook cert DNS)")
-	if err := cobra.MarkFlagRequired(cmd.Flags(), "namespace"); err != nil {
-		panic(fmt.Sprintf("marking --namespace as required: %v", err))
-	}
+	utilruntime.Must(cobra.MarkFlagRequired(cmd.Flags(), "namespace"))
 	cmd.Flags().StringVar(&webhookServiceName, "webhook-service-name", "whereabouts-webhook-service", "Name of the webhook Service (used for TLS certificate DNS SAN)")
 	cmd.Flags().StringVar(&webhookSecretName, "webhook-secret-name", "whereabouts-webhook-cert", "Name of the Secret storing webhook TLS certificates")
 	cmd.Flags().StringVar(&webhookConfigName, "webhook-config-name", "whereabouts-validating-webhook-configuration", "Name of the ValidatingWebhookConfiguration to inject CA into")

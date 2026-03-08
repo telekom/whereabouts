@@ -217,14 +217,15 @@ func splitObject(obj client.Object) (spec, status []byte, err error) {
 // jsonEqual compares two JSON blobs for semantic equality.
 // It unmarshals both blobs into generic interface{} values and uses
 // reflect.DeepEqual, which correctly handles map key ordering differences.
-// Falls back to byte-level comparison if unmarshaling fails.
+// Falls back to byte-level comparison only when the first blob is malformed.
+// If the first parses but the second does not, they are treated as not equal.
 func jsonEqual(a, b []byte) bool {
 	var aVal, bVal interface{}
 	if err := json.Unmarshal(a, &aVal); err != nil {
 		return reflect.DeepEqual(a, b)
 	}
 	if err := json.Unmarshal(b, &bVal); err != nil {
-		return reflect.DeepEqual(a, b)
+		return false
 	}
 	return reflect.DeepEqual(aVal, bVal)
 }

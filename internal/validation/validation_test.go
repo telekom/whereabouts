@@ -66,7 +66,7 @@ func TestValidateSliceSize(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid /24", input: "/24", want: 24, wantErr: false},
-		{name: "valid 24 no slash", input: "24", want: 24, wantErr: false},
+		{name: "valid 24 (no leading slash)", input: "24", want: 24, wantErr: false},
 		{name: "valid /1", input: "/1", want: 1, wantErr: false},
 		{name: "valid /128", input: "/128", want: 128, wantErr: false},
 		{name: "zero", input: "0", want: 0, wantErr: true},

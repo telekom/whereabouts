@@ -1,4 +1,4 @@
-FROM golang:1.25.7@sha256:931c889bca758a82fcbfcb1b6ed6ca1de30783e9e52e6093ad50060735cb99be AS builder
+FROM golang:1.26.1@sha256:e2ddb153f786ee6210bf8c40f7f35490b3ff7d38be70d1a0d358ba64225f6428 AS builder
 WORKDIR /go/src/github.com/telekom/whereabouts
 # Cache dependency downloads in a separate layer
 COPY go.mod go.sum ./

@@ -171,6 +171,7 @@ jobs:
           image: ${{ needs.assemble.outputs.image }}@${{ needs.assemble.outputs.digest }}
           format: spdx-json
           output-file: sbom.spdx.json
+          upload-release-assets: false
 
       - name: Attest SBOM with Cosign
         run: cosign attest --yes --predicate sbom.spdx.json --type spdxjson "${{ needs.assemble.outputs.image }}@${{ needs.assemble.outputs.digest }}"

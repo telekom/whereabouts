@@ -82,6 +82,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2 # v6.0.2
       - uses: fsfe/reuse-action@v6.0.0 # v5.0.0
+        with:
+          args: >-
+            lint
+            --exclude vendor/github.com/go-openapi/jsonpointer/README.md
+            --exclude vendor/github.com/go-openapi/jsonreference/README.md
+            --exclude vendor/github.com/go-openapi/swag/README.md
 
   license-audit:
     name: License Audit

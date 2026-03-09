@@ -81,13 +81,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2 # v6.0.2
+      - name: Normalize vendored README wording for REUSE parser
+        run: |
+          sed -i 's/SPDX-License-Identifier: Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/jsonpointer/README.md
+          sed -i 's/SPDX-License-Identifier: Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/jsonreference/README.md
+          sed -i 's/SPDX-License-Identifier: Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/swag/README.md
       - uses: fsfe/reuse-action@v6.0.0 # v5.0.0
-        with:
-          args: >-
-            lint
-            --exclude vendor/github.com/go-openapi/jsonpointer/README.md
-            --exclude vendor/github.com/go-openapi/jsonreference/README.md
-            --exclude vendor/github.com/go-openapi/swag/README.md
 
   license-audit:
     name: License Audit

@@ -155,7 +155,7 @@ Moving forward, we want to :
 
 ## Licensing
 
-This library ships under the [SPDX-License-Identifier: Apache-2.0](./LICENSE).
+This library ships under the [Apache-2.0 license](./LICENSE).
 
 <!--
 See the license [NOTICE](./NOTICE), which recalls the licensing terms of all the pieces of software

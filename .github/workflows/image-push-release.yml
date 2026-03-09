@@ -140,7 +140,11 @@ jobs:
         id: inspect
         run: |
           tag=$(jq -cr '.tags[0]' <<< '${{ steps.meta.outputs.json }}')
-          digest=$(docker buildx imagetools inspect "${tag}" --format '{{.Manifest.Digest}}')
+          digest=$(docker buildx imagetools inspect "${tag}" | awk '/^Digest:/ {print $2; exit}')
+          if [ -z "${digest}" ]; then
+            echo "Failed to extract manifest digest for ${tag}" >&2
+            exit 1
+          fi
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
   sign:

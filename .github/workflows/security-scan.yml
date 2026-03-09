@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2 # v6.0.2
-      - uses: fsfe/reuse-action@v5.0.0 # v5.0.0
+      - uses: fsfe/reuse-action@v6.0.0 # v5.0.0
 
   license-audit:
     name: License Audit

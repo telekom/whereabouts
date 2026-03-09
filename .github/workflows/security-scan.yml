@@ -74,7 +74,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v6.0.2 # v6.0.2
-      - uses: actions/dependency-review-action@v4.7.1 # v4.7.1
+      - uses: actions/dependency-review-action@v4.9.0 # v4.7.1
 
   reuse:
     name: REUSE Compliance

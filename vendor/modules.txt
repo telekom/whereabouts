@@ -255,7 +255,7 @@ go.uber.org/zap/internal/exit
 go.uber.org/zap/internal/pool
 go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
-# go.yaml.in/yaml/v2 v2.4.3
+# go.yaml.in/yaml/v2 v2.4.4
 ## explicit; go 1.15
 go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.4
@@ -277,15 +277,15 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/httpsfv
-# golang.org/x/oauth2 v0.35.0
-## explicit; go 1.24.0
+# golang.org/x/oauth2 v0.36.0
+## explicit; go 1.25.0
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sync v0.19.0
-## explicit; go 1.24.0
+# golang.org/x/sync v0.20.0
+## explicit; go 1.25.0
 golang.org/x/sync/errgroup
-# golang.org/x/sys v0.41.0
-## explicit; go 1.24.0
+# golang.org/x/sys v0.42.0
+## explicit; go 1.25.0
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -316,8 +316,8 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.14.0
-## explicit; go 1.24.0
+# golang.org/x/time v0.15.0
+## explicit; go 1.25.0
 golang.org/x/time/rate
 # golang.org/x/tools v0.41.0
 ## explicit; go 1.24.0
@@ -897,8 +897,8 @@ k8s.io/gengo/v2/generator
 k8s.io/gengo/v2/namer
 k8s.io/gengo/v2/parser
 k8s.io/gengo/v2/types
-# k8s.io/klog/v2 v2.130.1
-## explicit; go 1.18
+# k8s.io/klog/v2 v2.140.0
+## explicit; go 1.21
 k8s.io/klog/v2
 k8s.io/klog/v2/internal/buffer
 k8s.io/klog/v2/internal/clock
@@ -906,7 +906,7 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
-# k8s.io/kube-openapi v0.0.0-20260127142750-a19766b6e2d4
+# k8s.io/kube-openapi v0.0.0-20260304202019-5b3e3fdb0acf
 ## explicit; go 1.23.0
 k8s.io/kube-openapi/cmd/openapi-gen
 k8s.io/kube-openapi/cmd/openapi-gen/args
@@ -933,7 +933,7 @@ k8s.io/utils/lru
 k8s.io/utils/net
 k8s.io/utils/ptr
 k8s.io/utils/trace
-# sigs.k8s.io/controller-runtime v0.23.2-0.20260202104230-4dbfa5c66aa2
+# sigs.k8s.io/controller-runtime v0.23.3
 ## explicit; go 1.25.0
 sigs.k8s.io/controller-runtime
 sigs.k8s.io/controller-runtime/pkg/builder

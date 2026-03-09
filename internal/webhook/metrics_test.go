@@ -22,6 +22,11 @@ func getCounterValue(counter interface{ Write(*dto.Metric) error }) float64 {
 }
 
 var _ = Describe("Webhook Metrics", func() {
+	BeforeEach(func() {
+		// Ensure metric deltas are measured from a clean slate per spec.
+		webhookValidationTotal.Reset()
+	})
+
 	Context("recordValidation", func() {
 		It("should increment allowed counter for successful validation", func() {
 			before := getCounterValue(webhookValidationTotal.WithLabelValues("ippool", "create", "allowed"))

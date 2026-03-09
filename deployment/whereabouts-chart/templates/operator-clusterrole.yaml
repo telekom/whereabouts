@@ -43,12 +43,15 @@ rules:
   resources: [events]
   verbs: [create, patch, update, get]
 # cert-controller uses a cache-backed informer (source.Kind) to watch the
-# webhook TLS Secret for rotation. Keep permissions scoped to the webhook
-# Secret name.
+# webhook TLS Secret for rotation. create/list/watch are required for bootstrap
+# and informer operation; get/update/patch are scoped to the webhook Secret.
+- apiGroups: [""]
+  resources: [secrets]
+  verbs: [create, list, watch]
 - apiGroups: [""]
   resources: [secrets]
   resourceNames: [{{ include "whereabouts.fullname" . }}-webhook-cert]
-  verbs: [create, get, list, watch, update, patch]
+  verbs: [get, update, patch]
 # cert-controller updates webhook configurations with CA bundle
 - apiGroups: [admissionregistration.k8s.io]
   resources: [validatingwebhookconfigurations]

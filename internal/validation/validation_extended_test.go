@@ -93,6 +93,7 @@ func TestValidateSliceSizeExtended(t *testing.T) {
 		{name: "very large number", input: "9999", want: 0, wantErr: true},
 		{name: "float", input: "24.5", want: 0, wantErr: true},
 		{name: "hex", input: "0x18", want: 0, wantErr: true},
+		// Go's strconv.Atoi parses "024" as decimal 24 (base 10), not octal 20.
 		{name: "leading zero", input: "024", want: 24, wantErr: false},
 		{name: "whitespace padded", input: " 24 ", want: 0, wantErr: true},
 		{name: "slash only", input: "/", want: 0, wantErr: true},

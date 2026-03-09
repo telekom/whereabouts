@@ -25,9 +25,9 @@ jobs:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
+      - uses: actions/checkout@v6.0.2 # v6.0.2
       - name: Set up Go
-        uses: actions/setup-go@v6 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
       - name: Install govulncheck
@@ -39,7 +39,7 @@ jobs:
     name: Trivy Vulnerability Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
+      - uses: actions/checkout@v6.0.2 # v6.0.2
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
@@ -54,17 +54,17 @@ jobs:
       security-events: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
+      - uses: actions/checkout@v6.0.2 # v6.0.2
         with:
           persist-credentials: false
       - name: Run OpenSSF Scorecard
-        uses: ossf/scorecard-action@v2 # v2.4.2
+        uses: ossf/scorecard-action@v2.4.2 # v2.4.2
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
       - name: Upload Scorecard results
-        uses: github/codeql-action/upload-sarif@v4 # v4.32.4
+        uses: github/codeql-action/upload-sarif@v4.32.4 # v4.32.4
         with:
           sarif_file: results.sarif
 
@@ -73,23 +73,23 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
-      - uses: actions/dependency-review-action@v4 # v4.7.1
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - uses: actions/dependency-review-action@v4.7.1 # v4.7.1
 
   reuse:
     name: REUSE Compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
-      - uses: fsfe/reuse-action@v5 # v5.0.0
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - uses: fsfe/reuse-action@v5.0.0 # v5.0.0
 
   license-audit:
     name: License Audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6 # v6.0.2
+      - uses: actions/checkout@v6.0.2 # v6.0.2
       - name: Set up Go
-        uses: actions/setup-go@v6 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
       - name: Install go-licenses
@@ -99,7 +99,7 @@ jobs:
       - name: Generate license report
         run: go-licenses report ./... 2>/dev/null > licenses.csv || true
       - name: Upload license report
-        uses: actions/upload-artifact@v7 # v7.0.0
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0
         if: always()
         with:
           name: license-report

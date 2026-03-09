@@ -27,15 +27,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Install Go
-      uses: actions/setup-go@v6 # v6.3.0
+      uses: actions/setup-go@v6.3.0 # v6.3.0
       with:
         go-version-file: go.mod
 
     - name: Run Revive Action by building from repository
-      uses: morphy2k/revive-action@v2 # v2.7.8
+      uses: morphy2k/revive-action@v2.7.8 # v2.7.8
       with:
         exclude: "./vendor/..."
 
@@ -50,7 +50,7 @@ jobs:
       run: make test
 
     - name: Send coverage
-      uses: shogo82148/actions-goveralls@v1 # v1.10.0
+      uses: shogo82148/actions-goveralls@v1.10.0 # v1.10.0
       with:
         path-to-profile: coverage.out
 
@@ -97,10 +97,10 @@ jobs:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6 # v6.0.2
+        uses: actions/checkout@v6.0.2 # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@v6 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
 
@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload cluster diagnostics
         if: failure()
-        uses: actions/upload-artifact@v7 # v7.0.0
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0
         with:
           name: e2e-diagnostics-${{ matrix.suite }}
           path: /tmp/kind-logs/
@@ -202,10 +202,10 @@ jobs:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6 # v6.0.2
+        uses: actions/checkout@v6.0.2 # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@v6 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
 
@@ -273,7 +273,7 @@ jobs:
 
       - name: Upload cluster diagnostics
         if: failure()
-        uses: actions/upload-artifact@v7 # v7.0.0
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0
         with:
           name: e2e-helm-diagnostics-${{ matrix.suite }}
           path: /tmp/kind-logs/

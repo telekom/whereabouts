@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Install Go
-      uses: actions/setup-go@v6 # v6.3.0
+      uses: actions/setup-go@v6.3.0 # v6.3.0
       with:
         go-version-file: go.mod
 
@@ -42,15 +42,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Install Go
-      uses: actions/setup-go@v6 # v6.3.0
+      uses: actions/setup-go@v6.3.0 # v6.3.0
       with:
         go-version-file: go.mod
 
     - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v7 # v7.0.1
+      uses: golangci/golangci-lint-action@v7.0.1 # v7.0.1
       with:
         version: latest
         args: --timeout=5m
@@ -60,10 +60,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Run hadolint
-      uses: hadolint/hadolint-action@v3 # v3.1.0
+      uses: hadolint/hadolint-action@v3.1.0 # v3.1.0
       with:
         dockerfile: Dockerfile
 
@@ -72,10 +72,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Install Go
-      uses: actions/setup-go@v6 # v6.3.0
+      uses: actions/setup-go@v6.3.0 # v6.3.0
       with:
         go-version-file: go.mod
 
@@ -89,10 +89,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6 # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Set up Helm
-      uses: azure/setup-helm@v4 # v4.3.1
+      uses: azure/setup-helm@v4.3.1 # v4.3.1
 
     - name: Lint Helm chart
       run: helm lint deployment/whereabouts-chart

@@ -17,10 +17,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset.yml"
 CNIS_DAEMONSET_PATH="$ROOT/hack/cni-install.yml"
-TIMEOUT_K8="5000s"
 RETRY_MAX=10
 INTERVAL=10
-TIMEOUT=300
+TIMEOUT=120
 TIMEOUT_K8="${TIMEOUT}s"
 KIND_CLUSTER_NAME="whereabouts"
 OCI_BIN="${OCI_BIN:-"docker"}"
@@ -62,9 +61,9 @@ check_requirements() {
 
 retry() {
   local status=0
-  local retries=${RETRY_MAX:=5}
-  local delay=${INTERVAL:=5}
-  local to=${TIMEOUT:=20}
+  local retries=${RETRY_MAX:-5}
+  local delay=${INTERVAL:-5}
+  local to=${TIMEOUT:-20}
   cmd="$*"
 
   while [ $retries -gt 0 ]
@@ -106,14 +105,20 @@ trap "rm -f /tmp/whereabouts-img.tar" EXIT
 "$OCI_BIN" save -o /tmp/whereabouts-img.tar "$IMG_NAME"
 kind load image-archive --name "$KIND_CLUSTER_NAME" /tmp/whereabouts-img.tar
 
-echo "## install whereabouts"
-for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml" "whereabouts.cni.cncf.io_nodeslicepools.yaml"; do
-  # insert 'imagePullPolicy: Never' under the container 'image' so it is certain that the image used
-  # by the daemonset is the one loaded into KinD and not one pulled from a repo
-  awk '/^        image:/{print; print "        imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
+echo "## install CRDs"
+for crd in "$ROOT/config/crd/bases/whereabouts.cni.cncf.io_"*.yaml; do
+  retry kubectl apply -f "$crd"
 done
-# deployment has an extra tab for the sed so doing out of the loop
-awk '/^          image:/{print; print "          imagePullPolicy: Never"; next}1' "$ROOT/doc/crds/node-slice-controller.yaml" | retry kubectl apply -f -
-retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
-retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-controller pod --timeout=$TIMEOUT_K8
+
+echo "## install whereabouts"
+# Build kustomize output, substitute the locally built image, and add imagePullPolicy: Never
+pushd "$ROOT"
+make kustomize
+bin/kustomize build config/default | \
+  sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" | \
+  awk '/^[[:space:]]*image:/{print; indent=substr($0,1,match($0,/image:/)-1); print indent "imagePullPolicy: Never"; next}1' | \
+  retry kubectl apply -f -
+popd
+retry kubectl wait -n kube-system --for=condition=ready -l name=whereabouts pod --timeout=$TIMEOUT_K8
+retry kubectl wait -n kube-system --for=condition=ready -l control-plane=controller-manager pod --timeout=$TIMEOUT_K8
 echo "## done"

@@ -2,112 +2,248 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
+# golangci-lint v2 configuration.
+# Modeled after kubernetes-sigs/cluster-api and adapted for whereabouts.
+
 version: "2"
+
+run:
+  timeout: 10m
+  build-tags:
+    - e2e
+  allow-parallel-runners: true
 
 linters:
   default: none
   enable:
-    # === Bug detection ===
-    - bodyclose          # Unclosed HTTP response bodies (resource leak)
-    - durationcheck      # Bad time.Duration multiplication
-    - nilerr             # Returns nil where an error was checked but not returned
-    - sqlclosecheck      # Unclosed sql.Rows / sql.Stmt (resource leak)
-
-    # === Security ===
-    - gosec              # Source-code security scanner
-
-    # === Style and readability ===
-    - misspell           # Catches common English misspellings in code and comments
-    - whitespace         # Trailing whitespace, blank lines in blocks
-    - usestdlibvars      # Use constants from stdlib (http.StatusOK, etc.)
-    - unconvert          # Unnecessary type conversions
-    - wastedassign       # Assignments that are never read
-
-    # === Error handling ===
-    - errcheck           # Unchecked errors (stdlib default)
-
-    # === Code correctness ===
-    - govet              # Go vet checks (shadow, printf, etc.)
-    - staticcheck        # Comprehensive static analysis (successor of megacheck)
-    - unused             # Unused code detection
-    - ineffassign        # Detects ineffectual assignments
+    # Bug detection
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - copyloopvar
+    - durationcheck
+    - errchkjson
+    - nilerr
+    - sqlclosecheck
+    # Security
+    - gosec
+    - noctx
+    # Style and readability
+    - dogsled
+    - dupword
+    - gocritic
+    - godot
+    - goprintffuncname
+    - importas
+    - misspell
+    - nolintlint
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - revive
+    - unconvert
+    - usestdlibvars
+    - whitespace
+    # Error handling
+    - errcheck
+    # Code correctness
+    - govet
+    - ineffassign
+    - intrange
+    - staticcheck
+    - thelper
+    - unparam
+    - unused
+    - wastedassign
+    # Ginkgo/Gomega
+    - ginkgolinter
 
   settings:
     gosec:
       excludes:
-        - G115  # Integer overflow conversion — too many false positives with int/int64 in K8s API code
-        - G301  # Expect directory permissions to be 0750 or less
-        - G302  # Expect file permissions to be 0600 or less
-        - G304  # File path provided as taint input — necessary for kubeconfig/cert file loading
-        - G306  # Expect WriteFile permissions to be 0600 or less
-        - G703  # Path traversal via taint analysis — config paths are trusted
+        - G115  # int→int32 conversions for pool sizes (safely bounded)
+        - G703  # False positive: paths from config, not user input
 
     staticcheck:
       checks:
         - all
-        - -SA1019  # Deprecated API usage — address separately
-        - -ST1000  # Package comments — too restrictive for internal packages
-        - -ST1003  # Naming conventions — renaming exported fields/packages is breaking
-        - -QF1001  # De Morgan's law — style preference
-        - -QF1008  # Embedded field selectors — style preference
+        - "-SA1019"
+        - "-ST1003"
 
     govet:
       enable:
-        - unusedresult # Unused results of certain function calls
+        - unusedresult
 
     errcheck:
       exclude-functions:
-        # These are expected to fail in cleanup/shutdown paths
         - (io.Closer).Close
         - (*os.File).Close
-        # logging.Errorf is dual-purpose (log + return error); codebase convention
-        # often uses it for logging only without capturing the returned error.
         - github.com/telekom/whereabouts/pkg/logging.Errorf
 
     misspell:
       locale: US
 
+    gocritic:
+      disabled-checks:
+        - appendAssign       # https://github.com/go-critic/go-critic/issues/845
+        - hugeParam          # K8s types are inherently large structs
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - performance
+
+    godot:
+      scope: toplevel
+      exclude:
+        - '^ \+.*'
+        - '^ SPDX-.*'
+        - '^ Copyright .*'
+        - '^ -+$'
+
+    ginkgolinter:
+      forbid-focus-container: true
+
+    importas:
+      alias:
+        - pkg: k8s.io/api/core/v1
+          alias: corev1
+        - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+          alias: metav1
+        - pkg: k8s.io/apimachinery/pkg/api/errors
+          alias: apierrors
+        - pkg: k8s.io/apimachinery/pkg/util/errors
+          alias: kerrors
+        - pkg: sigs.k8s.io/controller-runtime
+          alias: ctrl
+        - pkg: github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1
+          alias: whereaboutsv1alpha1
+        - pkg: github.com/telekom/whereabouts/pkg/types
+          alias: whereaboutstypes
+      no-unaliased: false
+
+    nolintlint:
+      require-specific: true
+      allow-unused: false
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        - name: bool-literal-in-expr
+        - name: constant-logical-expr
+
   exclusions:
-    generated: lax
+    generated: strict
     presets:
       - comments
       - common-false-positives
       - legacy
       - std-error-handling
     rules:
-      # Test files: relax error checking and security rules
       - linters:
           - errcheck
           - gosec
           - bodyclose
           - nilerr
-          - contextcheck
+          - noctx
+          - unparam
+          - gocritic
+          - containedctx
+          - thelper
         path: _test\.go$
 
-      # E2E test helpers: same relaxations as unit tests
+      - linters:
+          - revive
+          - staticcheck
+        path: _test\.go
+        text: should not use dot imports
+
+      - linters:
+          - revive
+        path: _test\.go$
+        text: "exported (method|function|type|const) (.+) should have comment or be unexported"
+
       - linters:
           - errcheck
           - gosec
           - bodyclose
+          - noctx
+          - unparam
+          - revive
+          - thelper
         path: e2e/
 
-      # Generated code (mocks, fakes, deepcopy)
+      - linters:
+          - revive
+          - staticcheck
+        path: e2e/
+        text: should not use dot imports
+
       - linters:
           - all
         path: "(zz_generated|mock_|fake_)"
 
-      # CLI commands often have complex functions
       - linters:
           - gocyclo
           - cyclop
           - funlen
         path: cmd/
 
+      - linters:
+          - revive
+        path: fake_\.go
+        text: "exported (method|function|type|const) (.+) should have comment or be unexported"
+
+      - linters:
+          - errcheck
+        text: "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+
+      - linters:
+          - godot
+        text: "Comment should end in a period"
+        source: '^\s*//\s*\+.*'
+
+      # Exported type stuttering — renaming would break API compatibility
+      - linters:
+          - revive
+        path: pkg/storage/kubernetes/
+        text: "exported: type name will be used as kubernetes\\.Kubernetes"
+
+      # Package naming — meaningful names that mirror upstream conventions
+      - linters:
+          - revive
+        text: "var-naming: (avoid meaningless package names|avoid package names that conflict)"
+
     paths:
       - vendor
       - testdata
       - pkg/generated
-      - ".*\\.gen\\.go$"
+      - '.*\.gen\.go$'
+      - tools\.go
 
 formatters:
   enable:
@@ -123,4 +259,8 @@ formatters:
       - vendor
       - testdata
       - pkg/generated
-      - ".*\\.gen\\.go$"
+      - '.*\.gen\.go$'
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -17,33 +17,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2 # v6.0.2
 
       - name: Install Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
 
-      - name: Install kubebuilder tools
-        run: ./hack/install-kubebuilder-tools.sh
-
-      - name: Build
-        run: ./hack/build-go.sh
-
-      - name: Test
-        run: sudo PATH=${PATH}:./bin ./hack/test-go.sh
+      - name: Build and Test
+        run: make test
 
   package-and-push-helm-chart:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: install helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@v4.3.1 # v4.3.1
         with:
           version: latest
 
       - name: Check out the repo
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2 # v6.0.2
       
       - name: update chart
         env:

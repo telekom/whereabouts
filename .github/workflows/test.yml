@@ -27,37 +27,32 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@v6.0.2 # v6.0.2
 
     - name: Install Go
-      uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+      uses: actions/setup-go@v6.3.0 # v6.3.0
       with:
         go-version-file: go.mod
 
     - name: Run Revive Action by building from repository
-      uses: morphy2k/revive-action@bd8016177e3722fe0aad85e22507805641be5bb1 # v2.7.8
+      uses: morphy2k/revive-action@v2.7.8 # v2.7.8
       with:
         exclude: "./vendor/..."
 
-    - name: Install kubebuilder tools
-      run: ./hack/install-kubebuilder-tools.sh
-
     - name: Generate code
-      run: ./hack/generate-code.sh && hack/verify-codegen.sh
+      run: make generate && hack/verify-codegen.sh
 
     - name: Run go fmt
       run: go fmt ./...
       #run: diff -u <(echo -n) <(gofmt -d -s .)
 
     - name: Test
-      run: sudo PATH=${PATH}:./bin ./hack/test-go.sh
+      run: make test
 
     - name: Send coverage
-      uses: shogo82148/actions-goveralls@25f5320d970fb565100cf1993ada29be1bb196a1 # v1.10.0
+      uses: shogo82148/actions-goveralls@v1.10.0 # v1.10.0
       with:
         path-to-profile: coverage.out
-      env:
-        KUBEBUILDER_ASSETS: ${{ github.workspace }}/bin
 
   e2e:
     name: "e2e / ${{ matrix.suite }}"
@@ -66,22 +61,34 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: core
+          - suite: core-basic
             test-dir: e2e
             test-pkg: "."
-            focus: "Single pod tests|DualStack|Replicaset|stateful set|OverlappingRangeIPReservation|Named ranges|Pod cleanup"
+            focus: "Single pod tests|Small subnets|Gateway exclusion|L3.Routed|Preferred IP"
+          - suite: core-workloads
+            test-dir: e2e
+            test-pkg: "."
+            focus: "ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Optimistic IPAM"
+          - suite: core-lifecycle
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Pod cleanup|Node drain|Reconciler cleanup"
           - suite: v4
             test-dir: e2e
             test-pkg: "."
-            focus: "across address families.*IPv4|Reconciler stale"
+            focus: "across address families.*IPv4"
           - suite: v6
             test-dir: e2e
             test-pkg: "."
-            focus: "across address families.*IPv6"
+            focus: "IPv6"
           - suite: dualstack-ext
             test-dir: e2e
             test-pkg: "."
-            focus: "DS:|Multi-pool|Failure"
+            focus: "DS:|Multi-pool:|Failure:"
+          - suite: edge-cases
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Edge:"
           - suite: node-slice
             test-dir: e2e
             test-pkg: "./e2e_node_slice/..."
@@ -90,15 +97,15 @@ jobs:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v6.0.2 # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@v6.3.0 # v6.3.0
         with:
           go-version-file: go.mod
 
       - name: Install requirements
-        run: sudo apt-get install nmap jq && ./hack/build-go.sh
+        run: sudo apt-get install nmap jq && make build
 
       - name: Get tools, setup KinD cluster test environment
         run: source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
@@ -106,13 +113,10 @@ jobs:
       - name: Clear test-cache
         run: go clean -testcache
 
-      - name: Configure reconciler for e2e testing
+      - name: Wait for operator to be ready
         run: |
-          kubectl -n kube-system create configmap whereabouts-config \
-            --from-literal=cron-expression="*/1 * * * *" \
-            --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n kube-system rollout restart deployment whereabouts-controller || true
-          kubectl -n kube-system wait --for=condition=ready -l app=whereabouts-controller pod --timeout=120s
+          kubectl -n kube-system rollout status deployment whereabouts-controller-manager --timeout=120s
+          kubectl -n kube-system wait --for=condition=ready -l control-plane=controller-manager pod --timeout=120s
 
       - name: Execute E2E tests
         env:
@@ -137,10 +141,11 @@ jobs:
           kubectl get pods -A -o wide || true
           echo ""
           echo "=== Whereabouts pods ==="
-          kubectl -n kube-system get pods -l app=whereabouts -o wide || true
+          kubectl -n kube-system get pods -l name=whereabouts -o wide || true
+          kubectl -n kube-system get pods -l control-plane=controller-manager -o wide || true
           echo ""
           echo "=== Whereabouts pod logs ==="
-          for p in $(kubectl -n kube-system get pods -l app=whereabouts -o name 2>/dev/null); do
+          for p in $(kubectl -n kube-system get pods -l name=whereabouts -o name 2>/dev/null) $(kubectl -n kube-system get pods -l control-plane=controller-manager -o name 2>/dev/null); do
             echo "--- $p ---"
             kubectl -n kube-system logs "$p" --tail=200 || true
           done
@@ -164,8 +169,112 @@ jobs:
 
       - name: Upload cluster diagnostics
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0
         with:
           name: e2e-diagnostics-${{ matrix.suite }}
+          path: /tmp/kind-logs/
+          retention-days: 7
+
+  e2e-helm:
+    name: "e2e-helm / ${{ matrix.suite }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: core-basic
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Single pod tests|Small subnets|Gateway exclusion|L3.Routed|Preferred IP"
+          - suite: core-workloads
+            test-dir: e2e
+            test-pkg: "."
+            focus: "ReplicaSet|StatefulSet|Overlapping ranges|Named ranges|Optimistic IPAM"
+          - suite: core-lifecycle
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Pod cleanup|Node drain|Reconciler cleanup"
+          - suite: v4
+            test-dir: e2e
+            test-pkg: "."
+            focus: "across address families.*IPv4"
+    env:
+      NUMBER_OF_COMPUTE_NODES: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.2 # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.3.0 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install requirements
+        run: sudo apt-get install nmap jq && make build
+
+      - name: Get tools, setup KinD cluster with Helm
+        run: source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster-helm.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
+
+      - name: Clear test-cache
+        run: go clean -testcache
+
+      - name: Wait for operator to be ready
+        run: |
+          kubectl -n kube-system wait --for=condition=ready -l control-plane=controller-manager pod --timeout=120s
+
+      - name: Execute E2E tests
+        env:
+          KUBECONFIG: /home/runner/.kube/config
+          NUMBER_OF_THRASH_ITER: 5
+          FILL_PERCENT_CAPACITY: 20
+        run: |
+          cd ${{ matrix.test-dir }}
+          if [ -n "${{ matrix.focus }}" ]; then
+            go test -v ${{ matrix.test-pkg }} -timeout 1h -ginkgo.focus="${{ matrix.focus }}"
+          else
+            go test -v ${{ matrix.test-pkg }} -timeout 1h
+          fi
+
+      - name: Collect cluster diagnostics
+        if: failure()
+        run: |
+          echo "=== Node status ==="
+          kubectl get nodes -o wide || true
+          echo ""
+          echo "=== All pods ==="
+          kubectl get pods -A -o wide || true
+          echo ""
+          echo "=== Whereabouts pods ==="
+          kubectl -n kube-system get pods -l name=whereabouts -o wide || true
+          kubectl -n kube-system get pods -l control-plane=controller-manager -o wide || true
+          echo ""
+          echo "=== Whereabouts pod logs ==="
+          for p in $(kubectl -n kube-system get pods -l name=whereabouts -o name 2>/dev/null) $(kubectl -n kube-system get pods -l control-plane=controller-manager -o name 2>/dev/null); do
+            echo "--- $p ---"
+            kubectl -n kube-system logs "$p" --tail=200 || true
+          done
+          echo ""
+          echo "=== IPPool resources ==="
+          kubectl get ippools.whereabouts.cni.cncf.io -A -o yaml || true
+          echo ""
+          echo "=== OverlappingRangeIPReservation resources ==="
+          kubectl get overlappingrangeipreservations.whereabouts.cni.cncf.io -A -o yaml || true
+          echo ""
+          echo "=== NetworkAttachmentDefinitions ==="
+          kubectl get net-attach-def -A -o yaml || true
+          echo ""
+          echo "=== Events (last 100) ==="
+          kubectl get events -A --sort-by='.lastTimestamp' | tail -100 || true
+
+      - name: Export KinD logs
+        if: failure()
+        run: |
+          kind export logs /tmp/kind-logs --name whereabouts || true
+
+      - name: Upload cluster diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.0 # v7.0.0
+        with:
+          name: e2e-helm-diagnostics-${{ matrix.suite }}
           path: /tmp/kind-logs/
           retention-days: 7

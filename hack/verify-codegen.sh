@@ -27,16 +27,16 @@ ret=0
 if ! diff -Naupr "${DIFFROOT_PKG}" "${TMP_DIFFROOT_PKG}"; then
   ret=1
 fi
-cp -a "${TMP_DIFFROOT_PKG}/." "${DIFFROOT_PKG}/"
 
 echo "diffing api/ against freshly generated codegen"
 if ! diff -Naupr "${DIFFROOT_API}" "${TMP_DIFFROOT_API}"; then
   ret=1
 fi
-cp -a "${TMP_DIFFROOT_API}/." "${DIFFROOT_API}/"
 
-if [[ $ret -eq 0 ]]
-then
+if [[ $ret -eq 0 ]]; then
+    # Keep working tree clean when generated code already matches snapshot.
+    cp -a "${TMP_DIFFROOT_PKG}/." "${DIFFROOT_PKG}/"
+    cp -a "${TMP_DIFFROOT_API}/." "${DIFFROOT_API}/"
     echo "pkg/ and api/ up to date."
 else
     echo "pkg/ or api/ is out of date. Please run hack/update-codegen.sh"

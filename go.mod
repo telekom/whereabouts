@@ -22,15 +22,15 @@ require (
 require (
 	github.com/gaissmai/extnetip v1.3.1
 	github.com/onsi/ginkgo/v2 v2.28.1
-	github.com/open-policy-agent/cert-controller v0.15.0
+	github.com/open-policy-agent/cert-controller v0.16.0
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/controller-runtime v0.23.3 // pre-release; update to tagged v0.23.2 once available
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // pre-release; update to tagged v6.3.2 once available
 )
 
 require (
-	github.com/fluxcd/pkg/apis/meta v1.25.0
-	github.com/fluxcd/pkg/runtime v0.102.0
+	github.com/fluxcd/pkg/apis/meta v1.26.0
+	github.com/fluxcd/pkg/runtime v0.103.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	go.uber.org/zap v1.27.1

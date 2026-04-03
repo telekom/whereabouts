@@ -54,8 +54,8 @@ jobs:
             exit 0
           fi
 
-          # Create sync branch from main
-          git checkout -b "$SYNC_BRANCH" origin/main
+          # Create sync branch from main (force-recreate if exists from previous run)
+          git checkout -B "$SYNC_BRANCH" origin/main
 
           # Merge upstream (allow conflicts — they'll be flagged in the PR)
           if git merge upstream/master --no-edit; then
@@ -75,7 +75,7 @@ jobs:
           **${{ steps.check.outputs.behind }}** new upstream commit(s) detected."
           fi
 
-          git push origin "$SYNC_BRANCH"
+          git push --force-with-lease origin "$SYNC_BRANCH"
 
           gh pr create \
             --base main \

@@ -54,6 +54,10 @@ jobs:
             exit 0
           fi
 
+          # Clean up any stale local/remote branch from a previous failed run
+          git branch -D "$SYNC_BRANCH" 2>/dev/null || true
+          git push origin --delete "$SYNC_BRANCH" 2>/dev/null || true
+
           # Create sync branch from main
           git checkout -b "$SYNC_BRANCH" origin/main
 
@@ -66,16 +70,27 @@ jobs:
           Please review the changes and merge when ready."
           else
             # Merge had conflicts — commit the conflict markers so the PR shows them
+            CONFLICTS=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
             git add -A
             git commit --no-edit || true
             BODY="⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).
 
           This PR has **merge conflicts** that need manual resolution.
 
-          **${{ steps.check.outputs.behind }}** new upstream commit(s) detected."
+          **${{ steps.check.outputs.behind }}** new upstream commit(s) detected.
+
+          **Conflicting files:** \`${CONFLICTS}\`
+
+          To resolve locally:
+          \`\`\`bash
+          git fetch upstream
+          git merge upstream/master
+          # Resolve conflicts, then:
+          git add . && git commit
+          \`\`\`"
           fi
 
-          git push origin "$SYNC_BRANCH"
+          git push origin "$SYNC_BRANCH" --force
 
           gh pr create \
             --base main \

@@ -75,6 +75,9 @@ jobs:
           **${{ steps.check.outputs.behind }}** new upstream commit(s) detected."
           fi
 
+          # Update the remote-tracking ref so --force-with-lease can validate safely.
+          # Ignore failure when the branch does not yet exist on origin.
+          git fetch origin "$SYNC_BRANCH":"refs/remotes/origin/$SYNC_BRANCH" || true
           git push --force-with-lease origin "$SYNC_BRANCH"
 
           gh pr create \

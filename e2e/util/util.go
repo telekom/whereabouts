@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	CreatePodTimeout = 10 * time.Second
+	CreatePodTimeout = 30 * time.Second
 )
 
 func AllocationForPodRef(podRef string, ipPool v1alpha1.IPPool) *v1alpha1.IPAllocation {

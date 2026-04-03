@@ -79,8 +79,9 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 
 		AfterEach(func() {
 			Expect(clientInfo.DelNetAttachDef(netAttachDef)).To(Succeed())
-			time.Sleep(1 * time.Second)
-			Expect(clientInfo.NodeSliceDeleted(testNetworkName, testNamespace)).To(Succeed())
+			Eventually(func() error {
+				return clientInfo.NodeSliceDeleted(testNetworkName, testNamespace)
+			}).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(Succeed())
 		})
 
 		Context("Single pod tests node slice", func() {

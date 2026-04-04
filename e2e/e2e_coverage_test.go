@@ -76,6 +76,7 @@ var _ = Describe("Whereabouts coverage", func() {
 				entities.PodNetworkSelectionElements(networkName),
 			)
 			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() { _ = clientInfo.DeletePod(pod1) })
 
 			ips1, err := retrievers.SecondaryIfaceIPValue(pod1, "net1")
 			Expect(err).NotTo(HaveOccurred())
@@ -89,6 +90,7 @@ var _ = Describe("Whereabouts coverage", func() {
 				entities.PodNetworkSelectionElements(networkName),
 			)
 			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() { _ = clientInfo.DeletePod(pod2) })
 
 			ips2, err := retrievers.SecondaryIfaceIPValue(pod2, "net1")
 			Expect(err).NotTo(HaveOccurred())
@@ -150,7 +152,7 @@ var _ = Describe("Whereabouts coverage", func() {
 		const (
 			networkName  = "wa-coverage-restart"
 			ipRange      = "10.120.0.0/24"
-			operatorName = "whereabouts"
+			operatorName = "whereabouts-controller-manager"
 			operatorNS   = "kube-system"
 			replicaCount = int32(3)
 			rsName       = "wb-restart-rs"
@@ -214,28 +216,33 @@ var _ = Describe("Whereabouts coverage", func() {
 
 			By("waiting for the operator rollout to complete")
 			const rolloutTimeout = 3 * time.Minute
+			// Get the deployment generation after the restart annotation was applied
+			updatedDep, err := clientInfo.Client.AppsV1().Deployments(operatorNS).Get(
+				context.Background(), operatorName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			targetGeneration := updatedDep.Generation
+
 			Eventually(func() bool {
 				dep, err := clientInfo.Client.AppsV1().Deployments(operatorNS).Get(
 					context.Background(), operatorName, metav1.GetOptions{})
 				if err != nil {
 					return false
 				}
-				// All replicas updated, ready, and available
-				desired := dep.Status.Replicas
-				return dep.Status.UpdatedReplicas == desired &&
-					dep.Status.ReadyReplicas == desired &&
+				// Ensure the controller has observed our update AND all replicas are ready
+				return dep.Status.ObservedGeneration >= targetGeneration &&
+					dep.Status.UpdatedReplicas == dep.Status.Replicas &&
+					dep.Status.ReadyReplicas == dep.Status.Replicas &&
 					dep.Status.UnavailableReplicas == 0
-			}, rolloutTimeout, 5*time.Second).Should(BeTrue())
+			}, rolloutTimeout, 5*time.Second).Should(BeTrue(),
+				"operator rollout should complete with all replicas ready")
 
 			By("verifying existing pods still hold their pre-restart IPs")
 			for i := range podList.Items {
 				p := &podList.Items[i]
 				currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
 					context.Background(), p.Name, metav1.GetOptions{})
-				if err != nil {
-					// Pod may have been rescheduled; skip it
-					continue
-				}
+				Expect(err).NotTo(HaveOccurred(),
+					"pod %s should still exist after operator restart", p.Name)
 				ips, err := retrievers.SecondaryIfaceIPValue(currentPod, "net1")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ips).NotTo(BeEmpty())

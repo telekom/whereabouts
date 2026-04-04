@@ -237,6 +237,7 @@ var _ = Describe("Whereabouts coverage", func() {
 				"operator rollout should complete with all replicas ready")
 
 			By("verifying existing pods still hold their pre-restart IPs")
+			verifiedCount := 0
 			for i := range podList.Items {
 				p := &podList.Items[i]
 				currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
@@ -248,7 +249,10 @@ var _ = Describe("Whereabouts coverage", func() {
 				Expect(ips).NotTo(BeEmpty())
 				Expect(ips[0]).To(Equal(preRestartIPs[p.Name]),
 					"pod %s changed IP after operator restart", p.Name)
+				verifiedCount++
 			}
+			Expect(verifiedCount).To(BeNumerically(">", 0),
+				"at least one pod should have been verified post-restart")
 
 			By("verifying a new pod gets a non-conflicting IP")
 			newPod, err := clientInfo.ProvisionPod(

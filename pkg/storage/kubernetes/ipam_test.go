@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 
@@ -66,6 +67,62 @@ func TestRollbackCommitted(t *testing.T) {
 	}
 	if len(pool2.allocations) != 0 {
 		t.Fatalf("expected 0 allocations in pool2, got %d", len(pool2.allocations))
+	}
+}
+
+type conflictMockIPPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+	failsRemain int
+}
+
+func (m *conflictMockIPPool) Allocations() []types.IPReservation {
+	return m.allocations
+}
+
+func (m *conflictMockIPPool) Update(_ context.Context, reservations []types.IPReservation) error {
+	m.updateCalls++
+	if m.failsRemain > 0 {
+		m.failsRemain--
+		return &temporaryError{fmt.Errorf("resource version conflict")}
+	}
+	m.allocations = reservations
+	return nil
+}
+
+// TestRollbackCommittedRetriesOnConflict verifies that the retry loop in
+// rollbackCommitted retries on temporaryError and eventually succeeds.
+// NOTE: c.ipam is intentionally nil here — the pool re-read path
+// (GetIPPool) requires a real KubernetesIPAM with a Kubernetes client
+// and is covered by envtest/e2e tests, not unit tests. This test
+// validates the retry-loop mechanics: conflict detection, retry count,
+// and correct IP removal after retries succeed.
+func TestRollbackCommittedRetriesOnConflict(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+
+	pool := &conflictMockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, PodRef: "ns/pod2", IfName: "eth0"},
+		},
+		failsRemain: 2,
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1},
+	}
+
+	rollbackCommitted(context.Background(), committed)
+
+	if pool.updateCalls != 3 {
+		t.Fatalf("expected 3 update calls (2 conflicts + 1 success), got %d", pool.updateCalls)
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation remaining, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
 	}
 }
 

@@ -639,8 +639,10 @@ func getNodeSliceName(ipam *KubernetesIPAM) string {
 
 // committedAlloc tracks a successfully committed pool allocation for rollback.
 type committedAlloc struct {
-	pool storage.IPPool
-	ip   net.IP
+	pool   storage.IPPool
+	poolID PoolIdentifier
+	ip     net.IP
+	ipam   *KubernetesIPAM
 }
 
 // IPManagementKubernetesUpdate manages k8s updates.
@@ -883,7 +885,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// but failed to create the ORIP, attempt to remove the allocation
 					// so the IP isn't reserved without overlap protection.
 					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, ip: newip.IP}})
+						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}, ip: newip.IP, ipam: ipam}})
 					}
 					return newips, err
 				}
@@ -894,32 +896,67 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		// Only append to newips in Allocate mode — during Deallocate, newip is
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
-			committed = append(committed, committedAlloc{pool: pool, ip: newip.IP})
+			committed = append(committed, committedAlloc{pool: pool, poolID: PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}, ip: newip.IP, ipam: ipam})
 			newips = append(newips, newip)
 		}
 	}
 	return newips, nil
 }
 
+// rollbackRetries limits the number of conflict-retry attempts during
+// best-effort rollback. A stale resourceVersion (due to concurrent pool
+// updates) produces a temporaryError; we re-read the pool and retry.
+const rollbackRetries = 5
+
 // rollbackCommitted performs a best-effort rollback of previously committed
 // multi-range allocations. Each allocation is removed from its pool so the IP
-// is not left orphaned when a later range fails.
+// is not left orphaned when a later range fails. The pool is re-read from
+// Kubernetes on each attempt to avoid operating on stale data.
 func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 	for _, c := range committed {
-		allocs := c.pool.Allocations()
-		var cleaned []whereaboutstypes.IPReservation
-		for _, r := range allocs {
-			if !r.IP.Equal(c.ip) {
-				cleaned = append(cleaned, r)
+		var lastErr error
+		for attempt := range rollbackRetries {
+			pool := c.pool
+			if attempt > 0 && c.ipam == nil {
+				logging.Debugf("Rollback retry for IP %s skipping pool re-read: no IPAM reference available", c.ip)
 			}
-		}
-		rbCtx, rbCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-		if err := c.pool.Update(rbCtx, cleaned); err != nil {
-			logging.Errorf("Multi-range rollback failed for IP %s: %w", c.ip, err)
-		} else {
+			if attempt > 0 && c.ipam != nil {
+				freshPool, err := c.ipam.GetIPPool(ctx, c.poolID)
+				if err != nil {
+					logging.Errorf("Rollback re-read failed for IP %s (attempt %d): %w", c.ip, attempt+1, err)
+					lastErr = err
+					continue
+				}
+				pool = freshPool
+			}
+
+			allocs := pool.Allocations()
+			var cleaned []whereaboutstypes.IPReservation
+			for _, r := range allocs {
+				if !r.IP.Equal(c.ip) {
+					cleaned = append(cleaned, r)
+				}
+			}
+			rbCtx, rbCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+			err := pool.Update(rbCtx, cleaned)
+			rbCancel()
+			if err != nil {
+				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+					logging.Debugf("Rollback conflict for IP %s (attempt %d), retrying", c.ip, attempt+1)
+					lastErr = err
+					continue
+				}
+				logging.Errorf("Multi-range rollback failed for IP %s: %w", c.ip, err)
+				lastErr = err
+				break
+			}
 			logging.Debugf("Rolled back allocation for IP %s", c.ip)
+			lastErr = nil
+			break
 		}
-		rbCancel()
+		if lastErr != nil {
+			logging.Errorf("Multi-range rollback exhausted retries for IP %s: %w", c.ip, lastErr)
+		}
 	}
 }
 

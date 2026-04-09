@@ -4,10 +4,45 @@ metadata:
   name: cni
   namespace: system
 ---
+# ClusterRole: resources the CNI plugin needs cluster-wide access to.
+# Pods: the sticky-IP feature reads pod annotations to determine the preferred
+# IP address.  Pods can live in any namespace, so this must stay cluster-wide.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: cni
+rules:
+# Preferred/sticky IP: CNI reads pod annotations to determine preferred IP
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cni
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cni # kustomize namePrefix will expand this
+subjects:
+- kind: ServiceAccount
+  name: cni # kustomize namePrefix will expand this
+  namespace: system
+---
+# Role: resources the CNI plugin accesses only within its own namespace
+# (i.e. the whereabouts deployment namespace, typically kube-system).
+# IPPools, OverlappingRangeIPReservations and NodeSlicePools are all read/written
+# via i.Namespace — never across namespaces.  Leases for leader election are
+# similarly locked to that single namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cni
+  namespace: system
 rules:
 - apiGroups:
   - whereabouts.cni.cncf.io
@@ -39,31 +74,15 @@ rules:
   - create
   - update
   - delete
-# Preferred/sticky IP: CNI reads pod annotations to determine preferred IP
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
-  - ""
-  - events.k8s.io
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - update
-  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: cni
+  namespace: system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: cni # kustomize namePrefix will expand this
 subjects:
 - kind: ServiceAccount

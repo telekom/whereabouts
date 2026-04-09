@@ -26,6 +26,37 @@ import (
 )
 
 // ---------------------------------------------------------------
+// oripListInterceptClient — client wrapper for TOCTOU tests
+// ---------------------------------------------------------------
+
+// oripListInterceptClient wraps a real fake client and, on the first List()
+// call that returns an OverlappingRangeIPReservationList, fires a user-supplied
+// hook. This simulates another controller mutating (or deleting) an ORIP
+// **after** cleanupOverlappingReservations has listed it but **before** it
+// re-fetches the object via Get(). All other calls delegate transparently.
+type oripListInterceptClient struct {
+	client.Client
+	// afterListHook is called once, immediately after the first successful
+	// OverlappingRangeIPReservationList List() completes. It receives the
+	// underlying client so it can mutate the store.
+	afterListHook func(c client.Client)
+	fired         bool
+}
+
+func (w *oripListInterceptClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if err := w.Client.List(ctx, list, opts...); err != nil {
+		return err
+	}
+	if _, ok := list.(*whereaboutsv1alpha1.OverlappingRangeIPReservationList); ok && !w.fired {
+		w.fired = true
+		if w.afterListHook != nil {
+			w.afterListHook(w.Client)
+		}
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------
 // denormalizeIPName
 // ---------------------------------------------------------------
 var _ = Describe("denormalizeIPName", func() {
@@ -806,15 +837,29 @@ var _ = Describe("IPPoolReconciler extended", func() {
 					PodRef: "default/old-pod",
 				},
 			}
-			buildReconciler(pool, reservation)
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}, &whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+				WithObjects(pool, reservation).
+				Build()
 
-			var toUpdate whereaboutsv1alpha1.OverlappingRangeIPReservation
-			Expect(reconciler.client.Get(ctx, types.NamespacedName{
-				Namespace: poolNamespace,
-				Name:      "10.0.0.5",
-			}, &toUpdate)).To(Succeed())
-			toUpdate.Spec.PodRef = "default/new-pod"
-			Expect(reconciler.client.Update(ctx, &toUpdate)).To(Succeed())
+			wrappedClient := &oripListInterceptClient{
+				Client: fakeClient,
+				afterListHook: func(c client.Client) {
+					var toUpdate whereaboutsv1alpha1.OverlappingRangeIPReservation
+					Expect(c.Get(ctx, types.NamespacedName{
+						Namespace: poolNamespace,
+						Name:      "10.0.0.5",
+					}, &toUpdate)).To(Succeed())
+					toUpdate.Spec.PodRef = "default/new-pod"
+					Expect(c.Update(ctx, &toUpdate)).To(Succeed())
+				},
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
 
 			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
 				"5": {PodRef: "default/old-pod"},
@@ -823,7 +868,7 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
-			Expect(reconciler.client.Get(ctx, types.NamespacedName{
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
 				Namespace: poolNamespace,
 				Name:      "10.0.0.5",
 			}, &updated)).To(Succeed())
@@ -850,14 +895,28 @@ var _ = Describe("IPPoolReconciler extended", func() {
 					PodRef: "default/old-pod",
 				},
 			}
-			buildReconciler(pool, reservation)
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}, &whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+				WithObjects(pool, reservation).
+				Build()
 
-			var toDelete whereaboutsv1alpha1.OverlappingRangeIPReservation
-			Expect(reconciler.client.Get(ctx, types.NamespacedName{
-				Namespace: poolNamespace,
-				Name:      "10.0.0.5",
-			}, &toDelete)).To(Succeed())
-			Expect(reconciler.client.Delete(ctx, &toDelete)).To(Succeed())
+			wrappedClient := &oripListInterceptClient{
+				Client: fakeClient,
+				afterListHook: func(c client.Client) {
+					var toDelete whereaboutsv1alpha1.OverlappingRangeIPReservation
+					Expect(c.Get(ctx, types.NamespacedName{
+						Namespace: poolNamespace,
+						Name:      "10.0.0.5",
+					}, &toDelete)).To(Succeed())
+					Expect(c.Delete(ctx, &toDelete)).To(Succeed())
+				},
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
 
 			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
 				"5": {PodRef: "default/old-pod"},
@@ -866,7 +925,7 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
-			err = reconciler.client.Get(ctx, types.NamespacedName{
+			err = fakeClient.Get(ctx, types.NamespacedName{
 				Namespace: poolNamespace,
 				Name:      "10.0.0.5",
 			}, &updated)

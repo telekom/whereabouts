@@ -6,6 +6,9 @@ import (
 	"net"
 	"testing"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/types"
 )
@@ -407,5 +410,50 @@ func TestRollbackCommittedPoolIDIncludesNodeName(t *testing.T) {
 		if len(pool.allocations) != 0 {
 			t.Errorf("expected 0 allocations after rollback, got %d", len(pool.allocations))
 		}
+	}
+}
+
+type apiTimeoutPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+	failsRemain int
+}
+
+func (p *apiTimeoutPool) Allocations() []types.IPReservation { return p.allocations }
+func (p *apiTimeoutPool) Update(_ context.Context, reservations []types.IPReservation) error {
+	p.updateCalls++
+	if p.failsRemain > 0 {
+		p.failsRemain--
+		return k8serrors.NewServerTimeout(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "update", 1)
+	}
+	p.allocations = reservations
+	return nil
+}
+
+func TestRollbackCommittedRetriesOnAPITimeout(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+
+	pool := &apiTimeoutPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, PodRef: "ns/pod2", IfName: "eth0"},
+		},
+		failsRemain: 2,
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1},
+	}
+	rollbackCommitted(context.Background(), committed)
+
+	if pool.updateCalls != 3 {
+		t.Fatalf("expected 3 update calls (2 timeouts + 1 success), got %d", pool.updateCalls)
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation remaining, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
 	}
 }

@@ -909,6 +909,26 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 // updates) produces a temporaryError; we re-read the pool and retry.
 const rollbackRetries = 5
 
+// isRetryableRollbackError returns true for errors that warrant a rollback
+// retry: resource version conflicts (storage.Temporary), transient API server
+// errors (conflict, timeout, too-many-requests, server-timeout, service-unavailable),
+// and network-level timeouts.
+func isRetryableRollbackError(err error) bool {
+	// storage.Temporary — the existing conflict error from pool.Update.
+	if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+		return true
+	}
+	// Transient Kubernetes API errors.
+	if errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsTooManyRequests(err) || errors.IsServiceUnavailable(err) {
+		return true
+	}
+	// Network-level timeouts (e.g., context deadline exceeded, TCP timeout).
+	if ne, ok := err.(interface{ Timeout() bool }); ok && ne.Timeout() {
+		return true
+	}
+	return false
+}
+
 // rollbackCommitted performs a best-effort rollback of previously committed
 // multi-range allocations. Each allocation is removed from its pool so the IP
 // is not left orphaned when a later range fails. The pool is re-read from
@@ -916,7 +936,9 @@ const rollbackRetries = 5
 func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 	for _, c := range committed {
 		var lastErr error
+		var attempts int
 		for attempt := range rollbackRetries {
+			attempts = attempt + 1
 			pool := c.pool
 			if attempt > 0 && c.ipam == nil {
 				logging.Debugf("Rollback retry for IP %s skipping pool re-read: no IPAM reference available", c.ip)
@@ -924,7 +946,7 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 			if attempt > 0 && c.ipam != nil {
 				freshPool, err := c.ipam.GetIPPool(ctx, c.poolID)
 				if err != nil {
-					logging.Errorf("Rollback re-read failed for IP %s (attempt %d): %w", c.ip, attempt+1, err)
+					logging.Errorf("Rollback re-read failed for IP %s (attempt %d): %v", c.ip, attempt+1, err)
 					lastErr = err
 					continue
 				}
@@ -942,12 +964,12 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 			err := pool.Update(rbCtx, cleaned)
 			rbCancel()
 			if err != nil {
-				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
-					logging.Debugf("Rollback conflict for IP %s (attempt %d), retrying", c.ip, attempt+1)
+				if isRetryableRollbackError(err) {
+					logging.Debugf("Rollback transient error for IP %s (attempt %d), retrying", c.ip, attempt+1)
 					lastErr = err
 					continue
 				}
-				logging.Errorf("Multi-range rollback failed for IP %s: %w", c.ip, err)
+				// Permanent error — stop retrying immediately.
 				lastErr = err
 				break
 			}
@@ -956,7 +978,7 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 			break
 		}
 		if lastErr != nil {
-			logging.Errorf("Multi-range rollback exhausted retries for IP %s: %w", c.ip, lastErr)
+			logging.Errorf("Multi-range rollback failed for IP %s after %d attempt(s): %v", c.ip, attempts, lastErr)
 		}
 	}
 }

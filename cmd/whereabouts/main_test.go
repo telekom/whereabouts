@@ -1459,6 +1459,106 @@ var _ = Describe("Whereabouts operations", func() {
 		})
 	})
 
+	Context("cmdCheck bidirectional validation", func() {
+		const (
+			checkContainerID = "check-bidir-container"
+			checkIfName      = "eth0"
+			checkIPRange     = "192.168.1.0/24"
+			checkNetName     = ""
+			checkAllocatedIP = "192.168.1.1"
+		)
+
+		var (
+			checkIPAMConf *whereaboutstypes.IPAMConfig
+			checkPool     *v1alpha1.IPPool
+		)
+
+		BeforeEach(func() {
+			checkIPAMConf = ipamConfig(podName, podNamespace, checkNetName, checkIPRange, "192.168.1.254", kubeConfigPath)
+			Expect(checkIPAMConf.IPRanges).NotTo(BeEmpty())
+
+			checkPool = &v1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            kubernetes.IPPoolName(kubernetes.PoolIdentifier{IPRange: checkIPAMConf.IPRanges[0].Range, NetworkName: checkNetName}),
+					Namespace:       podNamespace,
+					ResourceVersion: "1",
+				},
+				Spec: v1alpha1.IPPoolSpec{
+					Range: checkIPAMConf.IPRanges[0].Range,
+					Allocations: map[string]v1alpha1.IPAllocation{
+						"1": {ContainerID: checkContainerID, PodRef: podNamespace + "/" + podName, IfName: checkIfName},
+					},
+				},
+			}
+		})
+
+		It("succeeds when prevResult IPs match pool allocations exactly", func() {
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(checkAllocatedIP + "/24")},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("fails when prevResult contains an IP not in the pool", func() {
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(checkAllocatedIP + "/24")},
+					{Address: mustCIDR("192.168.1.99/24")},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("192.168.1.99"))
+			Expect(err.Error()).To(ContainSubstring("not allocated in any pool"))
+		})
+
+		It("fails when pool has an IP for the container not in prevResult", func() {
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(checkAllocatedIP))
+			Expect(err.Error()).To(ContainSubstring("missing from prevResult"))
+		})
+	})
+
 	Context("OptimisticIPAM", func() {
 		It("cmdAdd with OptimisticIPAM=true allocates IP successfully", func() {
 			ipamNetworkName := ""

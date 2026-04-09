@@ -113,21 +113,22 @@ func cmdCheck(args *skel.CmdArgs) error {
 	}
 	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
 
-	// Parse prevResult if the runtime provided one (CNI spec 0.4.0+).
 	prevResult, err := config.ParsePrevResult(args.StdinData)
 	if err != nil {
 		logging.Debugf("CHECK: could not parse prevResult (non-fatal): %s", err)
 	}
 
+	return runCmdCheck(ipam, args, prevResult)
+}
+
+func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult *current.Result) error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
 	defer cancel()
 
-	// Collect all IPs that are allocated for this container in the pools.
 	allocatedIPs := make(map[string]bool)
 
-	// Verify an allocation exists for this container in every configured IP range.
-	for _, ipRange := range ipamConf.IPRanges {
-		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+	for _, ipRange := range ipam.Config.IPRanges {
+		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipam.Config.NetworkName}
 		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
 		if err != nil {
 			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
@@ -152,17 +153,32 @@ func cmdCheck(args *skel.CmdArgs) error {
 			args.ContainerID, args.IfName, ipRange.Range)
 	}
 
-	// If prevResult was provided, cross-check that the IPs reported by the
-	// runtime match our pool allocations. A mismatch indicates state drift.
+	// If prevResult was provided, cross-check bidirectionally:
+	// (a) every prevResult IP must be in the pool (prevResult→pool), and
+	// (b) every pool-allocated IP for this container must be in prevResult (pool→prevResult).
+	// Either mismatch indicates state drift between the runtime and the IPAM store.
 	if prevResult != nil {
+		prevResultIPs := make(map[string]bool, len(prevResult.IPs))
 		for _, ipConf := range prevResult.IPs {
-			ip := ipConf.Address.IP.String()
+			prevResultIPs[ipConf.Address.IP.String()] = true
+		}
+
+		for ip := range prevResultIPs {
 			if !allocatedIPs[ip] {
 				return logging.Errorf(
 					"CHECK: IP %s from prevResult is not allocated in any pool for containerID %q ifName %q",
 					ip, args.ContainerID, args.IfName)
 			}
 			logging.Debugf("CHECK: prevResult IP %s matches pool allocation", ip)
+		}
+
+		for ip := range allocatedIPs {
+			if !prevResultIPs[ip] {
+				return logging.Errorf(
+					"CHECK: pool-allocated IP %s for containerID %q ifName %q is missing from prevResult",
+					ip, args.ContainerID, args.IfName)
+			}
+			logging.Debugf("CHECK: pool IP %s confirmed in prevResult", ip)
 		}
 	}
 

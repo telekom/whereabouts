@@ -595,12 +595,13 @@ var _ = Describe("IPPoolReconciler extended", func() {
 				},
 				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
 					PodRef: "default/some-pod",
+					IfName: "eth0",
 				},
 			}
 			buildReconciler(pool, reservation)
 
 			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
-				"5": {PodRef: "default/some-pod"},
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
 			}
 			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
 			Expect(err).NotTo(HaveOccurred())
@@ -652,6 +653,45 @@ var _ = Describe("IPPoolReconciler extended", func() {
 				Name:      "10.0.0.5",
 			}, &updated)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should not delete a cross-network reservation with same PodRef but different IfName", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			// Prefixed name: denormalizeIPName strips "othernet-" so the IP matches,
+			// but IfName differs — reservation belongs to another Multus network.
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "othernet-10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/some-pod",
+					IfName: "net1",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "othernet-10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred(), "cross-network reservation must be preserved when IfName differs")
 		})
 
 		It("should handle non-matching reservations gracefully", func() {

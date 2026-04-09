@@ -390,10 +390,11 @@ func removeAllocations(pool *whereaboutsv1alpha1.IPPool, keys []string) {
 }
 
 // cleanupOverlappingReservations deletes OverlappingRangeIPReservation CRDs
-// for IPs that were in the orphaned allocations. When an allocation carries a
-// PodRef, the reservation must also reference the same pod before it is
-// deleted — this prevents accidentally removing a reservation that already
-// belongs to a new pod that was rapidly assigned the same IP.
+// for IPs present in the provided allocation set. When an allocation carries a
+// PodRef and IfName, the reservation must reference the same pod and interface
+// before it is deleted — this prevents accidentally removing a reservation that
+// already belongs to a new pod or a different Multus network that was rapidly
+// assigned the same IP.
 //
 // To close the TOCTOU window between List() and Delete(), each matching
 // reservation is re-fetched immediately before deletion. If the live object no
@@ -424,9 +425,12 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 			if resIP == nil || !resIP.Equal(ip) {
 				continue
 			}
-			if alloc.PodRef == "" || res.Spec.PodRef != alloc.PodRef {
-				logger.V(1).Info("skipping overlapping reservation: podRef unverifiable or mismatch",
-					"name", res.Name, "allocPodRef", alloc.PodRef, "resPodRef", res.Spec.PodRef)
+			if alloc.PodRef == "" || res.Spec.PodRef != alloc.PodRef ||
+				alloc.IfName == "" || res.Spec.IfName != alloc.IfName {
+				logger.V(1).Info("skipping overlapping reservation: podRef/ifName unverifiable or mismatch",
+					"name", res.Name,
+					"allocPodRef", alloc.PodRef, "resPodRef", res.Spec.PodRef,
+					"allocIfName", alloc.IfName, "resIfName", res.Spec.IfName)
 				continue
 			}
 
@@ -448,11 +452,14 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 				continue
 			}
 
-			// Guard: verify the live object still belongs to the same pod.
-			// If the PodRef changed the IP was already claimed by a new pod.
-			if fresh.Spec.PodRef != alloc.PodRef {
-				logger.V(1).Info("overlapping reservation podRef changed between list and delete, skipping to avoid TOCTOU delete",
-					"name", res.Name, "expectedPodRef", alloc.PodRef, "currentPodRef", fresh.Spec.PodRef)
+			// Guard: verify the live object still belongs to the same pod and interface.
+			// If the PodRef or IfName changed the IP was already claimed by a new pod
+			// or a different network interface on the same pod.
+			if fresh.Spec.PodRef != alloc.PodRef || fresh.Spec.IfName != alloc.IfName {
+				logger.V(1).Info("overlapping reservation podRef/ifName changed between list and delete, skipping to avoid TOCTOU delete",
+					"name", res.Name,
+					"expectedPodRef", alloc.PodRef, "currentPodRef", fresh.Spec.PodRef,
+					"expectedIfName", alloc.IfName, "currentIfName", fresh.Spec.IfName)
 				continue
 			}
 

@@ -1459,6 +1459,154 @@ var _ = Describe("Whereabouts operations", func() {
 		})
 	})
 
+	Context("OptimisticIPAM", func() {
+		It("cmdAdd with OptimisticIPAM=true allocates IP successfully", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.5.0/24"
+			ipGateway := "192.168.5.1"
+			expectedAddress := "192.168.5.1/24"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+			ipamConf.OptimisticIPAM = true
+
+			wbClient := *kubernetes.NewKubernetesClient(
+				fake.NewClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			args := &skel.CmdArgs{
+				ContainerID: "optimistic-add-container",
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+			client := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+
+			r, raw, err := testutils.CmdAddWithArgs(args, func() error {
+				return cmdAdd(client, cniVersion)
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
+
+			result, err := current.GetResult(r)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(*result.IPs[0]).To(Equal(
+				current.IPConfig{
+					Address: mustCIDR(expectedAddress),
+					Gateway: ipamConf.Gateway,
+				}))
+		})
+
+		It("cmdDel with OptimisticIPAM=true deallocates IP successfully", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.6.0/24"
+			ipGateway := "192.168.6.1"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+			ipamConf.OptimisticIPAM = true
+
+			wbClient := *kubernetes.NewKubernetesClient(
+				fake.NewClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			containerID := "optimistic-del-container"
+			args := &skel.CmdArgs{
+				ContainerID: containerID,
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+
+			// ADD first to allocate an IP.
+			client := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			_, _, err = testutils.CmdAddWithArgs(args, func() error {
+				return cmdAdd(client, cniVersion)
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// DEL via optimistic path.
+			err = testutils.CmdDelWithArgs(args, func() error {
+				return cmdDel(mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient))
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify allocation is gone.
+			checkClient := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+			ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
+			defer cancel()
+
+			poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipamConf.IPRanges[0].Range, NetworkName: ipamConf.NetworkName}
+			pool, err := checkClient.GetIPPool(ctx, poolIdentifier)
+			Expect(err).NotTo(HaveOccurred())
+
+			found := false
+			for _, alloc := range pool.Allocations() {
+				if alloc.ContainerID == containerID && alloc.IfName == ifname {
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeFalse(), "allocation should have been removed by optimistic DEL")
+		})
+
+		It("cmdAdd with OptimisticIPAM=false uses leader-election path", func() {
+			ipamNetworkName := ""
+			cniVersion := "0.3.1"
+			ipRange := "192.168.7.0/24"
+			ipGateway := "192.168.7.1"
+			expectedAddress := "192.168.7.1/24"
+
+			ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+			Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+			// OptimisticIPAM defaults to false — explicitly confirm the leader-election path.
+			ipamConf.OptimisticIPAM = false
+
+			wbClient := *kubernetes.NewKubernetesClient(
+				fake.NewClientset(
+					ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamNetworkName)),
+				fakek8sclient.NewClientset())
+
+			cniConf, err := newCNINetConf(cniVersion, ipamConf)
+			Expect(err).NotTo(HaveOccurred())
+
+			args := &skel.CmdArgs{
+				ContainerID: "leader-election-container",
+				Netns:       nspath,
+				IfName:      ifname,
+				StdinData:   cniConf,
+				Args:        cniArgs(podNamespace, podName),
+			}
+			client := mutateK8sIPAM(args.ContainerID, ifname, ipamConf, wbClient)
+
+			r, raw, err := testutils.CmdAddWithArgs(args, func() error {
+				return cmdAdd(client, cniVersion)
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.Index(string(raw), "\"version\":")).Should(BeNumerically(">", 0))
+
+			result, err := current.GetResult(r)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(*result.IPs[0]).To(Equal(
+				current.IPConfig{
+					Address: mustCIDR(expectedAddress),
+					Gateway: ipamConf.Gateway,
+				}))
+		})
+	})
+
 	Context("CNI DEL with retry", func() {
 		It("successfully deallocates via cmdDelFunc", func() {
 			ipamNetworkName := ""

@@ -142,7 +142,6 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
 				found = true
 				allocatedIPs[alloc.IP.String()] = true
-				break
 			}
 		}
 		if !found {

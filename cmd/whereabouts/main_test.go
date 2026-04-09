@@ -1557,6 +1557,58 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(err.Error()).To(ContainSubstring(checkAllocatedIP))
 			Expect(err.Error()).To(ContainSubstring("missing from prevResult"))
 		})
+
+		It("collects all duplicate allocations in the same pool and detects mismatch", func() {
+			// Simulate a corrupt pool state: two entries for the same containerID/ifName
+			// with different IP offsets (1 → 192.168.1.1, 2 → 192.168.1.2).
+			// Without the fix (break removed), only the first-iterated IP would be
+			// collected, and the second would be silently missed.
+			const (
+				dupIP1 = "192.168.1.1"
+				dupIP2 = "192.168.1.2"
+			)
+
+			dupPool := &v1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            kubernetes.IPPoolName(kubernetes.PoolIdentifier{IPRange: checkIPAMConf.IPRanges[0].Range, NetworkName: checkNetName}),
+					Namespace:       podNamespace,
+					ResourceVersion: "1",
+				},
+				Spec: v1alpha1.IPPoolSpec{
+					Range: checkIPAMConf.IPRanges[0].Range,
+					Allocations: map[string]v1alpha1.IPAllocation{
+						// Both entries share the same containerID+ifName — orphaned duplicates.
+						"1": {ContainerID: checkContainerID, PodRef: podNamespace + "/" + podName, IfName: checkIfName},
+						"2": {ContainerID: checkContainerID, PodRef: podNamespace + "/" + podName, IfName: checkIfName},
+					},
+				},
+			}
+
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(dupPool))
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			// prevResult only contains one of the two IPs — the second duplicate is
+			// an orphan that the runtime never knew about.
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(dupIP1 + "/24")},
+				},
+			}
+
+			// runCmdCheck must collect BOTH IPs from the pool (not break after the first),
+			// then the pool→prevResult cross-check must flag dupIP2 as missing.
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dupIP2))
+			Expect(err.Error()).To(ContainSubstring("missing from prevResult"))
+		})
 	})
 
 	Context("OptimisticIPAM", func() {

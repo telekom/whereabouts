@@ -406,20 +406,28 @@ func TestCopyFile_UnwritableDst(t *testing.T) {
 	assertContains(t, err.Error(), "creating")
 }
 
-func TestCopyFile_NoTempFileLeftOnSrcError(t *testing.T) {
+func TestCopyFile_NoTempFileLeftOnRenameError(t *testing.T) {
 	tmp := t.TempDir()
 
-	err := copyFile(filepath.Join(tmp, "missing-src"), filepath.Join(tmp, "dst"))
+	src := filepath.Join(tmp, "src")
+	must(t, os.WriteFile(src, []byte("content"), 0o755))
+
+	dstIsDir := filepath.Join(tmp, "dst-dir")
+	must(t, os.MkdirAll(dstIsDir, 0o755))
+
+	err := copyFile(src, dstIsDir)
 	if err == nil {
-		t.Fatal("expected error for missing source")
+		t.Fatal("expected error when dst is an existing directory")
 	}
 
 	entries, readErr := os.ReadDir(tmp)
 	if readErr != nil {
 		t.Fatalf("reading tmp dir: %v", readErr)
 	}
-	if len(entries) != 0 {
-		t.Errorf("expected no temp files left behind, found: %v", entries)
+	for _, e := range entries {
+		if e.Name() != "src" && e.Name() != "dst-dir" {
+			t.Errorf("unexpected file left behind after failed rename: %s", e.Name())
+		}
 	}
 }
 

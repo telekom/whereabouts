@@ -409,7 +409,7 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 	var reservations whereaboutsv1alpha1.OverlappingRangeIPReservationList
 	if err := r.client.List(ctx, &reservations, client.InNamespace(pool.Namespace)); err != nil {
 		logger.V(1).Info("failed to list overlapping reservations", "error", err)
-		return err
+		return fmt.Errorf("listing overlapping reservations: %w", err)
 	}
 
 	for key, alloc := range orphaned {

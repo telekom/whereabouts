@@ -169,7 +169,7 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(warnings).To(BeEmpty())
 		})
 
-		It("should warn on a range change but allow it", func() {
+		It("should reject a range change", func() {
 			oldPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -190,10 +190,9 @@ var _ = Describe("IPPoolValidator", func() {
 					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
 				},
 			}
-			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(warnings).To(HaveLen(1))
-			Expect(warnings[0]).To(ContainSubstring("spec.range changed"))
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.range is immutable"))
 		})
 
 		It("should reject an update with invalid podRef", func() {

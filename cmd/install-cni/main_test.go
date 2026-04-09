@@ -406,6 +406,46 @@ func TestCopyFile_UnwritableDst(t *testing.T) {
 	assertContains(t, err.Error(), "creating")
 }
 
+func TestCopyFile_NoTempFileLeftOnSrcError(t *testing.T) {
+	tmp := t.TempDir()
+
+	err := copyFile(filepath.Join(tmp, "missing-src"), filepath.Join(tmp, "dst"))
+	if err == nil {
+		t.Fatal("expected error for missing source")
+	}
+
+	entries, readErr := os.ReadDir(tmp)
+	if readErr != nil {
+		t.Fatalf("reading tmp dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no temp files left behind, found: %v", entries)
+	}
+}
+
+func TestCopyFile_AtomicReplacement(t *testing.T) {
+	tmp := t.TempDir()
+	src := filepath.Join(tmp, "src")
+	dst := filepath.Join(tmp, "dst")
+
+	must(t, os.WriteFile(src, []byte("new-content"), 0o755))
+	must(t, os.WriteFile(dst, []byte("old-content"), 0o755))
+
+	must(t, copyFile(src, dst))
+
+	data, err := os.ReadFile(dst)
+	must(t, err)
+	assertEqual(t, "dst content after atomic replace", string(data), "new-content")
+
+	entries, err := os.ReadDir(tmp)
+	must(t, err)
+	for _, e := range entries {
+		if e.Name() != "src" && e.Name() != "dst" {
+			t.Errorf("unexpected file left behind after atomic copy: %s", e.Name())
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // fileHash
 // ---------------------------------------------------------------------------

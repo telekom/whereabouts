@@ -394,6 +394,13 @@ func removeAllocations(pool *whereaboutsv1alpha1.IPPool, keys []string) {
 // PodRef, the reservation must also reference the same pod before it is
 // deleted — this prevents accidentally removing a reservation that already
 // belongs to a new pod that was rapidly assigned the same IP.
+//
+// To close the TOCTOU window between List() and Delete(), each matching
+// reservation is re-fetched immediately before deletion. If the live object no
+// longer exists (already cleaned up) or its PodRef changed (a new pod reclaimed
+// the same IP), the deletion is skipped. A UID precondition is passed to
+// Delete() so the API server rejects the request if the object was replaced
+// between our Get() and Delete() calls.
 func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, orphaned map[string]whereaboutsv1alpha1.IPAllocation) error {
 	logger := log.FromContext(ctx)
 	var lastErr error
@@ -422,11 +429,48 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 					"name", res.Name, "allocPodRef", alloc.PodRef, "resPodRef", res.Spec.PodRef)
 				continue
 			}
-			if err := r.client.Delete(ctx, res); err != nil && !errors.IsNotFound(err) {
+
+			// Re-fetch the reservation immediately before deletion to close the
+			// TOCTOU window: another controller or CNI ADD may have deleted and
+			// recreated an ORIP with the same name (and a different pod) between
+			// our List() call above and this point.
+			var fresh whereaboutsv1alpha1.OverlappingRangeIPReservation
+			if err := r.client.Get(ctx, types.NamespacedName{Namespace: pool.Namespace, Name: res.Name}, &fresh); err != nil {
+				if errors.IsNotFound(err) {
+					// Already deleted by another actor — nothing to do.
+					logger.V(1).Info("overlapping reservation already gone, skipping",
+						"name", res.Name)
+					continue
+				}
+				logger.Error(err, "failed to re-fetch overlapping reservation before delete",
+					"name", res.Name)
+				lastErr = fmt.Errorf("re-fetching overlapping reservation %s: %w", res.Name, err)
+				continue
+			}
+
+			// Guard: verify the live object still belongs to the same pod.
+			// If the PodRef changed the IP was already claimed by a new pod.
+			if fresh.Spec.PodRef != alloc.PodRef {
+				logger.V(1).Info("overlapping reservation podRef changed between list and delete, skipping to avoid TOCTOU delete",
+					"name", res.Name, "expectedPodRef", alloc.PodRef, "currentPodRef", fresh.Spec.PodRef)
+				continue
+			}
+
+			// Use a UID precondition so the API server rejects the delete if
+			// the object was replaced between our Get() and Delete().
+			uid := fresh.UID
+			if err := r.client.Delete(ctx, &fresh, client.Preconditions{UID: &uid}); err != nil {
+				if errors.IsNotFound(err) {
+					// Deleted between re-fetch and delete call — treat as success.
+					overlappingReservationsCleaned.Inc()
+					logger.V(1).Info("overlapping reservation deleted concurrently, treating as success",
+						"name", res.Name)
+					continue
+				}
 				logger.Error(err, "failed to delete overlapping reservation",
 					"name", res.Name)
-				lastErr = err
-			} else if err == nil {
+				lastErr = fmt.Errorf("deleting overlapping reservation %s: %w", res.Name, err)
+			} else {
 				overlappingReservationsCleaned.Inc()
 				logger.V(1).Info("deleted overlapping reservation", "name", res.Name)
 			}

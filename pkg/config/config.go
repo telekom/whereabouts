@@ -141,6 +141,14 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 		}
 	}
 
+	for idx := range n.IPAM.IPRanges {
+		for _, exclude := range n.IPAM.IPRanges[idx].OmitRanges {
+			if _, _, err := netutils.ParseCIDRSloppy(exclude); err != nil {
+				return nil, "", fmt.Errorf("invalid CIDR in exclude list for range %s: %s: %w", n.IPAM.IPRanges[idx].Range, exclude, err)
+			}
+		}
+	}
+
 	n.IPAM.OmitRanges = nil
 	n.IPAM.Range = ""
 	n.IPAM.RangeStart = nil

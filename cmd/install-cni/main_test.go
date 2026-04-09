@@ -406,6 +406,26 @@ func TestCopyFile_UnwritableDst(t *testing.T) {
 	assertContains(t, err.Error(), "creating")
 }
 
+func TestCopyFile_NoTempFileLeftOnSrcError(t *testing.T) {
+	tmp := t.TempDir()
+
+	srcDir := filepath.Join(tmp, "srcdir")
+	must(t, os.Mkdir(srcDir, 0o755))
+
+	err := copyFile(srcDir, filepath.Join(tmp, "dst"))
+	if err == nil {
+		t.Fatal("expected error when copying from directory source")
+	}
+
+	entries, readErr := os.ReadDir(tmp)
+	if readErr != nil {
+		t.Fatalf("reading tmp dir: %v", readErr)
+	}
+	if len(entries) != 1 || entries[0].Name() != "srcdir" {
+		t.Errorf("expected only source directory to remain, found: %v", entries)
+	}
+}
+
 func TestCopyFile_NoTempFileLeftOnRenameError(t *testing.T) {
 	tmp := t.TempDir()
 

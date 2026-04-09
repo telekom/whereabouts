@@ -710,6 +710,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		var attempts int
 		skipOverlappingRangeUpdate := false
 		backoff := retryInitialBackoff
+		poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 	RETRYLOOP:
 		for j := range storage.DatastoreRetries {
 			attempts = j + 1
@@ -727,7 +728,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				requestCancel()
 				return newips, err
 			}
-			poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+			poolIdentifier = PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 			if ipamConf.NodeSliceSize != "" {
 				hostname, err := getNodeName(ipam)
 				if err != nil {
@@ -885,7 +886,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// but failed to create the ORIP, attempt to remove the allocation
 					// so the IP isn't reserved without overlap protection.
 					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}, ip: newip.IP, ipam: ipam}})
+						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam}})
 					}
 					return newips, err
 				}
@@ -896,7 +897,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		// Only append to newips in Allocate mode — during Deallocate, newip is
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
-			committed = append(committed, committedAlloc{pool: pool, poolID: PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}, ip: newip.IP, ipam: ipam})
+			committed = append(committed, committedAlloc{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam})
 			newips = append(newips, newip)
 		}
 	}

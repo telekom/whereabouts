@@ -328,3 +328,84 @@ func TestToAllocationMapRoundTripIPv6LargeOffset(t *testing.T) {
 		t.Errorf("round-trip IP mismatch: expected %s, got %s", highIP, roundTripped[0].IP)
 	}
 }
+
+// permanentErrorPool is an IPPool whose Update always returns a non-temporary error.
+type permanentErrorPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+}
+
+func (p *permanentErrorPool) Allocations() []types.IPReservation { return p.allocations }
+func (p *permanentErrorPool) Update(_ context.Context, _ []types.IPReservation) error {
+	p.updateCalls++
+	return fmt.Errorf("permanent storage failure") // not a storage.Temporary
+}
+
+// TestRollbackCommittedStopsOnPermanentError verifies that a non-temporary error
+// from pool.Update causes rollbackCommitted to stop immediately (no retries).
+func TestRollbackCommittedStopsOnPermanentError(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	pool := &permanentErrorPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+		},
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1, ipam: nil},
+	}
+	rollbackCommitted(context.Background(), committed)
+
+	// A permanent error must break the retry loop after the very first attempt.
+	if pool.updateCalls != 1 {
+		t.Fatalf("expected exactly 1 Update call on permanent error, got %d", pool.updateCalls)
+	}
+}
+
+// TestRollbackCommittedPoolIDIncludesNodeName verifies that when poolIdentifier
+// carries a NodeName (Fast IPAM / NodeSlice mode), the committedAlloc.poolID
+// correctly stores it — ensuring rollback re-reads the node-specific pool rather
+// than the global range pool.
+func TestRollbackCommittedPoolIDIncludesNodeName(t *testing.T) {
+	nodeName := "worker-node-1"
+	nodeSliceRange := "10.20.0.0/24"
+
+	poolID := PoolIdentifier{
+		NodeName:    nodeName,
+		IPRange:     nodeSliceRange,
+		NetworkName: "",
+	}
+
+	ip := net.ParseIP("10.20.0.5")
+	pool := &mockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip, PodRef: "ns/pod1", IfName: "eth0"},
+		},
+	}
+
+	c := committedAlloc{pool: pool, poolID: poolID, ip: ip, ipam: nil}
+
+	// Verify the poolID carries the NodeName so rollback will look up
+	// the correct node-specific pool (not the global range pool).
+	if c.poolID.NodeName != nodeName {
+		t.Errorf("expected poolID.NodeName=%q, got %q", nodeName, c.poolID.NodeName)
+	}
+	if c.poolID.IPRange != nodeSliceRange {
+		t.Errorf("expected poolID.IPRange=%q, got %q", nodeSliceRange, c.poolID.IPRange)
+	}
+
+	// Sanity: the pool name includes the node name.
+	expectedPoolName := IPPoolName(poolID)
+	if expectedPoolName != nodeName+"-10.20.0.0-24" {
+		t.Errorf("unexpected pool name %q", expectedPoolName)
+	}
+
+	// Rollback with ipam=nil (no re-read) should still remove the IP from the
+	// in-memory pool on the first attempt.
+	rollbackCommitted(context.Background(), []committedAlloc{c})
+	if pool.updated {
+		if len(pool.allocations) != 0 {
+			t.Errorf("expected 0 allocations after rollback, got %d", len(pool.allocations))
+		}
+	}
+}

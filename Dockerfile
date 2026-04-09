@@ -1,4 +1,4 @@
-FROM golang:1.26.1@sha256:e2ddb153f786ee6210bf8c40f7f35490b3ff7d38be70d1a0d358ba64225f6428 AS builder
+FROM golang:1.26.2@sha256:2a2b4b5791cea8ae09caecba7bad0bd9631def96e5fe362e4a5e67009fe4ae61 AS builder
 WORKDIR /go/src/github.com/telekom/whereabouts
 # Version information injected at build time via --build-arg
 ARG VERSION=""

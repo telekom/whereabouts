@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
@@ -424,7 +424,7 @@ func (p *apiTimeoutPool) Update(_ context.Context, reservations []types.IPReserv
 	p.updateCalls++
 	if p.failsRemain > 0 {
 		p.failsRemain--
-		return k8serrors.NewServerTimeout(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "update", 1)
+		return apierrors.NewServerTimeout(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "update", 1)
 	}
 	p.allocations = reservations
 	return nil

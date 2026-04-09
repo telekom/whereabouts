@@ -637,7 +637,7 @@ var _ = Describe("Allocation operations", func() {
 			Expect(err.Error()).To(ContainSubstring("not-a-cidr"))
 		})
 
-		It("returns an error for an invalid per-range exclude CIDR in ipRanges using start/end range format", func() {
+		It("returns an error for an invalid per-range exclude CIDR in ipRanges", func() {
 			conf := `{
 				"cniVersion": "0.3.1",
 				"name": "mynet",

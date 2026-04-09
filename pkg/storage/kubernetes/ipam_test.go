@@ -457,3 +457,10 @@ func TestRollbackCommittedRetriesOnAPITimeout(t *testing.T) {
 		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
 	}
 }
+
+func TestIsRetryableRollbackErrorAPITimeout(t *testing.T) {
+	err := apierrors.NewTimeoutError("test timeout", 5)
+	if !isRetryableRollbackError(err) {
+		t.Errorf("expected isRetryableRollbackError to return true for API timeout (StatusReasonTimeout), got false")
+	}
+}

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -172,14 +172,14 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 	defer cancel()
 
 	pool, err := i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).Get(ctxWithTimeout, name, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		// pool does not exist, create it
 		newPool := &whereaboutsv1alpha1.IPPool{}
 		newPool.Name = name
 		newPool.Spec.Range = iprange
 		newPool.Spec.Allocations = make(map[string]whereaboutsv1alpha1.IPAllocation)
 		_, err = i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).Create(ctxWithTimeout, newPool, metav1.CreateOptions{})
-		if err != nil && errors.IsAlreadyExists(err) {
+		if err != nil && apierrors.IsAlreadyExists(err) {
 			// the pool was just created -- allow retry
 			return nil, &temporaryError{err}
 		} else if err != nil {
@@ -264,7 +264,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	// apply the patch
 	_, err = p.client.WhereaboutsV1alpha1().IPPools(orig.GetNamespace()).Patch(ctx, orig.GetName(), types.JSONPatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
-		if errors.IsInvalid(err) {
+		if apierrors.IsInvalid(err) {
 			// expect "invalid" errors if any of the jsonpatch "test" Operations fail
 			return &temporaryError{err}
 		}
@@ -323,14 +323,14 @@ func (c *KubernetesOverlappingRangeStore) GetOverlappingRangeIPReservation(ctx c
 		normalizedIP, ip, networkName)
 
 	r, err := c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, normalizedIP, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		// New-format name not found — try legacy name for backward compatibility with
 		// OverlappingRangeIPReservation CRs created before the IPv6 expansion change.
 		legacyName := LegacyNormalizeIP(ip, networkName)
 		if legacyName != normalizedIP {
 			logging.Debugf("New-format name %q not found, trying legacy name %q", normalizedIP, legacyName)
 			r, err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, legacyName, metav1.GetOptions{})
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && apierrors.IsNotFound(err) {
 				// Neither format found — IP is not reserved.
 				return nil, nil
 			} else if err != nil {
@@ -379,14 +379,14 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 	case whereaboutstypes.Deallocate:
 		verb = "deallocate"
 		err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, clusteripres.GetName(), metav1.DeleteOptions{})
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// New-format name not found — attempt deletion by legacy name for backward
 			// compatibility with CRs created before the IPv6 expansion change.
 			legacyName := LegacyNormalizeIP(ip, networkName)
 			if legacyName != normalizedIP {
 				logging.Debugf("New-format name %q not found on delete, trying legacy name %q", normalizedIP, legacyName)
 				err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, legacyName, metav1.DeleteOptions{})
-				if errors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					err = nil
 				}
 			} else {
@@ -919,7 +919,7 @@ func isRetryableRollbackError(err error) bool {
 		return true
 	}
 	// Transient Kubernetes API errors.
-	if errors.IsConflict(err) || errors.IsServerTimeout(err) || errors.IsTooManyRequests(err) || errors.IsServiceUnavailable(err) {
+	if apierrors.IsConflict(err) || apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || apierrors.IsTooManyRequests(err) || apierrors.IsServiceUnavailable(err) {
 		return true
 	}
 	// Network-level timeouts (e.g., context deadline exceeded, TCP timeout).

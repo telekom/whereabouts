@@ -149,14 +149,14 @@ func preferredIPInBounds(ipamConf types.RangeConfiguration, ipnet net.IPNet) boo
 	} else {
 		firstIP, lastIP, err = iphelpers.GetIPRange(ipnet, ipamConf.RangeStart, ipamConf.RangeEnd)
 		if err != nil {
-			logging.Errorf("preferredIPInBounds: GetIPRange failed: %v", err)
+			_ = logging.Errorf("preferredIPInBounds: GetIPRange failed: %v", err)
 			return false
 		}
 	}
 
 	inBounds, err := iphelpers.IsIPInRange(ipamConf.PreferredIP, firstIP, lastIP)
 	if err != nil {
-		logging.Errorf("preferredIPInBounds: IsIPInRange failed: %v", err)
+		_ = logging.Errorf("preferredIPInBounds: IsIPInRange failed: %v", err)
 		return false
 	}
 	return inBounds

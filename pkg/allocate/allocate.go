@@ -51,7 +51,7 @@ func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservati
 	}
 
 	// Try preferred IP first if one is specified and available.
-	if ipamConf.PreferredIP != nil && ipnet.Contains(ipamConf.PreferredIP) {
+	if ipamConf.PreferredIP != nil && ipnet.Contains(ipamConf.PreferredIP) && preferredIPInBounds(ipamConf, *ipnet) {
 		reserved := false
 		for _, r := range reservelist {
 			if r.IP.Equal(ipamConf.PreferredIP) {
@@ -124,6 +124,42 @@ func getMatchingIPReservationIndex(reservelist []types.IPReservation, id, ifName
 func removeIdxFromSlice(s []types.IPReservation, i int) []types.IPReservation {
 	s[i] = s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+// preferredIPInBounds reports whether ipamConf.PreferredIP lies within the
+// effective allocation range defined by RangeStart/RangeEnd (if configured).
+// It mirrors the bounds logic in IterateForAssignment so that PreferredIP
+// cannot bypass RangeStart/RangeEnd restrictions.
+func preferredIPInBounds(ipamConf types.RangeConfiguration, ipnet net.IPNet) bool {
+	var firstIP, lastIP net.IP
+	var err error
+
+	if ipamConf.L3 {
+		firstIP = iphelpers.NetworkIP(ipnet)
+		lastIP = iphelpers.SubnetBroadcastIP(ipnet)
+		if ipamConf.RangeStart != nil && ipnet.Contains(ipamConf.RangeStart) &&
+			iphelpers.CompareIPs(ipamConf.RangeStart, firstIP) >= 0 {
+			firstIP = ipamConf.RangeStart
+		}
+		if ipamConf.RangeEnd != nil && ipnet.Contains(ipamConf.RangeEnd) &&
+			iphelpers.CompareIPs(ipamConf.RangeEnd, firstIP) >= 0 &&
+			iphelpers.CompareIPs(ipamConf.RangeEnd, lastIP) <= 0 {
+			lastIP = ipamConf.RangeEnd
+		}
+	} else {
+		firstIP, lastIP, err = iphelpers.GetIPRange(ipnet, ipamConf.RangeStart, ipamConf.RangeEnd)
+		if err != nil {
+			logging.Errorf("preferredIPInBounds: GetIPRange failed: %v", err)
+			return false
+		}
+	}
+
+	inBounds, err := iphelpers.IsIPInRange(ipamConf.PreferredIP, firstIP, lastIP)
+	if err != nil {
+		logging.Errorf("preferredIPInBounds: IsIPInRange failed: %v", err)
+		return false
+	}
+	return inBounds
 }
 
 // IterateForAssignment iterates given an IP/IPNet and a list of reserved IPs and excluded subnets.

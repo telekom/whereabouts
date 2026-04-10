@@ -324,6 +324,22 @@ func (c *KubernetesOverlappingRangeStore) GetOverlappingRangeIPReservation(ctx c
 
 	r, err := c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, normalizedIP, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
+		// New-format name not found — try legacy name for backward compatibility with
+		// OverlappingRangeIPReservation CRs created before the IPv6 expansion change.
+		legacyName := LegacyNormalizeIP(ip, networkName)
+		if legacyName != normalizedIP {
+			logging.Debugf("New-format name %q not found, trying legacy name %q", normalizedIP, legacyName)
+			r, err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, legacyName, metav1.GetOptions{})
+			if err != nil && errors.IsNotFound(err) {
+				// Neither format found — IP is not reserved.
+				return nil, nil
+			} else if err != nil {
+				logging.Errorf("k8s get OverlappingRangeIPReservation error (legacy): %w", err)
+				return nil, fmt.Errorf("k8s get OverlappingRangeIPReservation error: %w", err)
+			}
+			logging.Debugf("Legacy-format name %q is reserved; IP: %q, networkName: %q", legacyName, ip, networkName)
+			return r, nil
+		}
 		// cluster ip reservation does not exist, this appears to be good news.
 		return nil, nil
 	} else if err != nil {
@@ -363,6 +379,20 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 	case whereaboutstypes.Deallocate:
 		verb = "deallocate"
 		err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, clusteripres.GetName(), metav1.DeleteOptions{})
+		if errors.IsNotFound(err) {
+			// New-format name not found — attempt deletion by legacy name for backward
+			// compatibility with CRs created before the IPv6 expansion change.
+			legacyName := LegacyNormalizeIP(ip, networkName)
+			if legacyName != normalizedIP {
+				logging.Debugf("New-format name %q not found on delete, trying legacy name %q", normalizedIP, legacyName)
+				err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, legacyName, metav1.DeleteOptions{})
+				if errors.IsNotFound(err) {
+					err = nil
+				}
+			} else {
+				err = nil
+			}
+		}
 	}
 
 	if err != nil {
@@ -373,11 +403,12 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 	return nil
 }
 
-// NormalizeIP normalizes the IP into a valid RFC 1123 DNS label for use as a
-// Kubernetes resource name. IPv6 addresses are expanded to their full 8-group
-// hex form (e.g. "::1" → "0000-0000-0000-0000-0000-0000-0000-0001") to avoid
-// leading hyphens from compressed notation. IPv4 addresses are left unchanged.
-// Optionally prepends the network-name for named networks.
+// NormalizeIP normalizes the IP into a valid RFC 1123 DNS subdomain for use as
+// a Kubernetes resource name. IPv6 addresses are expanded to their full
+// 8-group hex form (e.g. "::1" → "0000-0000-0000-0000-0000-0000-0000-0001")
+// to avoid leading hyphens from compressed notation. IPv4 addresses are left
+// unchanged, which preserves dots and remains valid for Kubernetes resource
+// names. Optionally prepends the network-name for named networks.
 func NormalizeIP(ip net.IP, networkName string) string {
 	var normalizedIP string
 	if ip4 := ip.To4(); ip4 != nil {
@@ -395,6 +426,23 @@ func NormalizeIP(ip net.IP, networkName string) string {
 		normalizedIP = fmt.Sprintf("%s-%s", networkName, normalizedIP)
 	}
 	return normalizedIP
+}
+
+// LegacyNormalizeIP produces the pre-expansion resource name used by
+// OverlappingRangeIPReservation CRs created before the IPv6 full-expansion
+// change. It applies a simple colon/dot → dash replacement and trims leading
+// and trailing dashes. This is the old behavior:
+//
+//	strings.Trim(strings.NewReplacer(":", "-", ".", "-").Replace(ip.String()), "-")
+//
+// Use this only for backward-compatible lookups and deletes of legacy CRs.
+// New reservations must always use NormalizeIP.
+func LegacyNormalizeIP(ip net.IP, networkName string) string {
+	raw := strings.Trim(strings.NewReplacer(":", "-", ".", "-").Replace(ip.String()), "-")
+	if networkName != UnnamedNetwork {
+		return fmt.Sprintf("%s-%s", networkName, raw)
+	}
+	return raw
 }
 
 // getNodeName prefers an OS env var of NODENAME, or, uses a file named ./nodename in the whereabouts configuration path.

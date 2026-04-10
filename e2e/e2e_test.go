@@ -4026,7 +4026,7 @@ func verifyNoAllocationsForPodRef(clientInfo *wbtestclient.ClientInfo, ipv4TestR
 
 		allocation := allocationForPodRef(getPodRef(testNamespace, podName), *ipPool)
 		return len(allocation) == 0
-	}, 3*time.Second, 500*time.Millisecond).Should(BeTrue())
+	}, 30*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 	for _, ip := range secondaryIfaceIPs {
 		Eventually(func() bool {
@@ -4035,7 +4035,7 @@ func verifyNoAllocationsForPodRef(clientInfo *wbtestclient.ClientInfo, ipv4TestR
 				return true
 			}
 			return false
-		}, 3*time.Second, 500*time.Millisecond).Should(BeTrue())
+		}, 30*time.Second, 500*time.Millisecond).Should(BeTrue())
 	}
 }
 

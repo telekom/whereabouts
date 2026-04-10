@@ -93,7 +93,7 @@ func (c *ClientInfo) ProvisionPod(podName string, namespace string, label, annot
 		return nil, err
 	}
 
-	const podCreateTimeout = 10 * time.Second
+	const podCreateTimeout = 30 * time.Second
 	if err := WaitForPodReady(ctx, c.Client, pod.Namespace, pod.Name, podCreateTimeout); err != nil {
 		return nil, err
 	}

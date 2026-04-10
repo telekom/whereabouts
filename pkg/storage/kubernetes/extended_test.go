@@ -41,25 +41,49 @@ func TestNormalizeIP(t *testing.T) {
 			name:        "IPv6 unnamed network",
 			ip:          net.ParseIP("fd00::1"),
 			networkName: UnnamedNetwork,
-			expected:    "fd00--1",
+			expected:    "fd00-0000-0000-0000-0000-0000-0000-0001",
 		},
 		{
 			name:        "IPv6 named network",
 			ip:          net.ParseIP("fd00::1"),
 			networkName: "v6net",
-			expected:    "v6net-fd00--1",
+			expected:    "v6net-fd00-0000-0000-0000-0000-0000-0000-0001",
 		},
 		{
 			name:        "IPv6 with trailing colon (zero-padded)",
 			ip:          net.ParseIP("fd00::"),
 			networkName: UnnamedNetwork,
-			expected:    "fd00--0",
+			expected:    "fd00-0000-0000-0000-0000-0000-0000-0000",
 		},
 		{
 			name:        "IPv4-mapped IPv6",
 			ip:          net.ParseIP("::ffff:10.0.0.1"),
 			networkName: UnnamedNetwork,
 			expected:    "10.0.0.1",
+		},
+		{
+			name:        "IPv6 loopback ::1 must not produce leading hyphens",
+			ip:          net.ParseIP("::1"),
+			networkName: UnnamedNetwork,
+			expected:    "0000-0000-0000-0000-0000-0000-0000-0001",
+		},
+		{
+			name:        "IPv6 all-zeros ::",
+			ip:          net.ParseIP("::"),
+			networkName: UnnamedNetwork,
+			expected:    "0000-0000-0000-0000-0000-0000-0000-0000",
+		},
+		{
+			name:        "IPv6 link-local fe80::1",
+			ip:          net.ParseIP("fe80::1"),
+			networkName: UnnamedNetwork,
+			expected:    "fe80-0000-0000-0000-0000-0000-0000-0001",
+		},
+		{
+			name:        "IPv6 ::1 with named network",
+			ip:          net.ParseIP("::1"),
+			networkName: "testnet",
+			expected:    "testnet-0000-0000-0000-0000-0000-0000-0000-0001",
 		},
 	}
 
@@ -68,6 +92,9 @@ func TestNormalizeIP(t *testing.T) {
 			result := NormalizeIP(tc.ip, tc.networkName)
 			if result != tc.expected {
 				t.Errorf("NormalizeIP(%v, %q) = %q, want %q", tc.ip, tc.networkName, result, tc.expected)
+			}
+			if len(result) > 0 && (result[0] == '-' || result[len(result)-1] == '-') {
+				t.Errorf("NormalizeIP(%v, %q) = %q has leading/trailing hyphens", tc.ip, tc.networkName, result)
 			}
 		})
 	}

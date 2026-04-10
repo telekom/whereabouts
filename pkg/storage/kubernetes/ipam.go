@@ -373,15 +373,24 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 	return nil
 }
 
-// NormalizeIP normalizes the IP. This is important for IPv6 which doesn't make for valid CR names. It also allows us
-// to add the network-name when it's different from the unnamed network.
+// NormalizeIP normalizes the IP into a valid RFC 1123 DNS label for use as a
+// Kubernetes resource name. IPv6 addresses are expanded to their full 8-group
+// hex form (e.g. "::1" → "0000-0000-0000-0000-0000-0000-0000-0001") to avoid
+// leading hyphens from compressed notation. IPv4 addresses are left unchanged.
+// Optionally prepends the network-name for named networks.
 func NormalizeIP(ip net.IP, networkName string) string {
-	ipStr := ip.String()
-	if ipStr[len(ipStr)-1] == ':' {
-		ipStr += "0"
-		logging.Debugf("modified: %s", ipStr)
+	var normalizedIP string
+	if ip4 := ip.To4(); ip4 != nil {
+		normalizedIP = ip4.String()
+	} else if ip6 := ip.To16(); ip6 != nil {
+		groups := make([]string, 8)
+		for i := range 8 {
+			groups[i] = fmt.Sprintf("%04x", uint16(ip6[i*2])<<8|uint16(ip6[i*2+1]))
+		}
+		normalizedIP = strings.Join(groups, "-")
+	} else {
+		normalizedIP = strings.Trim(strings.NewReplacer(":", "-", ".", "-").Replace(ip.String()), "-")
 	}
-	normalizedIP := strings.ReplaceAll(ipStr, ":", "-")
 	if networkName != UnnamedNetwork {
 		normalizedIP = fmt.Sprintf("%s-%s", networkName, normalizedIP)
 	}

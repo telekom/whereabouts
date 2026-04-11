@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  workflows: write
 
 jobs:
   sync:
@@ -70,13 +71,11 @@ jobs:
           Please review the changes and merge when ready."
           else
             # Merge had conflicts — commit the conflict markers so the PR shows them
+            # Capture conflicting files BEFORE staging (git diff --diff-filter=U only
+            # shows unmerged paths; after git add -A they become staged and disappear
+            # from the unstaged diff).
             CONFLICTS=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
             git add -A
-            if git diff --name-only --diff-filter=U | grep -q .; then
-              echo "Unable to create conflict-marker commit because unmerged paths remain:"
-              git diff --name-only --diff-filter=U
-              exit 1
-            fi
             git commit --no-edit
             BODY="⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).
 

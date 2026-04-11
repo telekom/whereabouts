@@ -56,6 +56,21 @@ func (w *oripListInterceptClient) List(ctx context.Context, list client.ObjectLi
 	return nil
 }
 
+// oripListErrorClient wraps a fake client and returns a sentinel error for
+// any List() call targeting OverlappingRangeIPReservationList. Used to test
+// the error path in cleanupOverlappingReservations.
+type oripListErrorClient struct {
+	client.Client
+	listErr error
+}
+
+func (w *oripListErrorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*whereaboutsv1alpha1.OverlappingRangeIPReservationList); ok {
+		return w.listErr
+	}
+	return w.Client.List(ctx, list, opts...)
+}
+
 // ---------------------------------------------------------------
 // denormalizeIPName
 // ---------------------------------------------------------------
@@ -971,6 +986,39 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			}, &updated)
 			Expect(err).To(HaveOccurred())
 			Expect(client.IgnoreNotFound(err)).To(Succeed())
+		})
+
+		It("should return wrapped error when List fails", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			listErr := fmt.Errorf("connection refused")
+			wrappedClient := &oripListErrorClient{
+				Client: fake.NewClientBuilder().
+					WithScheme(newTestScheme()).
+					WithObjects(pool).
+					Build(),
+				listErr: listErr,
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("listing overlapping reservations")))
+			Expect(err).To(MatchError(ContainSubstring("connection refused")))
 		})
 	})
 })

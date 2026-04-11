@@ -931,8 +931,9 @@ func isRetryableRollbackError(err error) bool {
 
 // rollbackCommitted performs a best-effort rollback of previously committed
 // multi-range allocations. Each allocation is removed from its pool so the IP
-// is not left orphaned when a later range fails. The pool is re-read from
-// Kubernetes on each attempt to avoid operating on stale data.
+// is not left orphaned when a later range fails. The first attempt uses the
+// already-fetched pool; subsequent retry attempts re-read the pool from
+// Kubernetes to avoid operating on a stale resourceVersion.
 func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 	for _, c := range committed {
 		var lastErr error

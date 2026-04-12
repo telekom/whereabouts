@@ -49,7 +49,7 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 ### Error Handling
 
 - Wrap errors with `fmt.Errorf("context: %w", err)` — use `%w` for proper error wrapping in new code (operator, webhooks, controllers).
-- Legacy CNI plugin code (`pkg/`, `cmd/whereabouts.go`) still uses `%s` — migrate to `%w` opportunistically.
+- Legacy CNI plugin code (`pkg/`, `cmd/whereabouts/main.go`) still uses `%s` — migrate to `%w` opportunistically.
 - Use `logging.Errorf("msg: %v", err)` to both log AND return an error in one call.
 - When discarding the returned error: `_ = logging.Errorf(...)`.
 - Custom error types use struct + `Error() string` + constructor (e.g. `NewInvalidPluginError()`).

@@ -406,6 +406,74 @@ func TestCopyFile_UnwritableDst(t *testing.T) {
 	assertContains(t, err.Error(), "creating")
 }
 
+func TestCopyFile_NoTempFileLeftOnSrcError(t *testing.T) {
+	tmp := t.TempDir()
+
+	srcDir := filepath.Join(tmp, "srcdir")
+	must(t, os.Mkdir(srcDir, 0o755))
+
+	err := copyFile(srcDir, filepath.Join(tmp, "dst"))
+	if err == nil {
+		t.Fatal("expected error when copying from directory source")
+	}
+
+	entries, readErr := os.ReadDir(tmp)
+	if readErr != nil {
+		t.Fatalf("reading tmp dir: %v", readErr)
+	}
+	if len(entries) != 1 || entries[0].Name() != "srcdir" {
+		t.Errorf("expected only source directory to remain, found: %v", entries)
+	}
+}
+
+func TestCopyFile_NoTempFileLeftOnRenameError(t *testing.T) {
+	tmp := t.TempDir()
+
+	src := filepath.Join(tmp, "src")
+	must(t, os.WriteFile(src, []byte("content"), 0o755))
+
+	dstIsDir := filepath.Join(tmp, "dst-dir")
+	must(t, os.MkdirAll(dstIsDir, 0o755))
+
+	err := copyFile(src, dstIsDir)
+	if err == nil {
+		t.Fatal("expected error when dst is an existing directory")
+	}
+
+	entries, readErr := os.ReadDir(tmp)
+	if readErr != nil {
+		t.Fatalf("reading tmp dir: %v", readErr)
+	}
+	for _, e := range entries {
+		if e.Name() != "src" && e.Name() != "dst-dir" {
+			t.Errorf("unexpected file left behind after failed rename: %s", e.Name())
+		}
+	}
+}
+
+func TestCopyFile_AtomicReplacement(t *testing.T) {
+	tmp := t.TempDir()
+	src := filepath.Join(tmp, "src")
+	dst := filepath.Join(tmp, "dst")
+
+	must(t, os.WriteFile(src, []byte("new-content"), 0o755))
+	must(t, os.WriteFile(dst, []byte("old-content"), 0o755))
+
+	must(t, copyFile(src, dst))
+
+	data, err := os.ReadFile(dst)
+	must(t, err)
+	assertEqual(t, "dst content after atomic replace", string(data), "new-content")
+
+	entries, err := os.ReadDir(tmp)
+	must(t, err)
+	for _, e := range entries {
+		if e.Name() != "src" && e.Name() != "dst" {
+			t.Errorf("unexpected file left behind after atomic copy: %s", e.Name())
+		}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // fileHash
 // ---------------------------------------------------------------------------

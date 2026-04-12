@@ -265,7 +265,10 @@ func writeWhereaboutsConf(cfg *config) error {
 	return nil
 }
 
-// copyFile copies src to dst, preserving the executable bit.
+// copyFile copies src to dst atomically, preserving the executable bit.
+// It writes to a temporary file in the same directory as dst and then
+// renames it into place, ensuring that dst is never left in a
+// partial/corrupt state if the process is interrupted mid-write.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -273,18 +276,58 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	// Create the temp file in the same directory as dst so that the
+	// subsequent os.Rename stays on the same filesystem (required for
+	// rename(2) atomicity on POSIX systems).
+	tmp, err := os.CreateTemp(filepath.Dir(dst), ".whereabouts-tmp-*")
 	if err != nil {
-		return fmt.Errorf("creating %s: %w", dst, err)
+		return fmt.Errorf("creating temp file in %s: %w", filepath.Dir(dst), err)
 	}
-	defer out.Close()
+	tmpPath := tmp.Name()
+	// Always remove the temp file on any error path.  On the success
+	// path the file has been renamed away, so os.Remove is a no-op.
+	defer os.Remove(tmpPath)
 
-	if _, err := io.Copy(out, in); err != nil {
-		return fmt.Errorf("copying %s to %s: %w", src, dst, err)
+	if _, err := io.Copy(tmp, in); err != nil {
+		tmp.Close()
+		return fmt.Errorf("copying %s to %s: %w", src, tmpPath, err)
 	}
 
-	if err := out.Chmod(0o755); err != nil {
-		return fmt.Errorf("chmod %s: %w", dst, err)
+	if err := tmp.Chmod(0o755); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmpPath, err)
+	}
+
+	// Flush kernel buffers to disk before closing so the contents are
+	// durable across a node crash / sudden power loss.  Without this,
+	// a reboot between write and rename can leave dst pointing to a
+	// file whose pages were never committed to stable storage.
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("syncing temp file %s: %w", tmpPath, err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("closing temp file %s: %w", tmpPath, err)
+	}
+
+	// Atomic rename: replaces dst in a single syscall.
+	if err := os.Rename(tmpPath, dst); err != nil {
+		return fmt.Errorf("renaming %s to %s: %w", tmpPath, dst, err)
+	}
+
+	// Fsync the parent directory so the renamed directory entry is
+	// also durable.  A crash between rename and this fsync would still
+	// leave the old dst visible; the new file would be safely on disk
+	// but the directory entry would revert on journal replay.
+	dir, err := os.Open(filepath.Dir(dst))
+	if err != nil {
+		return fmt.Errorf("opening directory %s for fsync: %w", filepath.Dir(dst), err)
+	}
+	syncErr := dir.Sync()
+	dir.Close()
+	if syncErr != nil {
+		return fmt.Errorf("syncing directory %s: %w", filepath.Dir(dst), syncErr)
 	}
 
 	slog.Info("copied whereabouts binary", "src", src, "dst", dst)

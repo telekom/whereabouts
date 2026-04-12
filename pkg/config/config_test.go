@@ -592,6 +592,99 @@ var _ = Describe("Allocation operations", func() {
 		})
 	})
 
+	// ── Per-range exclude (OmitRanges) validation tests ──────────────────────
+	Context("per-range exclude CIDR validation", func() {
+		It("accepts valid per-range exclude CIDRs in ipRanges", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"ipRanges": [{
+						"range": "192.168.1.0/24",
+						"exclude": ["192.168.1.10/32", "192.168.1.20/32"]
+					}]
+				}
+			}`
+			ipamConf, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ipamConf.IPRanges[0].OmitRanges).To(ContainElement("192.168.1.10/32"))
+			Expect(ipamConf.IPRanges[0].OmitRanges).To(ContainElement("192.168.1.20/32"))
+		})
+
+		It("returns an error for an invalid per-range exclude CIDR in ipRanges", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"ipRanges": [{
+						"range": "192.168.1.0/24",
+						"exclude": ["not-a-cidr"]
+					}]
+				}
+			}`
+			_, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("192.168.1.0/24"))
+			Expect(err.Error()).To(ContainSubstring("not-a-cidr"))
+		})
+
+		It("returns an error for an invalid per-range exclude CIDR in ipRanges", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"ipRanges": [{
+						"range": "192.168.2.0/24",
+						"exclude": ["bad-cidr/999"]
+					}]
+				}
+			}`
+			_, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("192.168.2.0/24"))
+			Expect(err.Error()).To(ContainSubstring("bad-cidr/999"))
+		})
+
+		It("validates per-range excludes across multiple ranges and reports the failing one", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"ipRanges": [{
+						"range": "10.0.0.0/24",
+						"exclude": ["10.0.0.5/32"]
+					}, {
+						"range": "10.0.1.0/24",
+						"exclude": ["invalid-cidr"]
+					}]
+				}
+			}`
+			_, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("10.0.1.0/24"))
+			Expect(err.Error()).To(ContainSubstring("invalid-cidr"))
+		})
+	})
+
 	// ── /32 and /31 config parsing tests (#573) ──────────────────────────────
 	Context("/32 and /31 config parsing (#573)", func() {
 		It("loads a /32 range configuration", func() {

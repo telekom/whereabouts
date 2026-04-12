@@ -455,7 +455,11 @@ func ParsePrevResult(stdinData []byte) (*current.Result, error) {
 	res, err := current.NewResult(resultBytes)
 	if err != nil {
 		// prevResult may be in an older CNI version format — try conversion.
-		rawResult, parseErr := cniversion.NewResult(raw.RawPrevResult["cniVersion"].(string), resultBytes)
+		cniVer, ok := raw.RawPrevResult["cniVersion"].(string)
+		if !ok {
+			return nil, fmt.Errorf("prevResult missing or invalid cniVersion field: %w", err)
+		}
+		rawResult, parseErr := cniversion.NewResult(cniVer, resultBytes)
 		if parseErr != nil {
 			return nil, fmt.Errorf("failed to parse prevResult: %w (original: %v)", parseErr, err)
 		}

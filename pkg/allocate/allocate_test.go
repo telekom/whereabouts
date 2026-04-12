@@ -732,5 +732,95 @@ var _ = Describe("Allocation operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
 		})
+
+		It("falls back when preferred IP is below RangeStart", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "192.168.1.0/24",
+				RangeStart:  net.ParseIP("192.168.1.50"),
+				PreferredIP: net.ParseIP("192.168.1.10"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
+		})
+
+		It("falls back when preferred IP is above RangeEnd", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "192.168.1.0/24",
+				RangeEnd:    net.ParseIP("192.168.1.50"),
+				PreferredIP: net.ParseIP("192.168.1.100"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.1"))).To(BeTrue())
+		})
+
+		It("assigns preferred IP when it exactly equals RangeStart", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "192.168.1.0/24",
+				RangeStart:  net.ParseIP("192.168.1.50"),
+				PreferredIP: net.ParseIP("192.168.1.50"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
+		})
+
+		It("assigns preferred IP when it exactly equals RangeEnd", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "192.168.1.0/24",
+				RangeEnd:    net.ParseIP("192.168.1.50"),
+				PreferredIP: net.ParseIP("192.168.1.50"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
+		})
+
+		It("falls back when preferred IPv6 is below RangeStart", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "fd00::/120",
+				RangeStart:  net.ParseIP("fd00::50"),
+				PreferredIP: net.ParseIP("fd00::10"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("fd00::50"))).To(BeTrue())
+		})
+
+		It("falls back when preferred IPv6 is above RangeEnd", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "fd00::/120",
+				RangeEnd:    net.ParseIP("fd00::50"),
+				PreferredIP: net.ParseIP("fd00::70"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("fd00::1"))).To(BeTrue())
+		})
+
+		It("L3 mode: falls back when preferred IP is below RangeStart", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "10.0.0.0/24",
+				RangeStart:  net.ParseIP("10.0.0.100"),
+				PreferredIP: net.ParseIP("10.0.0.10"),
+				L3:          true,
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("10.0.0.100"))).To(BeTrue())
+		})
+
+		It("L3 mode: falls back when preferred IP is above RangeEnd", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "10.0.0.0/24",
+				RangeEnd:    net.ParseIP("10.0.0.50"),
+				PreferredIP: net.ParseIP("10.0.0.100"),
+				L3:          true,
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("10.0.0.0"))).To(BeTrue())
+		})
 	})
 })

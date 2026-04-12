@@ -41,25 +41,49 @@ func TestNormalizeIP(t *testing.T) {
 			name:        "IPv6 unnamed network",
 			ip:          net.ParseIP("fd00::1"),
 			networkName: UnnamedNetwork,
-			expected:    "fd00--1",
+			expected:    "fd00-0000-0000-0000-0000-0000-0000-0001",
 		},
 		{
 			name:        "IPv6 named network",
 			ip:          net.ParseIP("fd00::1"),
 			networkName: "v6net",
-			expected:    "v6net-fd00--1",
+			expected:    "v6net-fd00-0000-0000-0000-0000-0000-0000-0001",
 		},
 		{
 			name:        "IPv6 with trailing colon (zero-padded)",
 			ip:          net.ParseIP("fd00::"),
 			networkName: UnnamedNetwork,
-			expected:    "fd00--0",
+			expected:    "fd00-0000-0000-0000-0000-0000-0000-0000",
 		},
 		{
 			name:        "IPv4-mapped IPv6",
 			ip:          net.ParseIP("::ffff:10.0.0.1"),
 			networkName: UnnamedNetwork,
 			expected:    "10.0.0.1",
+		},
+		{
+			name:        "IPv6 loopback ::1 must not produce leading hyphens",
+			ip:          net.ParseIP("::1"),
+			networkName: UnnamedNetwork,
+			expected:    "0000-0000-0000-0000-0000-0000-0000-0001",
+		},
+		{
+			name:        "IPv6 all-zeros ::",
+			ip:          net.ParseIP("::"),
+			networkName: UnnamedNetwork,
+			expected:    "0000-0000-0000-0000-0000-0000-0000-0000",
+		},
+		{
+			name:        "IPv6 link-local fe80::1",
+			ip:          net.ParseIP("fe80::1"),
+			networkName: UnnamedNetwork,
+			expected:    "fe80-0000-0000-0000-0000-0000-0000-0001",
+		},
+		{
+			name:        "IPv6 ::1 with named network",
+			ip:          net.ParseIP("::1"),
+			networkName: "testnet",
+			expected:    "testnet-0000-0000-0000-0000-0000-0000-0000-0001",
 		},
 	}
 
@@ -68,6 +92,9 @@ func TestNormalizeIP(t *testing.T) {
 			result := NormalizeIP(tc.ip, tc.networkName)
 			if result != tc.expected {
 				t.Errorf("NormalizeIP(%v, %q) = %q, want %q", tc.ip, tc.networkName, result, tc.expected)
+			}
+			if len(result) > 0 && (result[0] == '-' || result[len(result)-1] == '-') {
+				t.Errorf("NormalizeIP(%v, %q) = %q has leading/trailing hyphens", tc.ip, tc.networkName, result)
 			}
 		})
 	}
@@ -493,6 +520,153 @@ func TestOverlappingRangeStoreUpdateDeallocate(t *testing.T) {
 	}
 	if res != nil {
 		t.Fatal("expected reservation to be deleted")
+	}
+}
+
+// TestLegacyNormalizeIP tests the LegacyNormalizeIP function preserves the old naming scheme.
+func TestLegacyNormalizeIP(t *testing.T) {
+	cases := []struct {
+		name        string
+		ip          net.IP
+		networkName string
+		expected    string
+	}{
+		{
+			name:        "IPv4 unnamed network",
+			ip:          net.ParseIP("10.0.0.1"),
+			networkName: UnnamedNetwork,
+			expected:    "10-0-0-1",
+		},
+		{
+			name:        "IPv4 named network",
+			ip:          net.ParseIP("10.0.0.1"),
+			networkName: "mynet",
+			expected:    "mynet-10-0-0-1",
+		},
+		{
+			name:        "IPv6 compressed notation unnamed network",
+			ip:          net.ParseIP("fd00::1"),
+			networkName: UnnamedNetwork,
+			expected:    "fd00--1",
+		},
+		{
+			name:        "IPv6 compressed notation named network",
+			ip:          net.ParseIP("fd00::1"),
+			networkName: "v6net",
+			expected:    "v6net-fd00--1",
+		},
+		{
+			name:        "IPv6 loopback ::1 unnamed",
+			ip:          net.ParseIP("::1"),
+			networkName: UnnamedNetwork,
+			expected:    "1",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := LegacyNormalizeIP(tc.ip, tc.networkName)
+			if result != tc.expected {
+				t.Errorf("LegacyNormalizeIP(%v, %q) = %q, want %q", tc.ip, tc.networkName, result, tc.expected)
+			}
+		})
+	}
+}
+
+// TestGetOverlappingRangeIPReservationLegacyFallback tests that GetOverlappingRangeIPReservation
+// falls back to the legacy name when the new-format name is not found (IPv6 backward compat).
+func TestGetOverlappingRangeIPReservationLegacyFallback(t *testing.T) {
+	ip := net.ParseIP("fd00::1")
+	legacyName := LegacyNormalizeIP(ip, UnnamedNetwork) // "fd00--1"
+
+	orip := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyName,
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/pod1",
+			IfName: "eth0",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(orip)
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+
+	res, err := store.GetOverlappingRangeIPReservation(context.Background(), ip, "default/pod1", UnnamedNetwork)
+	if err != nil {
+		t.Fatalf("GetOverlappingRangeIPReservation() error: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected reservation to be found via legacy name fallback")
+	}
+	if res.Spec.PodRef != "default/pod1" {
+		t.Errorf("expected podRef 'default/pod1', got '%s'", res.Spec.PodRef)
+	}
+}
+
+// TestUpdateOverlappingRangeDeallocateLegacyFallback tests that UpdateOverlappingRangeAllocation
+// falls back to the legacy name on delete when the new-format name is not found (IPv6 backward compat).
+func TestUpdateOverlappingRangeDeallocateLegacyFallback(t *testing.T) {
+	ip := net.ParseIP("fd00::1")
+	legacyName := LegacyNormalizeIP(ip, UnnamedNetwork) // "fd00--1"
+
+	orip := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyName,
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/pod1",
+			IfName: "eth0",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(orip)
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, ip, "default/pod1", "eth0", UnnamedNetwork)
+	if err != nil {
+		t.Fatalf("UpdateOverlappingRangeAllocation(Deallocate) with legacy name error: %v", err)
+	}
+
+	ips, err := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("List() error: %v", err)
+	}
+	if len(ips.Items) != 0 {
+		t.Fatalf("expected 0 reservations after legacy delete, got %d", len(ips.Items))
+	}
+}
+
+// TestUpdateOverlappingRangeAllocateUsesNewFormat tests that new allocations use the new expanded format.
+func TestUpdateOverlappingRangeAllocateUsesNewFormat(t *testing.T) {
+	ip := net.ParseIP("fd00::1")
+	newFormat := NormalizeIP(ip, UnnamedNetwork) // "fd00-0000-0000-0000-0000-0000-0000-0001"
+
+	wbClient := wbfake.NewClientset()
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/pod1", "eth0", UnnamedNetwork)
+	if err != nil {
+		t.Fatalf("UpdateOverlappingRangeAllocation(Allocate) error: %v", err)
+	}
+
+	res, err := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").Get(context.Background(), newFormat, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("expected reservation with new-format name %q, error: %v", newFormat, err)
+	}
+	if res.Spec.PodRef != "default/pod1" {
+		t.Errorf("expected podRef 'default/pod1', got '%s'", res.Spec.PodRef)
 	}
 }
 

@@ -357,6 +357,15 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		markReady(&pool, ReasonReconciled, "all allocations verified")
 	}
 	if err := patchHelper.Patch(ctx, &pool); err != nil {
+		if len(orphanedKeys) > 0 {
+			// When spec changes (orphan removal) failed to persist, return the
+			// error so controller-runtime retries quickly via exponential backoff.
+			// Silently swallowing the error here would delay the next attempt by
+			// reconcileInterval (default 30s), which is long enough to cause the
+			// pool-exhaustion recovery test to time out.
+			return ctrl.Result{}, fmt.Errorf("patching pool after orphan cleanup: %w", err)
+		}
+		// Status-only patch failures are non-critical: IP management is unaffected.
 		logger.Error(err, "failed to patch status")
 	}
 

@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 
@@ -249,6 +251,43 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(updated.Status.OrphanedIPs).To(Equal(int32(2)))
 			Expect(updated.Status.UsedIPs).To(Equal(int32(0)))
 			Expect(updated.Status.FreeIPs).To(Equal(int32(254)))
+		})
+	})
+
+	Context("when the pool has orphaned allocations and the spec Patch fails", func() {
+		It("should return the error so controller-runtime retries quickly (not swallow it)", func() {
+			// This test verifies the fix for a silent error swallow that caused
+			// a 30-second retry delay instead of fast exponential-backoff retry.
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/missing-pod",
+					IfName:      "eth0",
+				},
+			})
+
+			patchErr := errors.New("simulated resourceVersion conflict")
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
+				WithObjects(pool).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+						return patchErr
+					},
+				}).
+				Build()
+			reconciler = &IPPoolReconciler{
+				client:            fakeClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			result, err := reconciler.Reconcile(ctx, req)
+			// Must propagate the error — NOT silently log it and return RequeueAfter.
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("patching pool after orphan cleanup"))
+			Expect(result.RequeueAfter).To(BeZero())
 		})
 	})
 

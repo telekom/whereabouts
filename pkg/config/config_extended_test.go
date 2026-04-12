@@ -69,6 +69,51 @@ var _ = Describe("ParsePrevResult", func() {
 		_, err := ParsePrevResult(data)
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("returns error when prevResult is missing cniVersion key", func() {
+		// An older-format prevResult without cniVersion should not panic.
+		prevResult := map[string]interface{}{
+			"ips": []interface{}{
+				map[string]interface{}{
+					"address": "10.0.0.2/24",
+				},
+			},
+		}
+		raw := map[string]interface{}{
+			"name":       "test",
+			"cniVersion": "0.3.0",
+			"prevResult": prevResult,
+		}
+		data, err := json.Marshal(raw)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ParsePrevResult(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cniVersion"))
+	})
+
+	It("returns error when prevResult cniVersion is not a string", func() {
+		// Numeric cniVersion should not panic on type assertion.
+		prevResult := map[string]interface{}{
+			"cniVersion": 42,
+			"ips": []interface{}{
+				map[string]interface{}{
+					"address": "10.0.0.2/24",
+				},
+			},
+		}
+		raw := map[string]interface{}{
+			"name":       "test",
+			"cniVersion": "0.3.0",
+			"prevResult": prevResult,
+		}
+		data, err := json.Marshal(raw)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ParsePrevResult(data)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cniVersion"))
+	})
 })
 
 var _ = Describe("handleEnvArgs", func() {

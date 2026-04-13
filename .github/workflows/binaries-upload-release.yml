@@ -30,7 +30,7 @@ jobs:
         sha256sum whereabouts-${{ matrix.arch }} > whereabouts-${{ matrix.arch }}.sha256
         sha256sum whereabouts-operator-${{ matrix.arch }} > whereabouts-operator-${{ matrix.arch }}.sha256
     - name: Upload release binaries
-      uses: softprops/action-gh-release@v2.6.1 # v2.5.0
+      uses: softprops/action-gh-release@v3.0.0 # v2.5.0
       with:
         files: |
           ./bin/whereabouts-${{ matrix.arch }}
@@ -59,7 +59,7 @@ jobs:
           sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|ghcr.io/telekom/whereabouts:${TAG}|g" \
           > ./manifests/install.yaml
     - name: Upload install manifests
-      uses: softprops/action-gh-release@v2.6.1 # v2.5.0
+      uses: softprops/action-gh-release@v3.0.0 # v2.5.0
       with:
         files: |
           ./manifests/*.yaml

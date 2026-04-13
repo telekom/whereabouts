@@ -194,15 +194,19 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Handle deletion: cleanup overlapping reservations, then remove finalizer.
+	//
+	// During finalization we pass the pool's current allocations to
+	// cleanupOverlappingReservations. The PodRef guard inside that
+	// function intentionally skips reservations whose PodRef differs
+	// from the allocation's PodRef — this is safe because such
+	// reservations have already been claimed by a new pod via a
+	// different pool, and the OverlappingRangeReconciler will manage
+	// their lifecycle independently.
 	if !pool.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(&pool, ippoolFinalizer) {
 			logger.Info("IPPool being deleted, cleaning up overlapping reservations", "pool", pool.Name)
-			allKeys := make([]string, 0, len(pool.Spec.Allocations))
-			for key := range pool.Spec.Allocations {
-				allKeys = append(allKeys, key)
-			}
-			if len(allKeys) > 0 {
-				if err := r.cleanupOverlappingReservations(ctx, &pool, allKeys); err != nil {
+			if len(pool.Spec.Allocations) > 0 {
+				if err := r.cleanupOverlappingReservations(ctx, &pool, pool.Spec.Allocations); err != nil {
 					logger.Error(err, "failed to clean up overlapping reservations during finalization")
 					return ctrl.Result{RequeueAfter: retryRequeueInterval}, nil
 				}
@@ -247,21 +251,21 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
 	}
 
-	// Collect orphaned allocation keys.
-	var orphanedKeys []string
+	// Collect orphaned allocations.
+	orphanedAllocs := make(map[string]whereaboutsv1alpha1.IPAllocation)
 	var pendingCount int32
 
 	for key, alloc := range pool.Spec.Allocations {
 		if alloc.PodRef == "" {
 			logger.Info("allocation missing podRef, marking orphaned", "key", key)
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedAllocs[key] = alloc
 			continue
 		}
 
 		podNS, podName, ok := parsePodRef(alloc.PodRef)
 		if !ok {
 			logger.Info("invalid podRef format, marking orphaned", "key", key, "podRef", alloc.PodRef)
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedAllocs[key] = alloc
 			continue
 		}
 
@@ -270,7 +274,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if errors.IsNotFound(err) {
 			logger.V(1).Info("pod not found, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedAllocs[key] = alloc
 			continue
 		}
 		if err != nil {
@@ -283,7 +287,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if r.cleanupDisrupted && isPodMarkedForDeletion(pod.Status.Conditions) {
 			logger.V(1).Info("pod marked for deletion, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedAllocs[key] = alloc
 			continue
 		}
 
@@ -294,7 +298,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if r.cleanupTerminating && pod.DeletionTimestamp != nil {
 			logger.V(1).Info("pod is terminating, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
-			orphanedKeys = append(orphanedKeys, key)
+			orphanedAllocs[key] = alloc
 			continue
 		}
 
@@ -312,23 +316,27 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if poolIP != nil && !isPodUsingIP(&pod, poolIP) {
 				logger.V(1).Info("IP not found on pod, marking allocation orphaned",
 					"key", key, "podRef", alloc.PodRef, "ip", poolIP)
-				orphanedKeys = append(orphanedKeys, key)
+				orphanedAllocs[key] = alloc
 				continue
 			}
 		}
 	}
 
 	// Remove orphaned allocations (in-memory; PatchHelper persists later).
-	if len(orphanedKeys) > 0 {
+	if len(orphanedAllocs) > 0 {
+		orphanedKeys := make([]string, 0, len(orphanedAllocs))
+		for k := range orphanedAllocs {
+			orphanedKeys = append(orphanedKeys, k)
+		}
 		removeAllocations(&pool, orphanedKeys)
-		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedKeys)))
+		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedAllocs)))
 		logger.Info("cleaned up orphaned allocations",
-			"pool", pool.Name, "count", len(orphanedKeys))
+			"pool", pool.Name, "count", len(orphanedAllocs))
 		r.recorder.Eventf(&pool, nil, corev1.EventTypeNormal, "OrphanedAllocationsCleaned", "Reconcile",
-			"removed %d orphaned IP allocation(s)", len(orphanedKeys))
+			"removed %d orphaned IP allocation(s)", len(orphanedAllocs))
 
 		// Also clean up any corresponding OverlappingRangeIPReservation CRDs.
-		if err := r.cleanupOverlappingReservations(ctx, &pool, orphanedKeys); err != nil {
+		if err := r.cleanupOverlappingReservations(ctx, &pool, orphanedAllocs); err != nil {
 			logger.Error(err, "failed to clean up some overlapping reservations, will retry")
 			r.recorder.Eventf(&pool, nil, corev1.EventTypeWarning, "OverlappingReservationCleanupFailed", "Reconcile",
 				"failed to clean up overlapping reservations: %s", err)
@@ -338,7 +346,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	// Requeue sooner if pending pods exist.
 	if pendingCount > 0 {
-		r.computePoolStats(ctx, &pool, int32(len(orphanedKeys)), pendingCount)
+		r.computePoolStats(ctx, &pool, int32(len(orphanedAllocs)), pendingCount)
 		markReconciling(&pool, "waiting for pending pods to be scheduled")
 		if err := patchHelper.Patch(ctx, &pool); err != nil {
 			if len(orphanedKeys) > 0 {
@@ -356,9 +364,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
 
 	// Mark as ready after successful reconciliation.
-	r.computePoolStats(ctx, &pool, int32(len(orphanedKeys)), pendingCount)
-	if len(orphanedKeys) > 0 {
-		markReady(&pool, ReasonOrphansCleaned, fmt.Sprintf("cleaned %d orphaned allocation(s)", len(orphanedKeys)))
+	r.computePoolStats(ctx, &pool, int32(len(orphanedAllocs)), pendingCount)
+	if len(orphanedAllocs) > 0 {
+		markReady(&pool, ReasonOrphansCleaned, fmt.Sprintf("cleaned %d orphaned allocation(s)", len(orphanedAllocs)))
 	} else {
 		markReady(&pool, ReasonReconciled, "all allocations verified")
 	}
@@ -397,9 +405,19 @@ func removeAllocations(pool *whereaboutsv1alpha1.IPPool, keys []string) {
 }
 
 // cleanupOverlappingReservations deletes OverlappingRangeIPReservation CRDs
-// for IPs that were in the orphaned allocations. Returns an error if any
-// deletion fails (excluding NotFound).
-func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, keys []string) error {
+// for IPs present in the provided allocation set. When an allocation carries a
+// PodRef and IfName, the reservation must reference the same pod and interface
+// before it is deleted — this prevents accidentally removing a reservation that
+// already belongs to a new pod or a different Multus network that was rapidly
+// assigned the same IP.
+//
+// To close the TOCTOU window between List() and Delete(), each matching
+// reservation is re-fetched immediately before deletion. If the live object no
+// longer exists (already cleaned up) or its PodRef changed (a new pod reclaimed
+// the same IP), the deletion is skipped. A UID precondition is passed to
+// Delete() so the API server rejects the request if the object was replaced
+// between our Get() and Delete() calls.
+func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, orphaned map[string]whereaboutsv1alpha1.IPAllocation) error {
 	logger := log.FromContext(ctx)
 	var lastErr error
 
@@ -407,10 +425,10 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 	var reservations whereaboutsv1alpha1.OverlappingRangeIPReservationList
 	if err := r.client.List(ctx, &reservations, client.InNamespace(pool.Namespace)); err != nil {
 		logger.V(1).Info("failed to list overlapping reservations", "error", err)
-		return err
+		return fmt.Errorf("listing overlapping reservations: %w", err)
 	}
 
-	for _, key := range keys {
+	for key, alloc := range orphaned {
 		ip := allocationKeyToIP(pool, key)
 		if ip == nil {
 			continue
@@ -419,15 +437,64 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 		for i := range reservations.Items {
 			res := &reservations.Items[i]
 			resIP := denormalizeIPName(res.Name)
-			if resIP != nil && resIP.Equal(ip) {
-				if err := r.client.Delete(ctx, res); err != nil && !errors.IsNotFound(err) {
-					logger.Error(err, "failed to delete overlapping reservation",
+			if resIP == nil || !resIP.Equal(ip) {
+				continue
+			}
+			if alloc.PodRef == "" || res.Spec.PodRef != alloc.PodRef ||
+				alloc.IfName == "" || res.Spec.IfName != alloc.IfName {
+				logger.V(1).Info("skipping overlapping reservation: podRef/ifName unverifiable or mismatch",
+					"name", res.Name,
+					"allocPodRef", alloc.PodRef, "resPodRef", res.Spec.PodRef,
+					"allocIfName", alloc.IfName, "resIfName", res.Spec.IfName)
+				continue
+			}
+
+			// Re-fetch the reservation immediately before deletion to close the
+			// TOCTOU window: another controller or CNI ADD may have deleted and
+			// recreated an ORIP with the same name (and a different pod) between
+			// our List() call above and this point.
+			var fresh whereaboutsv1alpha1.OverlappingRangeIPReservation
+			if err := r.client.Get(ctx, types.NamespacedName{Namespace: pool.Namespace, Name: res.Name}, &fresh); err != nil {
+				if errors.IsNotFound(err) {
+					// Already deleted by another actor — nothing to do.
+					logger.V(1).Info("overlapping reservation already gone, skipping",
 						"name", res.Name)
-					lastErr = err
-				} else if err == nil {
-					overlappingReservationsCleaned.Inc()
-					logger.V(1).Info("deleted overlapping reservation", "name", res.Name)
+					continue
 				}
+				logger.Error(err, "failed to re-fetch overlapping reservation before delete",
+					"name", res.Name)
+				lastErr = fmt.Errorf("re-fetching overlapping reservation %s: %w", res.Name, err)
+				continue
+			}
+
+			// Guard: verify the live object still belongs to the same pod and interface.
+			// If the PodRef or IfName changed the IP was already claimed by a new pod
+			// or a different network interface on the same pod.
+			if fresh.Spec.PodRef != alloc.PodRef || fresh.Spec.IfName != alloc.IfName {
+				logger.V(1).Info("overlapping reservation podRef/ifName changed between list and delete, skipping to avoid TOCTOU delete",
+					"name", res.Name,
+					"expectedPodRef", alloc.PodRef, "currentPodRef", fresh.Spec.PodRef,
+					"expectedIfName", alloc.IfName, "currentIfName", fresh.Spec.IfName)
+				continue
+			}
+
+			// Use a UID precondition so the API server rejects the delete if
+			// the object was replaced between our Get() and Delete().
+			uid := fresh.UID
+			if err := r.client.Delete(ctx, &fresh, client.Preconditions{UID: &uid}); err != nil {
+				if errors.IsNotFound(err) {
+					// Deleted between re-fetch and delete call — treat as success.
+					overlappingReservationsCleaned.Inc()
+					logger.V(1).Info("overlapping reservation deleted concurrently, treating as success",
+						"name", res.Name)
+					continue
+				}
+				logger.Error(err, "failed to delete overlapping reservation",
+					"name", res.Name)
+				lastErr = fmt.Errorf("deleting overlapping reservation %s: %w", res.Name, err)
+			} else {
+				overlappingReservationsCleaned.Inc()
+				logger.V(1).Info("deleted overlapping reservation", "name", res.Name)
 			}
 		}
 	}

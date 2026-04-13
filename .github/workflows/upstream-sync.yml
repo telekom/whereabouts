@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
   workflows: write
 
@@ -40,6 +41,17 @@ jobs:
           BEHIND=$(git rev-list --count HEAD..upstream/master)
           echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
           echo "Upstream is $BEHIND commits ahead"
+
+      - name: Ensure upstream-sync label exists
+        if: steps.check.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh label view "upstream-sync" &>/dev/null; then
+            gh label create "upstream-sync" \
+              --description "Automated upstream synchronisation PR" \
+              --color "0075ca"
+          fi
 
       - name: Create sync branch and PR
         if: steps.check.outputs.behind != '0'

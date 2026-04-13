@@ -272,7 +272,7 @@ var _ = Describe("IPPoolReconciler", func() {
 				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool).
 				WithInterceptorFuncs(interceptor.Funcs{
-					Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					Patch: func(_ context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 						return patchErr
 					},
 				}).
@@ -285,6 +285,50 @@ var _ = Describe("IPPoolReconciler", func() {
 
 			result, err := reconciler.Reconcile(ctx, req)
 			// Must propagate the error — NOT silently log it and return RequeueAfter.
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("patching pool after orphan cleanup"))
+			Expect(result.RequeueAfter).To(BeZero())
+		})
+
+		It("should propagate the patch error even when pending pods are also present", func() {
+			pendingPod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pending-pod",
+					Namespace: "default",
+				},
+				Status: corev1.PodStatus{Phase: corev1.PodPending},
+			}
+			pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "abc123",
+					PodRef:      "default/missing-pod",
+					IfName:      "eth0",
+				},
+				"2": {
+					ContainerID: "def456",
+					PodRef:      "default/pending-pod",
+					IfName:      "eth0",
+				},
+			})
+
+			patchErr := errors.New("simulated resourceVersion conflict")
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
+				WithObjects(pool, pendingPod).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Patch: func(_ context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+						return patchErr
+					},
+				}).
+				Build()
+			reconciler = &IPPoolReconciler{
+				client:            fakeClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			result, err := reconciler.Reconcile(ctx, req)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("patching pool after orphan cleanup"))
 			Expect(result.RequeueAfter).To(BeZero())

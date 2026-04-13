@@ -272,7 +272,7 @@ var _ = Describe("IPPoolReconciler", func() {
 				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool).
 				WithInterceptorFuncs(interceptor.Funcs{
-					Patch: func(_ context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					Patch: func(_ context.Context, _ client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 						return patchErr
 					},
 				}).
@@ -317,7 +317,7 @@ var _ = Describe("IPPoolReconciler", func() {
 				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 				WithObjects(pool, pendingPod).
 				WithInterceptorFuncs(interceptor.Funcs{
-					Patch: func(_ context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					Patch: func(_ context.Context, _ client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 						return patchErr
 					},
 				}).

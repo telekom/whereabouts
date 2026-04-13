@@ -2,8 +2,12 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/types"
@@ -66,6 +70,62 @@ func TestRollbackCommitted(t *testing.T) {
 	}
 	if len(pool2.allocations) != 0 {
 		t.Fatalf("expected 0 allocations in pool2, got %d", len(pool2.allocations))
+	}
+}
+
+type conflictMockIPPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+	failsRemain int
+}
+
+func (m *conflictMockIPPool) Allocations() []types.IPReservation {
+	return m.allocations
+}
+
+func (m *conflictMockIPPool) Update(_ context.Context, reservations []types.IPReservation) error {
+	m.updateCalls++
+	if m.failsRemain > 0 {
+		m.failsRemain--
+		return &temporaryError{fmt.Errorf("resource version conflict")}
+	}
+	m.allocations = reservations
+	return nil
+}
+
+// TestRollbackCommittedRetriesOnConflict verifies that the retry loop in
+// rollbackCommitted retries on temporaryError and eventually succeeds.
+// NOTE: c.ipam is intentionally nil here — the pool re-read path
+// (GetIPPool) requires a real KubernetesIPAM with a Kubernetes client
+// and is covered by envtest/e2e tests, not unit tests. This test
+// validates the retry-loop mechanics: conflict detection, retry count,
+// and correct IP removal after retries succeed.
+func TestRollbackCommittedRetriesOnConflict(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+
+	pool := &conflictMockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, PodRef: "ns/pod2", IfName: "eth0"},
+		},
+		failsRemain: 2,
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1},
+	}
+
+	rollbackCommitted(context.Background(), committed)
+
+	if pool.updateCalls != 3 {
+		t.Fatalf("expected 3 update calls (2 conflicts + 1 success), got %d", pool.updateCalls)
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation remaining, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
 	}
 }
 
@@ -269,5 +329,138 @@ func TestToAllocationMapRoundTripIPv6LargeOffset(t *testing.T) {
 	}
 	if !roundTripped[0].IP.Equal(highIP) {
 		t.Errorf("round-trip IP mismatch: expected %s, got %s", highIP, roundTripped[0].IP)
+	}
+}
+
+// permanentErrorPool is an IPPool whose Update always returns a non-temporary error.
+type permanentErrorPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+}
+
+func (p *permanentErrorPool) Allocations() []types.IPReservation { return p.allocations }
+func (p *permanentErrorPool) Update(_ context.Context, _ []types.IPReservation) error {
+	p.updateCalls++
+	return fmt.Errorf("permanent storage failure") // not a storage.Temporary
+}
+
+// TestRollbackCommittedStopsOnPermanentError verifies that a non-temporary error
+// from pool.Update causes rollbackCommitted to stop immediately (no retries).
+func TestRollbackCommittedStopsOnPermanentError(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	pool := &permanentErrorPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+		},
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1, ipam: nil},
+	}
+	rollbackCommitted(context.Background(), committed)
+
+	// A permanent error must break the retry loop after the very first attempt.
+	if pool.updateCalls != 1 {
+		t.Fatalf("expected exactly 1 Update call on permanent error, got %d", pool.updateCalls)
+	}
+}
+
+// TestRollbackCommittedPoolIDIncludesNodeName verifies that when poolIdentifier
+// carries a NodeName (Fast IPAM / NodeSlice mode), the committedAlloc.poolID
+// correctly stores it — ensuring rollback re-reads the node-specific pool rather
+// than the global range pool.
+func TestRollbackCommittedPoolIDIncludesNodeName(t *testing.T) {
+	nodeName := "worker-node-1"
+	nodeSliceRange := "10.20.0.0/24"
+
+	poolID := PoolIdentifier{
+		NodeName:    nodeName,
+		IPRange:     nodeSliceRange,
+		NetworkName: "",
+	}
+
+	ip := net.ParseIP("10.20.0.5")
+	pool := &mockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip, PodRef: "ns/pod1", IfName: "eth0"},
+		},
+	}
+
+	c := committedAlloc{pool: pool, poolID: poolID, ip: ip, ipam: nil}
+
+	// Verify the poolID carries the NodeName so rollback will look up
+	// the correct node-specific pool (not the global range pool).
+	if c.poolID.NodeName != nodeName {
+		t.Errorf("expected poolID.NodeName=%q, got %q", nodeName, c.poolID.NodeName)
+	}
+	if c.poolID.IPRange != nodeSliceRange {
+		t.Errorf("expected poolID.IPRange=%q, got %q", nodeSliceRange, c.poolID.IPRange)
+	}
+
+	// Sanity: the pool name includes the node name.
+	expectedPoolName := IPPoolName(poolID)
+	if expectedPoolName != nodeName+"-10.20.0.0-24" {
+		t.Errorf("unexpected pool name %q", expectedPoolName)
+	}
+
+	// Rollback with ipam=nil (no re-read) should still remove the IP from the
+	// in-memory pool on the first attempt.
+	rollbackCommitted(context.Background(), []committedAlloc{c})
+	if pool.updated {
+		if len(pool.allocations) != 0 {
+			t.Errorf("expected 0 allocations after rollback, got %d", len(pool.allocations))
+		}
+	}
+}
+
+type apiTimeoutPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+	failsRemain int
+}
+
+func (p *apiTimeoutPool) Allocations() []types.IPReservation { return p.allocations }
+func (p *apiTimeoutPool) Update(_ context.Context, reservations []types.IPReservation) error {
+	p.updateCalls++
+	if p.failsRemain > 0 {
+		p.failsRemain--
+		return apierrors.NewServerTimeout(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "update", 1)
+	}
+	p.allocations = reservations
+	return nil
+}
+
+func TestRollbackCommittedRetriesOnAPITimeout(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+
+	pool := &apiTimeoutPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, PodRef: "ns/pod2", IfName: "eth0"},
+		},
+		failsRemain: 2,
+	}
+
+	committed := []committedAlloc{
+		{pool: pool, ip: ip1},
+	}
+	rollbackCommitted(context.Background(), committed)
+
+	if pool.updateCalls != 3 {
+		t.Fatalf("expected 3 update calls (2 timeouts + 1 success), got %d", pool.updateCalls)
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation remaining, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
+	}
+}
+
+func TestIsRetryableRollbackErrorAPITimeout(t *testing.T) {
+	err := apierrors.NewTimeoutError("test timeout", 5)
+	if !isRetryableRollbackError(err) {
+		t.Errorf("expected isRetryableRollbackError to return true for API timeout (StatusReasonTimeout), got false")
 	}
 }

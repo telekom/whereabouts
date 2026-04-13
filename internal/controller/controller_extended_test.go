@@ -26,6 +26,52 @@ import (
 )
 
 // ---------------------------------------------------------------
+// oripListInterceptClient — client wrapper for TOCTOU tests
+// ---------------------------------------------------------------
+
+// oripListInterceptClient wraps a real fake client and, on the first List()
+// call that returns an OverlappingRangeIPReservationList, fires a user-supplied
+// hook. This simulates another controller mutating (or deleting) an ORIP
+// **after** cleanupOverlappingReservations has listed it but **before** it
+// re-fetches the object via Get(). All other calls delegate transparently.
+type oripListInterceptClient struct {
+	client.Client
+	// afterListHook is called once, immediately after the first successful
+	// OverlappingRangeIPReservationList List() completes. It receives the
+	// underlying client so it can mutate the store.
+	afterListHook func(c client.Client)
+	fired         bool
+}
+
+func (w *oripListInterceptClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if err := w.Client.List(ctx, list, opts...); err != nil {
+		return err
+	}
+	if _, ok := list.(*whereaboutsv1alpha1.OverlappingRangeIPReservationList); ok && !w.fired {
+		w.fired = true
+		if w.afterListHook != nil {
+			w.afterListHook(w.Client)
+		}
+	}
+	return nil
+}
+
+// oripListErrorClient wraps a fake client and returns a sentinel error for
+// any List() call targeting OverlappingRangeIPReservationList. Used to test
+// the error path in cleanupOverlappingReservations.
+type oripListErrorClient struct {
+	client.Client
+	listErr error
+}
+
+func (w *oripListErrorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*whereaboutsv1alpha1.OverlappingRangeIPReservationList); ok {
+		return w.listErr
+	}
+	return w.Client.List(ctx, list, opts...)
+}
+
+// ---------------------------------------------------------------
 // denormalizeIPName
 // ---------------------------------------------------------------
 var _ = Describe("denormalizeIPName", func() {
@@ -564,11 +610,15 @@ var _ = Describe("IPPoolReconciler extended", func() {
 				},
 				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
 					PodRef: "default/some-pod",
+					IfName: "eth0",
 				},
 			}
 			buildReconciler(pool, reservation)
 
-			err := reconciler.cleanupOverlappingReservations(ctx, pool, []string{"5"})
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify reservation was deleted.
@@ -579,6 +629,84 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			}, &updated)
 			Expect(err).To(HaveOccurred())
 			Expect(client.IgnoreNotFound(err)).To(Succeed())
+		})
+
+		It("should skip reservation with different podRef", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			// Reservation exists with a different PodRef than the orphaned allocation.
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/new-pod",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			// Orphaned allocation has a different PodRef — reservation should be preserved.
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/old-pod"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify reservation still exists (not deleted because PodRef doesn't match).
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should not delete a cross-network reservation with same PodRef but different IfName", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			// Prefixed name: denormalizeIPName strips "othernet-" so the IP matches,
+			// but IfName differs — reservation belongs to another Multus network.
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "othernet-10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/some-pod",
+					IfName: "net1",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "othernet-10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred(), "cross-network reservation must be preserved when IfName differs")
 		})
 
 		It("should handle non-matching reservations gracefully", func() {
@@ -604,10 +732,11 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			}
 			buildReconciler(pool, reservation)
 
-			err := reconciler.cleanupOverlappingReservations(ctx, pool, []string{"5"})
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod"},
+			})
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify reservation still exists.
 			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
 			err = reconciler.client.Get(ctx, types.NamespacedName{
 				Namespace: poolNamespace,
@@ -629,8 +758,267 @@ var _ = Describe("IPPoolReconciler extended", func() {
 			}
 			buildReconciler(pool)
 
-			err := reconciler.cleanupOverlappingReservations(ctx, pool, []string{"not-a-number"})
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, map[string]whereaboutsv1alpha1.IPAllocation{
+				"not-a-number": {},
+			})
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should skip reservation when allocation has empty PodRef", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/new-pod",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: ""},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred(), "reservation must be preserved when alloc PodRef is empty")
+		})
+
+		It("should skip reservation when reservation has empty PodRef and allocation has PodRef", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/old-pod"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred(), "reservation must be preserved when res PodRef is empty (unverifiable)")
+		})
+
+		It("should skip reservation when both PodRefs are empty", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "",
+				},
+			}
+			buildReconciler(pool, reservation)
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: ""},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)
+			Expect(err).NotTo(HaveOccurred(), "reservation must be preserved when both PodRefs are empty (unverifiable)")
+		})
+
+		It("should survive when reservation is replaced between List and Get", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/old-pod",
+				},
+			}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}, &whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+				WithObjects(pool, reservation).
+				Build()
+
+			wrappedClient := &oripListInterceptClient{
+				Client: fakeClient,
+				afterListHook: func(c client.Client) {
+					var toUpdate whereaboutsv1alpha1.OverlappingRangeIPReservation
+					Expect(c.Get(ctx, types.NamespacedName{
+						Namespace: poolNamespace,
+						Name:      "10.0.0.5",
+					}, &toUpdate)).To(Succeed())
+					toUpdate.Spec.PodRef = "default/new-pod"
+					Expect(c.Update(ctx, &toUpdate)).To(Succeed())
+				},
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/old-pod"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			Expect(fakeClient.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)).To(Succeed())
+			Expect(updated.Spec.PodRef).To(Equal("default/new-pod"))
+		})
+
+		It("should treat NotFound on re-fetch as success", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.5",
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					PodRef: "default/old-pod",
+				},
+			}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}, &whereaboutsv1alpha1.OverlappingRangeIPReservation{}).
+				WithObjects(pool, reservation).
+				Build()
+
+			wrappedClient := &oripListInterceptClient{
+				Client: fakeClient,
+				afterListHook: func(c client.Client) {
+					var toDelete whereaboutsv1alpha1.OverlappingRangeIPReservation
+					Expect(c.Get(ctx, types.NamespacedName{
+						Namespace: poolNamespace,
+						Name:      "10.0.0.5",
+					}, &toDelete)).To(Succeed())
+					Expect(c.Delete(ctx, &toDelete)).To(Succeed())
+				},
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			orphaned := map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/old-pod"},
+			}
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, orphaned)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = fakeClient.Get(ctx, types.NamespacedName{
+				Namespace: poolNamespace,
+				Name:      "10.0.0.5",
+			}, &updated)
+			Expect(err).To(HaveOccurred())
+			Expect(client.IgnoreNotFound(err)).To(Succeed())
+		})
+
+		It("should return wrapped error when List fails", func() {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      poolName,
+					Namespace: poolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       poolRange,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			listErr := fmt.Errorf("connection refused")
+			wrappedClient := &oripListErrorClient{
+				Client: fake.NewClientBuilder().
+					WithScheme(newTestScheme()).
+					WithObjects(pool).
+					Build(),
+				listErr: listErr,
+			}
+			reconciler = &IPPoolReconciler{
+				client:            wrappedClient,
+				recorder:          events.NewFakeRecorder(10),
+				reconcileInterval: interval,
+			}
+
+			err := reconciler.cleanupOverlappingReservations(ctx, pool, map[string]whereaboutsv1alpha1.IPAllocation{
+				"5": {PodRef: "default/some-pod", IfName: "eth0"},
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("listing overlapping reservations")))
+			Expect(err).To(MatchError(ContainSubstring("connection refused")))
 		})
 	})
 })

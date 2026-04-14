@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -79,13 +79,13 @@ var _ = Describe("Collision detection", func() {
 		AfterEach(func() {
 			By("cleaning up pool-a")
 			err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, poolAName, metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
 			}
 
 			By("cleaning up pool-b")
 			err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, poolBName, metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
 			}
 		})
@@ -162,7 +162,7 @@ var _ = Describe("Collision detection", func() {
 			}
 			By("cleaning up node-cidr collision pool")
 			err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, collisionPoolName, metav1.DeleteOptions{})
-			if err != nil && !k8serrors.IsNotFound(err) {
+			if err != nil && !apierrors.IsNotFound(err) {
 				Expect(err).NotTo(HaveOccurred())
 			}
 		})
@@ -209,7 +209,7 @@ var _ = Describe("Collision detection", func() {
 			DeferCleanup(func() {
 				By("cleaning up service-cidr collision pool")
 				delErr := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, svcCIDRPoolName, metav1.DeleteOptions{})
-				if delErr != nil && !k8serrors.IsNotFound(delErr) {
+				if delErr != nil && !apierrors.IsNotFound(delErr) {
 					Expect(delErr).NotTo(HaveOccurred())
 				}
 			})

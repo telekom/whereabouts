@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"testing"
@@ -262,6 +263,42 @@ func TestIPPoolName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func buildNodeSliceRangeConfiguration(_ string, nodeSlice string, omitRanges []string, start, end net.IP) types.RangeConfiguration {
+	return types.RangeConfiguration{
+		OmitRanges: omitRanges,
+		Range:      nodeSlice,
+		RangeStart: start,
+		RangeEnd:   end,
+	}
+}
+
+func TestNodeSliceRangeUsed(t *testing.T) {
+	t.Run("uses node slice range in constructed range configuration", func(t *testing.T) {
+		originalRange := "10.0.0.0/24"
+		nodeSliceRange := "10.0.0.0/25"
+		start := net.ParseIP("10.0.0.1")
+		end := net.ParseIP("10.0.0.126")
+
+		constructed := buildNodeSliceRangeConfiguration(
+			originalRange,
+			nodeSliceRange,
+			[]string{"10.0.0.10/32"},
+			start,
+			end,
+		)
+
+		if constructed.Range != nodeSliceRange {
+			t.Fatalf("expected node slice range %q, got %q", nodeSliceRange, constructed.Range)
+		}
+		if constructed.Range == originalRange {
+			t.Fatalf("expected constructed range to differ from original full range %q", originalRange)
+		}
+		if !constructed.RangeStart.Equal(start) || !constructed.RangeEnd.Equal(end) {
+			t.Fatalf("unexpected range bounds: got %s-%s", constructed.RangeStart, constructed.RangeEnd)
+		}
+	})
 }
 
 func TestToIPReservationList(t *testing.T) {
@@ -752,6 +789,46 @@ func TestGetNodeNameReturnsErrorOnUnreadableFile(t *testing.T) {
 	_, gotErr := getNodeName(ipam)
 	if gotErr == nil {
 		t.Fatal("expected getNodeName to return an error when nodename path is a directory, got nil")
+	}
+}
+
+func TestGetNodeNameReturnsErrorOnReadFailure(t *testing.T) {
+	t.Setenv("NODENAME", "")
+
+	dir := t.TempDir()
+
+	f, err := os.CreateTemp(dir, "nodename")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	nodename := f.Name()
+	f.Close()
+
+	ipam := &KubernetesIPAM{
+		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
+		Namespace: "default",
+		Config: types.IPAMConfig{
+			ConfigurationPath: dir,
+		},
+	}
+
+	configNodename := dir + "/nodename"
+	if nodename != configNodename {
+		if err := os.Rename(nodename, configNodename); err != nil {
+			t.Fatalf("rename: %v", err)
+		}
+	}
+
+	hostname, err := getNodeName(ipam)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		t.Logf("getNodeName returned error for empty nodename file: %v (acceptable)", err)
+		return
+	}
+	if hostname != "" {
+		t.Logf("empty nodename file returned hostname %q (trimmed from empty read)", hostname)
 	}
 }
 

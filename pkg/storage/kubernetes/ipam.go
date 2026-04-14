@@ -251,7 +251,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	for _, o := range patch {
 		// safeguard add ops -- "add" will update existing paths, this "test" ensures the path is empty
 		if o.Operation == "add" {
-			var m map[string]interface{}
+			var m map[string]any
 			ops = append(ops, jsonpatch.Operation{Operation: "test", Path: o.Path, Value: m})
 		}
 	}
@@ -763,7 +763,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
 					OmitRanges: ipRange.OmitRanges,
-					Range:      ipRange.Range,
+					Range:      nodeSliceRange,
 					RangeStart: rangeStart,
 					RangeEnd:   rangeEnd,
 				}

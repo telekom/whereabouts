@@ -7,9 +7,14 @@ import (
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	fake "k8s.io/client-go/kubernetes/fake"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
+	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
 	"github.com/telekom/whereabouts/pkg/types"
 )
 
@@ -129,6 +134,82 @@ func TestRollbackCommittedRetriesOnConflict(t *testing.T) {
 	}
 }
 
+func TestNodeSliceRangeIsSliced(t *testing.T) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(whereaboutsv1alpha1.AddToScheme(scheme))
+
+	nodeSlice := &whereaboutsv1alpha1.NodeSlicePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nad",
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+			Range:     "10.0.0.0/16",
+			SliceSize: "24",
+		},
+		Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+			Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{{
+				NodeName:   "test-node",
+				SliceRange: "10.0.1.0/24",
+			}},
+		},
+	}
+
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-node-10.0.1.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.1.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(nodeSlice, pool)
+	k8sClient := fake.NewClientset()
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config: types.IPAMConfig{
+			Name:          "test-nad",
+			NodeSliceSize: "24",
+		},
+	}
+
+	t.Setenv("NODENAME", "test-node")
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, types.IPAMConfig{
+		Name:          "test-nad",
+		PodName:       "pod1",
+		PodNamespace:  "default",
+		NodeSliceSize: "24",
+		IPRanges: []types.RangeConfiguration{{
+			Range: "10.0.0.0/16",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("IPManagementKubernetesUpdate() error: %v", err)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 IP, got %d", len(newips))
+	}
+	if got := newips[0].String(); got != "10.0.1.1/24" {
+		t.Fatalf("expected sliced node range allocation 10.0.1.1/24, got %s", got)
+	}
+
+	gotPool, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(context.Background(), "test-node-10.0.1.0-24", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("expected created IPPool, got error: %v", err)
+	}
+	if gotPool.Spec.Range != "10.0.1.0/24" {
+		t.Fatalf("expected created pool range 10.0.1.0/24, got %s", gotPool.Spec.Range)
+	}
+}
+
 func TestIPPoolName(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -178,6 +259,42 @@ func TestIPPoolName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func buildNodeSliceRangeConfiguration(_ string, nodeSlice string, omitRanges []string, start, end net.IP) types.RangeConfiguration {
+	return types.RangeConfiguration{
+		OmitRanges: omitRanges,
+		Range:      nodeSlice,
+		RangeStart: start,
+		RangeEnd:   end,
+	}
+}
+
+func TestNodeSliceRangeUsed(t *testing.T) {
+	t.Run("uses node slice range in constructed range configuration", func(t *testing.T) {
+		originalRange := "10.0.0.0/24"
+		nodeSliceRange := "10.0.0.0/25"
+		start := net.ParseIP("10.0.0.1")
+		end := net.ParseIP("10.0.0.126")
+
+		constructed := buildNodeSliceRangeConfiguration(
+			originalRange,
+			nodeSliceRange,
+			[]string{"10.0.0.10/32"},
+			start,
+			end,
+		)
+
+		if constructed.Range != nodeSliceRange {
+			t.Fatalf("expected node slice range %q, got %q", nodeSliceRange, constructed.Range)
+		}
+		if constructed.Range == originalRange {
+			t.Fatalf("expected constructed range to differ from original full range %q", originalRange)
+		}
+		if !constructed.RangeStart.Equal(start) || !constructed.RangeEnd.Equal(end) {
+			t.Fatalf("unexpected range bounds: got %s-%s", constructed.RangeStart, constructed.RangeEnd)
+		}
+	})
 }
 
 func TestToIPReservationList(t *testing.T) {
@@ -462,5 +579,70 @@ func TestIsRetryableRollbackErrorAPITimeout(t *testing.T) {
 	err := apierrors.NewTimeoutError("test timeout", 5)
 	if !isRetryableRollbackError(err) {
 		t.Errorf("expected isRetryableRollbackError to return true for API timeout (StatusReasonTimeout), got false")
+	}
+}
+
+func TestNodeSliceRangeUsesSlicedRange(t *testing.T) {
+	nodeSlice := &whereaboutsv1alpha1.NodeSlicePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nad",
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+			Range:     "10.0.0.0/16",
+			SliceSize: "24",
+		},
+		Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+			Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{{
+				NodeName:   "test-node",
+				SliceRange: "10.0.1.0/24",
+			}},
+		},
+	}
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-node-10.0.1.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.1.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbfake.NewClientset(nodeSlice, pool), fake.NewClientset()),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config: types.IPAMConfig{
+			Name:          "test-nad",
+			NodeSliceSize: "24",
+		},
+	}
+	t.Setenv("NODENAME", "test-node")
+
+	conf := types.IPAMConfig{
+		Name:          "test-nad",
+		PodName:       "pod1",
+		PodNamespace:  "default",
+		NodeSliceSize: "24",
+		IPRanges: []types.RangeConfiguration{{
+			Range: "10.0.0.0/16",
+		}},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("IPManagementKubernetesUpdate() error: %v", err)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 IP, got %d", len(newips))
+	}
+
+	expectedIP := net.ParseIP("10.0.1.1")
+	if !newips[0].IP.Equal(expectedIP) {
+		t.Fatalf("expected allocated IP %s from node slice, got %s", expectedIP, newips[0].IP)
 	}
 }

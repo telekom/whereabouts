@@ -323,11 +323,11 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Remove orphaned allocations (in-memory; PatchHelper persists later).
+	orphanedKeys := make([]string, 0, len(orphanedAllocs))
+	for k := range orphanedAllocs {
+		orphanedKeys = append(orphanedKeys, k)
+	}
 	if len(orphanedAllocs) > 0 {
-		orphanedKeys := make([]string, 0, len(orphanedAllocs))
-		for k := range orphanedAllocs {
-			orphanedKeys = append(orphanedKeys, k)
-		}
 		removeAllocations(&pool, orphanedKeys)
 		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedAllocs)))
 		logger.Info("cleaned up orphaned allocations",

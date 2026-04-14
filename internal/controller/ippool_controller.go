@@ -349,7 +349,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		r.computePoolStats(ctx, &pool, int32(len(orphanedAllocs)), pendingCount)
 		markReconciling(&pool, "waiting for pending pods to be scheduled")
 		if err := patchHelper.Patch(ctx, &pool); err != nil {
-			if len(orphanedKeys) > 0 {
+			if len(orphanedAllocs) > 0 {
 				// Spec changes (orphan removal) failed to persist — return error
 				// so controller-runtime retries quickly via exponential backoff.
 				return ctrl.Result{}, fmt.Errorf("patching pool after orphan cleanup: %w", err)
@@ -371,7 +371,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		markReady(&pool, ReasonReconciled, "all allocations verified")
 	}
 	if err := patchHelper.Patch(ctx, &pool); err != nil {
-		if len(orphanedKeys) > 0 {
+		if len(orphanedAllocs) > 0 {
 			// When spec changes (orphan removal) failed to persist, return the
 			// error so controller-runtime retries quickly via exponential backoff.
 			// Silently swallowing the error here would delay the next attempt by

@@ -25,6 +25,44 @@ func ValidateCIDR(cidr string) error {
 	return nil
 }
 
+// ValidateOmitRanges validates omitRanges entries as CIDRs or IP ranges.
+func ValidateOmitRanges(omitRanges []string, poolCIDR string) error {
+	for i, omitRange := range omitRanges {
+		if err := validateOmitRange(omitRange); err != nil {
+			return fmt.Errorf("omitRanges[%d] %q is not a valid CIDR or IP range: %w", i, omitRange, err)
+		}
+	}
+	return nil
+}
+
+func validateOmitRange(omitRange string) error {
+	if omitRange == "" {
+		return fmt.Errorf("value is empty")
+	}
+	if _, _, err := net.ParseCIDR(omitRange); err == nil {
+		return nil
+	}
+	if strings.Contains(omitRange, "-") {
+		parts := strings.SplitN(omitRange, "-", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("malformed IP range")
+		}
+		start := net.ParseIP(strings.TrimSpace(parts[0]))
+		end := net.ParseIP(strings.TrimSpace(parts[1]))
+		if start == nil || end == nil {
+			return fmt.Errorf("malformed IP range")
+		}
+		if (start.To4() == nil) != (end.To4() == nil) {
+			return fmt.Errorf("IP range endpoints must use the same address family")
+		}
+		return nil
+	}
+	if ip := net.ParseIP(omitRange); ip != nil {
+		return nil
+	}
+	return fmt.Errorf("must be a valid CIDR, IP, or IP range")
+}
+
 // ValidatePodRef validates that podRef is in "namespace/name" format.
 // An empty podRef returns an error if required is true.
 func ValidatePodRef(podRef string, required bool) error {

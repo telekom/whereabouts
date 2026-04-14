@@ -3076,11 +3076,22 @@ var _ = Describe("Whereabouts functionality", func() {
 				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, freedPod.Name, freedIPs)
 
 				By("creating a new pod — should succeed after recovery")
-				pRecovered, err := clientInfo.ProvisionPod(
-					"wb-exhaust-v6-recovered", testNamespace,
-					util.PodTierLabel("wb-exhaust-v6-recovered"),
-					entities.PodNetworkSelectionElements(networkName))
-				Expect(err).NotTo(HaveOccurred())
+				var pRecovered *corev1.Pod
+				Eventually(func() error {
+					// Clean up previous attempt if the pod object was created
+					// but failed to become ready.
+					if pRecovered != nil {
+						_ = clientInfo.DeletePod(pRecovered)
+						pRecovered = nil
+					}
+					var provErr error
+					pRecovered, provErr = clientInfo.ProvisionPod(
+						"wb-exhaust-v6-recovered", testNamespace,
+						util.PodTierLabel("wb-exhaust-v6-recovered"),
+						entities.PodNetworkSelectionElements(networkName))
+					return provErr
+				}, 2*time.Minute, 5*time.Second).Should(Succeed(),
+					"freed IPv6 IP should become available for reallocation")
 				defer func() { _ = clientInfo.DeletePod(pRecovered) }()
 
 				ips, err := retrievers.SecondaryIfaceIPValue(pRecovered, "net1")

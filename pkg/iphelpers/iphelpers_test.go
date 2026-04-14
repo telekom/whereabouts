@@ -1023,6 +1023,11 @@ var _ = Describe("CIDRsOverlap", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(overlap).To(BeTrue())
 	})
+	It("detects non-overlapping IPv6 CIDRs", func() {
+		overlap, err := CIDRsOverlap("fd00::/64", "fd01::/64")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeFalse())
+	})
 	It("returns error on invalid CIDR", func() {
 		_, err := CIDRsOverlap("not-a-cidr", "10.0.0.0/24")
 		Expect(err).To(HaveOccurred())

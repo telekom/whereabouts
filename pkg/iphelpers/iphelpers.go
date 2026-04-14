@@ -38,6 +38,36 @@ func toPrefix(ipnet net.IPNet) (netip.Prefix, bool) {
 	return netip.PrefixFrom(addr, ones), true
 }
 
+// CIDRsOverlap reports whether two CIDR strings represent overlapping IP ranges.
+// Returns an error if either string is not a valid CIDR.
+func CIDRsOverlap(a, b string) (bool, error) {
+	pa, err := netip.ParsePrefix(a)
+	if err != nil {
+		return false, fmt.Errorf("parsing CIDR %q: %w", a, err)
+	}
+	pb, err := netip.ParsePrefix(b)
+	if err != nil {
+		return false, fmt.Errorf("parsing CIDR %q: %w", b, err)
+	}
+	return pa.Overlaps(pb), nil
+}
+
+// CIDROverlapsAny reports whether cidr overlaps with any of the given others.
+// Returns the first overlapping CIDR string, true, and nil error if found.
+// Returns "", false, nil if no overlap. Returns "", false, error on parse failure.
+func CIDROverlapsAny(cidr string, others []string) (string, bool, error) {
+	for _, other := range others {
+		overlap, err := CIDRsOverlap(cidr, other)
+		if err != nil {
+			return "", false, err
+		}
+		if overlap {
+			return other, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 // CompareIPs reports whether out of 2 given IPs, ipX and ipY, ipY is smaller (-1), the same (0) or larger (1).
 func CompareIPs(ipX net.IP, ipY net.IP) int {
 	ax, okX := toAddr(ipX)

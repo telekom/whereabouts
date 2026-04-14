@@ -13,6 +13,14 @@ type OverlappingRangeIPReservationSpec struct {
 
 	// IfName is the network interface name inside the pod for this reservation.
 	IfName string `json:"ifname,omitempty"`
+
+	// PodUID is the immutable UID of the pod that created this reservation.
+	// When non-empty, it is used to detect stale reservations left by an evicted
+	// pod whose name was reused: if the requesting pod's UID differs from the
+	// stored UID, the reservation is considered stale and cleaned up so the new
+	// pod can obtain a fresh IP address.
+	// +optional
+	PodUID string `json:"poduid,omitempty"`
 }
 
 // OverlappingRangeIPReservationStatus defines the observed state of OverlappingRangeIPReservation.

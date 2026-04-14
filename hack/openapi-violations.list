@@ -9,6 +9,7 @@ API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.c
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,ContainerID
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,IfName
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,PodRef
+API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,PodUID
 API rule violation: names_match,k8s.io/apimachinery/pkg/api/resource,Quantity,Format
 API rule violation: names_match,k8s.io/apimachinery/pkg/api/resource,Quantity,d
 API rule violation: names_match,k8s.io/apimachinery/pkg/api/resource,Quantity,i

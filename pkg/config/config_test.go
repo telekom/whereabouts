@@ -685,6 +685,31 @@ var _ = Describe("Allocation operations", func() {
 		})
 	})
 
+	// ── Security: raw config bytes must not appear in error messages ──────────
+	Context("error message redaction", func() {
+		It("does not include raw config bytes in LoadIPAMConfig JSON parse errors", func() {
+			sensitiveConf := []byte(`{"secret":"hunter2", "ipam": { broken`)
+			_, _, err := LoadIPAMConfig(sensitiveConf, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("LoadIPAMConfig - JSON Parsing Error"))
+			Expect(err.Error()).NotTo(ContainSubstring("hunter2"))
+			Expect(err.Error()).NotTo(ContainSubstring(string(sensitiveConf)))
+		})
+
+		It("does not include raw flat-file bytes in GetFlatIPAM JSON parse errors", func() {
+			sensitiveContent := []byte(`{"secret":"s3cr3t", broken json`)
+			confPath := filepath.Join(tmpDir, "whereabouts.conf")
+			Expect(os.WriteFile(confPath, sensitiveContent, 0600)).To(Succeed())
+
+			ipamConf := &types.IPAMConfig{ConfigurationPath: confPath}
+			_, _, err := GetFlatIPAM(false, ipamConf)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("JSON Parsing Error"))
+			Expect(err.Error()).NotTo(ContainSubstring("s3cr3t"))
+			Expect(err.Error()).NotTo(ContainSubstring(string(sensitiveContent)))
+		})
+	})
+
 	// ── /32 and /31 config parsing tests (#573) ──────────────────────────────
 	Context("/32 and /31 config parsing (#573)", func() {
 		It("loads a /32 range configuration", func() {

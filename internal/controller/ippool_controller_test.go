@@ -745,3 +745,113 @@ var _ = Describe("allocationKeyToIP", func() {
 		Expect(ip).To(BeNil())
 	})
 })
+
+var _ = Describe("warnOnCIDRCollisions", func() {
+	const (
+		poolRange = "10.0.0.0/24"
+	)
+
+	var (
+		ctx          context.Context
+		scheme       *runtime.Scheme
+		fakeRecorder *events.FakeRecorder
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		scheme = newTestScheme()
+		fakeRecorder = events.NewFakeRecorder(10)
+	})
+
+	buildCollisionReconciler := func(serviceCIDRs []string, objs ...client.Object) *IPPoolReconciler {
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(objs...).
+			Build()
+		return &IPPoolReconciler{
+			client:       fakeClient,
+			recorder:     fakeRecorder,
+			serviceCIDRs: serviceCIDRs,
+		}
+	}
+
+	pool := func(cidr string) *whereaboutsv1alpha1.IPPool {
+		return &whereaboutsv1alpha1.IPPool{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pool",
+				Namespace: "default",
+			},
+			Spec: whereaboutsv1alpha1.IPPoolSpec{Range: cidr},
+		}
+	}
+
+	node := func(name, podCIDR string, podCIDRs []string) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: corev1.NodeSpec{
+				PodCIDR:  podCIDR,
+				PodCIDRs: podCIDRs,
+			},
+		}
+	}
+
+	Context("service CIDR overlap", func() {
+		It("emits a Warning event when pool range overlaps a service CIDR", func() {
+			r := buildCollisionReconciler([]string{"10.0.0.0/16"})
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Eventually(fakeRecorder.Events).Should(Receive(
+				ContainSubstring("CIDRCollision"),
+			))
+		})
+
+		It("emits no event when pool range does not overlap any service CIDR", func() {
+			r := buildCollisionReconciler([]string{"192.168.0.0/16"})
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Consistently(fakeRecorder.Events).ShouldNot(Receive())
+		})
+
+		It("skips unparseable service CIDRs without returning an error", func() {
+			r := buildCollisionReconciler([]string{"not-a-cidr", "10.0.0.0/8"})
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Eventually(fakeRecorder.Events).Should(Receive(ContainSubstring("CIDRCollision")))
+		})
+	})
+
+	Context("node PodCIDR overlap", func() {
+		It("emits a Warning event when pool range overlaps a node PodCIDR (PodCIDRs slice)", func() {
+			n := node("node-1", "", []string{"10.0.0.0/16"})
+			r := buildCollisionReconciler(nil, n)
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Eventually(fakeRecorder.Events).Should(Receive(ContainSubstring("CIDRCollision")))
+		})
+
+		It("emits a Warning event when pool range overlaps a node PodCIDR (single PodCIDR field)", func() {
+			n := node("node-1", "10.0.0.0/16", nil)
+			r := buildCollisionReconciler(nil, n)
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Eventually(fakeRecorder.Events).Should(Receive(ContainSubstring("CIDRCollision")))
+		})
+
+		It("emits no event when pool range does not overlap any node PodCIDR", func() {
+			n := node("node-1", "", []string{"172.16.0.0/24"})
+			r := buildCollisionReconciler(nil, n)
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Consistently(fakeRecorder.Events).ShouldNot(Receive())
+		})
+	})
+
+	Context("no overlap", func() {
+		It("emits no event with no nodes and no service CIDRs", func() {
+			r := buildCollisionReconciler(nil)
+			Expect(r.warnOnCIDRCollisions(ctx, pool(poolRange))).To(Succeed())
+			Consistently(fakeRecorder.Events).ShouldNot(Receive())
+		})
+
+		It("does not panic with nil serviceCIDRs and no nodes", func() {
+			r := buildCollisionReconciler(nil)
+			Expect(func() {
+				_ = r.warnOnCIDRCollisions(ctx, pool(poolRange))
+			}).NotTo(Panic())
+		})
+	})
+})

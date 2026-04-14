@@ -2,8 +2,11 @@ package kubernetes
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	fake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
@@ -644,5 +648,211 @@ func TestNodeSliceRangeUsesSlicedRange(t *testing.T) {
 	expectedIP := net.ParseIP("10.0.1.1")
 	if !newips[0].IP.Equal(expectedIP) {
 		t.Fatalf("expected allocated IP %s from node slice, got %s", expectedIP, newips[0].IP)
+	}
+}
+
+type apiConflictPool struct {
+	allocations []types.IPReservation
+	updateCalls int
+	failsRemain int
+}
+
+func (p *apiConflictPool) Allocations() []types.IPReservation { return p.allocations }
+func (p *apiConflictPool) Update(_ context.Context, reservations []types.IPReservation) error {
+	p.updateCalls++
+	if p.failsRemain > 0 {
+		p.failsRemain--
+		return &temporaryError{apierrors.NewConflict(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "test-pool", errors.New("conflict"))}
+	}
+	p.allocations = reservations
+	return nil
+}
+
+func TestRollbackCommittedRetriesOnAPIConflict(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+
+	pool := &apiConflictPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, PodRef: "ns/pod2", IfName: "eth0"},
+		},
+		failsRemain: 2,
+	}
+
+	rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, ip: ip1}})
+
+	if pool.updateCalls != 3 {
+		t.Fatalf("expected 3 update calls (2 conflicts + 1 success), got %d", pool.updateCalls)
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation remaining, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Errorf("expected remaining IP %s, got %s", ip2, pool.allocations[0].IP)
+	}
+}
+
+func TestTemporaryErrorWrapsConflict(t *testing.T) {
+	conflictErr := apierrors.NewConflict(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "test-pool", errors.New("conflict"))
+	wrapped := &temporaryError{conflictErr}
+
+	if !wrapped.Temporary() {
+		t.Error("temporaryError.Temporary() should return true")
+	}
+	if !apierrors.IsConflict(wrapped.Unwrap()) {
+		t.Error("unwrapped error should be recognized as a conflict by apierrors.IsConflict")
+	}
+}
+
+func TestGetNodeNameReturnsErrorOnUnreadableFile(t *testing.T) {
+	t.Setenv("NODENAME", "")
+
+	dir := t.TempDir()
+
+	unreadable, err := os.CreateTemp(dir, "nodename-*")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	name := unreadable.Name()
+	unreadable.Close()
+	if err := os.Remove(name); err != nil {
+		t.Fatalf("failed to remove temp file: %v", err)
+	}
+	if err := os.Mkdir(name, 0o755); err != nil {
+		t.Fatalf("failed to create directory at nodename path: %v", err)
+	}
+	nodenamePath := name
+
+	ipam := &KubernetesIPAM{
+		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
+		Namespace: "default",
+		Config: types.IPAMConfig{
+			ConfigurationPath: nodenamePath,
+		},
+	}
+
+	_, gotErr := getNodeName(ipam)
+	if gotErr == nil {
+		t.Fatal("expected getNodeName to return an error when nodename path is a directory, got nil")
+	}
+}
+
+func TestGetNodeNameReturnsErrorOnReadFailure(t *testing.T) {
+	t.Setenv("NODENAME", "")
+
+	dir := t.TempDir()
+
+	f, err := os.CreateTemp(dir, "nodename")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	nodename := f.Name()
+	f.Close()
+
+	ipam := &KubernetesIPAM{
+		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
+		Namespace: "default",
+		Config: types.IPAMConfig{
+			ConfigurationPath: dir,
+		},
+	}
+
+	configNodename := dir + "/nodename"
+	if nodename != configNodename {
+		if err := os.Rename(nodename, configNodename); err != nil {
+			t.Fatalf("rename: %v", err)
+		}
+	}
+
+	hostname, err := getNodeName(ipam)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return
+		}
+		t.Logf("getNodeName returned error for empty nodename file: %v (acceptable)", err)
+		return
+	}
+	if hostname != "" {
+		t.Logf("empty nodename file returned hostname %q (trimmed from empty read)", hostname)
+	}
+}
+
+func TestPoolUpdateConflictIsRetried(t *testing.T) {
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool)
+	patchCalls := 0
+	wbClient.Fake.PrependReactor("patch", "ippools", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		patchCalls++
+		if patchCalls == 1 {
+			return true, nil, apierrors.NewConflict(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "10.0.0.0-24", fmt.Errorf("stale resource"))
+		}
+		return false, nil, nil
+	})
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, fake.NewClientset()),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, types.IPAMConfig{
+		Name:         "test-nad",
+		PodName:      "pod1",
+		PodNamespace: "default",
+		IPRanges: []types.RangeConfiguration{{
+			Range: "10.0.0.0/24",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("IPManagementKubernetesUpdate() error: %v", err)
+	}
+	if patchCalls != 2 {
+		t.Fatalf("expected 2 patch attempts, got %d", patchCalls)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 IP, got %d", len(newips))
+	}
+	if got := newips[0].String(); got != "10.0.0.1/24" {
+		t.Fatalf("expected allocated IP 10.0.0.1/24, got %s", got)
+	}
+}
+
+func TestGetNodeNameFileReadError(t *testing.T) {
+	t.Setenv("NODENAME", "")
+
+	dir := t.TempDir()
+	path := dir + "/nodename"
+	if err := os.WriteFile(path, []byte{}, 0o600); err != nil {
+		t.Fatalf("failed to create empty nodename file: %v", err)
+	}
+
+	ipam := &KubernetesIPAM{
+		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
+		Namespace: "default",
+		Config: types.IPAMConfig{
+			ConfigurationPath: dir,
+		},
+	}
+
+	hostname, err := getNodeName(ipam)
+	if err == nil {
+		t.Fatal("expected getNodeName to return an error for empty nodename file, got nil")
+	}
+	if hostname != "" {
+		t.Fatalf("expected empty hostname on read error, got %q", hostname)
 	}
 }

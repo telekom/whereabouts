@@ -7,6 +7,7 @@ package whereabouts_e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,7 +23,7 @@ import (
 	"github.com/telekom/whereabouts/e2e/util"
 )
 
-var _ = Describe("collision detection", func() {
+var _ = Describe("Collision detection", func() {
 	var (
 		clientInfo *wbtestclient.ClientInfo
 		ctx        context.Context
@@ -37,7 +38,9 @@ var _ = Describe("collision detection", func() {
 		)
 
 		config, err = util.ClusterConfig()
-		Expect(err).NotTo(HaveOccurred(), "KUBECONFIG must be set to run e2e tests")
+		if err != nil {
+			Skip(fmt.Sprintf("skipping collision detection e2e: KUBECONFIG not set or invalid: %v", err))
+		}
 
 		clientInfo, err = wbtestclient.NewClientInfo(config)
 		Expect(err).NotTo(HaveOccurred())
@@ -108,7 +111,6 @@ var _ = Describe("collision detection", func() {
 
 	Context("node CIDR collision warning (reconciler)", func() {
 		var (
-			collisionPool     *whereaboutsv1alpha1.IPPool
 			collisionPoolName string
 		)
 
@@ -118,7 +120,8 @@ var _ = Describe("collision detection", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var nodePodCIDR string
-			for _, node := range nodes.Items {
+			for i := range nodes.Items {
+				node := &nodes.Items[i]
 				// Prefer PodCIDRs slice; fall back to singular PodCIDR field
 				if len(node.Spec.PodCIDRs) > 0 {
 					nodePodCIDR = node.Spec.PodCIDRs[0]
@@ -137,7 +140,7 @@ var _ = Describe("collision detection", func() {
 			By(fmt.Sprintf("found node PodCIDR %q — creating overlapping IPPool", nodePodCIDR))
 
 			collisionPoolName = "collision-test-node-cidr"
-			collisionPool = &whereaboutsv1alpha1.IPPool{
+			pool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      collisionPoolName,
 					Namespace: ipPoolNamespace,
@@ -149,7 +152,7 @@ var _ = Describe("collision detection", func() {
 				},
 			}
 
-			_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Create(ctx, collisionPool, metav1.CreateOptions{})
+			_, err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Create(ctx, pool, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "overlapping IPPool creation must succeed (warning only, not blocked)")
 		})
 
@@ -174,8 +177,54 @@ var _ = Describe("collision detection", func() {
 					return false
 				}
 				return events.Items[0].Type == corev1.EventTypeWarning
-			}).WithTimeout(60*time.Second).WithPolling(2*time.Second).Should(BeTrue(),
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(BeTrue(),
 				"expected CIDRCollision Warning event on pool %q", collisionPoolName)
+		})
+	})
+
+	Context("service CIDR collision warning (reconciler)", func() {
+		const svcCIDRPoolName = "collision-test-svc-cidr"
+
+		It("emits a CIDRCollision Warning event when pool overlaps service CIDR", func() {
+			serviceCIDR, ok := os.LookupEnv("SERVICE_CIDR")
+			if !ok || serviceCIDR == "" {
+				Skip("SERVICE_CIDR env var not set — skipping service CIDR collision test")
+			}
+
+			By("creating IPPool with service CIDR range " + serviceCIDR)
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      svcCIDRPoolName,
+					Namespace: ipPoolNamespace,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       serviceCIDR,
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+
+			_, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Create(ctx, pool, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred(), "service-CIDR overlapping pool creation must succeed (collision is a warning, not a block)")
+
+			DeferCleanup(func() {
+				By("cleaning up service-cidr collision pool")
+				delErr := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, svcCIDRPoolName, metav1.DeleteOptions{})
+				if delErr != nil && !k8serrors.IsNotFound(delErr) {
+					Expect(delErr).NotTo(HaveOccurred())
+				}
+			})
+
+			By("polling for a CIDRCollision Warning event on pool " + svcCIDRPoolName)
+			Eventually(func() bool {
+				events, listErr := clientInfo.Client.CoreV1().Events(ipPoolNamespace).List(ctx, metav1.ListOptions{
+					FieldSelector: fmt.Sprintf("involvedObject.name=%s,reason=CIDRCollision", svcCIDRPoolName),
+				})
+				if listErr != nil || len(events.Items) == 0 {
+					return false
+				}
+				return events.Items[0].Type == corev1.EventTypeWarning
+			}).WithTimeout(30*time.Second).WithPolling(2*time.Second).Should(BeTrue(),
+				"expected CIDRCollision Warning event on pool %q (service CIDR %s)", svcCIDRPoolName, serviceCIDR)
 		})
 	})
 })

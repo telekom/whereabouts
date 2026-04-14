@@ -39,7 +39,8 @@ func toPrefix(ipnet net.IPNet) (netip.Prefix, bool) {
 }
 
 // CIDRsOverlap reports whether two CIDR strings represent overlapping IP ranges.
-// Returns an error if either string is not a valid CIDR.
+// Both a and b must be valid CIDR notation (e.g. "10.0.0.0/8"). Returns an
+// error if either string cannot be parsed as a CIDR prefix.
 func CIDRsOverlap(a, b string) (bool, error) {
 	pa, err := netip.ParsePrefix(a)
 	if err != nil {
@@ -52,9 +53,9 @@ func CIDRsOverlap(a, b string) (bool, error) {
 	return pa.Overlaps(pb), nil
 }
 
-// CIDROverlapsAny reports whether cidr overlaps with any of the given others.
-// Returns the first overlapping CIDR string, true, and nil error if found.
-// Returns "", false, nil if no overlap. Returns "", false, error on parse failure.
+// CIDROverlapsAny checks whether cidr overlaps with any of the provided others.
+// It returns (overlappingCIDR, true, nil) on the first match, or ("", false, nil)
+// if no overlap is found. An error is returned if any CIDR string is unparseable.
 func CIDROverlapsAny(cidr string, others []string) (string, bool, error) {
 	for _, other := range others {
 		overlap, err := CIDRsOverlap(cidr, other)

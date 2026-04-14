@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -41,6 +42,7 @@ func newControllerCommand() *cobra.Command {
 		cleanupTerminating   bool
 		cleanupDisrupted     bool
 		verifyNetworkStatus  bool
+		serviceCIDR          string
 	)
 
 	cmd := &cobra.Command{
@@ -80,6 +82,7 @@ func newControllerCommand() *cobra.Command {
 				CleanupTerminating:  cleanupTerminating,
 				CleanupDisrupted:    cleanupDisrupted,
 				VerifyNetworkStatus: verifyNetworkStatus,
+				ServiceCIDRs:        parseServiceCIDRs(serviceCIDR),
 			}); err != nil {
 				return err
 			}
@@ -132,6 +135,21 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&cleanupTerminating, "cleanup-terminating-pods", false, "Treat terminating pods (DeletionTimestamp set) as orphaned and release their IPs immediately")
 	cmd.Flags().BoolVar(&cleanupDisrupted, "cleanup-disrupted-pods", true, "Treat pods with DisruptionTarget condition (taint-manager eviction) as orphaned")
 	cmd.Flags().BoolVar(&verifyNetworkStatus, "verify-network-status", true, "Verify allocated IPs against Multus network-status annotation on pods")
+	cmd.Flags().StringVar(&serviceCIDR, "service-cidr", "", "Comma-separated list of Kubernetes service CIDR ranges for collision detection (e.g. 10.96.0.0/12)")
 
 	return cmd
+}
+
+// parseServiceCIDRs splits a comma-separated CIDR string and removes empty entries.
+func parseServiceCIDRs(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

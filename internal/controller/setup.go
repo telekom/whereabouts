@@ -31,6 +31,12 @@ type ReconcilerOptions struct {
 	// annotation. When true (default), a mismatch marks the allocation as
 	// orphaned. Disable this if your CNI does not populate the annotation.
 	VerifyNetworkStatus bool
+
+	// ServiceCIDRs is the list of Kubernetes service CIDR ranges that the
+	// IPPool reconciler will check pool CIDRs against. A Warning event is
+	// emitted when a pool's CIDR overlaps with a service CIDR.
+	// Configured via the --service-cidr operator flag.
+	ServiceCIDRs []string
 }
 
 // SetupWithManager registers all reconcilers with the given manager. The

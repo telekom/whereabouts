@@ -757,6 +757,13 @@ func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPRese
 							Format:      "",
 						},
 					},
+					"poduid": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PodUID is the immutable UID of the pod that created this reservation. When non-empty, it is used to detect stale reservations left by an evicted pod whose name was reused: if the requesting pod's UID differs from the stored UID, the reservation is considered stale and cleaned up so the new pod can obtain a fresh IP address.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"podref"},
 			},

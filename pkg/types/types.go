@@ -147,6 +147,9 @@ type IPAMConfig struct {
 	PodName string
 	// PodNamespace is the namespace of the pod requesting an IP, set from CNI_ARGS.
 	PodNamespace string
+	// PodUID is the immutable UID of the pod requesting an IP, set from K8S_POD_UID in CNI_ARGS.
+	// Used to detect stale OverlappingRangeIPReservations from evicted pods whose name was reused.
+	PodUID string
 	// NetworkName optionally names the network for multi-tenant scenarios,
 	// creating separate IPPool CRs per network name.
 	NetworkName string `json:"network_name,omitempty"`
@@ -190,6 +193,7 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		ConfigurationPath        string           `json:"configuration_path"`
 		PodName                  string
 		PodNamespace             string
+		PodUID                   string
 		NetworkName              string   `json:"network_name,omitempty"`
 		ServiceCIDRs             []string `json:"service_cidrs,omitempty"`
 	}
@@ -231,6 +235,7 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		ConfigurationPath:        ipamConfigAlias.ConfigurationPath,
 		PodName:                  ipamConfigAlias.PodName,
 		PodNamespace:             ipamConfigAlias.PodNamespace,
+		PodUID:                   ipamConfigAlias.PodUID,
 		NetworkName:              ipamConfigAlias.NetworkName,
 		ServiceCIDRs:             ipamConfigAlias.ServiceCIDRs,
 	}
@@ -257,6 +262,7 @@ type IPAMEnvArgs struct {
 	K8S_POD_NAME               cnitypes.UnmarshallableString //revive:disable-line
 	K8S_POD_NAMESPACE          cnitypes.UnmarshallableString //revive:disable-line
 	K8S_POD_INFRA_CONTAINER_ID cnitypes.UnmarshallableString //revive:disable-line
+	K8S_POD_UID                cnitypes.UnmarshallableString //revive:disable-line
 }
 
 // KubernetesConfig describes the kubernetes-specific configuration details.

@@ -48,7 +48,7 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	}
 	var n types.Net
 	if err := json.Unmarshal(bytes, &n); err != nil {
-		return nil, "", fmt.Errorf("LoadIPAMConfig - JSON Parsing Error: %w / bytes: %s", err, bytes)
+		return nil, "", fmt.Errorf("LoadIPAMConfig - JSON Parsing Error: %w", err)
 	}
 
 	if n.IPAM == nil {
@@ -301,7 +301,7 @@ func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPa
 		}
 
 		if err := json.Unmarshal(jsonBytes, &flatipam.IPAM); err != nil {
-			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w / bytes: %s", confpath, err, jsonBytes)
+			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w", confpath, err)
 		}
 
 		foundflatfile = confpath

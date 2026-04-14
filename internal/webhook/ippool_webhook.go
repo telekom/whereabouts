@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -46,19 +45,11 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 
 // ValidateUpdate validates an IPPool on update.
 func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	var errs []error
-	if oldPool != nil {
-		if oldPool.Spec.Range != pool.Spec.Range {
-			errs = append(errs, fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range))
-		}
-	}
-	if len(errs) > 0 {
-		if agg := kerrors.NewAggregate(errs); agg != nil {
-			err := fmt.Errorf("immutable field(s) changed: %s", agg)
-			ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-			recordValidation("ippool", "update", err)
-			return nil, err
-		}
+	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
+		err := fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range)
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("ippool", "update", err)
+		return nil, err
 	}
 	w, err := validateIPPool(pool)
 	if err != nil {

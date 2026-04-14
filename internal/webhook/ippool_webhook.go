@@ -97,7 +97,8 @@ func (v *IPPoolValidator) checkPoolOverlap(ctx context.Context, pool *whereabout
 	if err := v.Reader.List(ctx, &poolList, client.InNamespace(pool.Namespace)); err != nil {
 		return fmt.Errorf("listing existing IPPools: %w", err)
 	}
-	for _, existing := range poolList.Items {
+	for i := range poolList.Items {
+		existing := &poolList.Items[i]
 		// Skip self-comparison (same name+namespace = update of the same pool).
 		if existing.Name == pool.Name && existing.Namespace == pool.Namespace {
 			continue

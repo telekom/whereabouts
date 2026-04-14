@@ -150,6 +150,10 @@ type IPAMConfig struct {
 	// NetworkName optionally names the network for multi-tenant scenarios,
 	// creating separate IPPool CRs per network name.
 	NetworkName string `json:"network_name,omitempty"`
+	// ServiceCIDRs is an optional list of Kubernetes service CIDR ranges.
+	// When set, the reconciler will emit a Warning event if this pool's CIDR
+	// overlaps with any service CIDR, helping operators detect misconfigurations.
+	ServiceCIDRs []string `json:"service_cidrs,omitempty"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for IPAMConfig.
@@ -186,7 +190,8 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		ConfigurationPath        string           `json:"configuration_path"`
 		PodName                  string
 		PodNamespace             string
-		NetworkName              string `json:"network_name,omitempty"`
+		NetworkName              string   `json:"network_name,omitempty"`
+		ServiceCIDRs             []string `json:"service_cidrs,omitempty"`
 	}
 
 	ipamConfigAlias := IPAMConfigAlias{
@@ -227,6 +232,7 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		PodName:                  ipamConfigAlias.PodName,
 		PodNamespace:             ipamConfigAlias.PodNamespace,
 		NetworkName:              ipamConfigAlias.NetworkName,
+		ServiceCIDRs:             ipamConfigAlias.ServiceCIDRs,
 	}
 	return nil
 }

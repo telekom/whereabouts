@@ -467,13 +467,13 @@ func TestIsRetryableRollbackErrorAPITimeout(t *testing.T) {
 }
 
 // TestCtxCancelPropagatesErrorInRetryLoop verifies that when the request context
-// is cancelled before the RETRYLOOP has a chance to do any work, the function
+// is canceled before the RETRYLOOP has a chance to do any work, the function
 // returns a non-nil error instead of silently succeeding with an empty IP list.
 // This is the regression test for the "silent CNI ADD" bug where ctx.Done()
 // caused a break without setting err, making callers interpret nil error as success.
 func TestCtxCancelPropagatesErrorInRetryLoop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	// Cancel before calling — simulates context already cancelled on entry.
+	// Cancel before calling — simulates context already canceled on entry.
 	cancel()
 
 	pool := &mockIPPool{
@@ -481,13 +481,13 @@ func TestCtxCancelPropagatesErrorInRetryLoop(t *testing.T) {
 	}
 	committed := []committedAlloc{{pool: pool, ip: net.ParseIP("10.0.0.1")}}
 
-	// rollbackCommitted should not panic on a cancelled context.
+	// rollbackCommitted should not panic on a canceled context.
 	// (The real fix is in IPManagementKubernetesUpdate; this validates propagation.)
 	rollbackCommitted(ctx, committed)
 
 	// Verify the ctx.Err() is correctly set so callers detect the cancellation.
 	if ctx.Err() == nil {
-		t.Error("expected context to be cancelled")
+		t.Error("expected context to be canceled")
 	}
 }
 
@@ -502,7 +502,7 @@ func TestNormalizeRangeCtxCancelSignal(t *testing.T) {
 	cancel()
 
 	// Simulate what the fixed code does:
-	err := fmt.Errorf("IPAM context cancelled before attempt %d: %w", 1, ctx.Err())
+	err := fmt.Errorf("IPAM context canceled before attempt %d: %w", 1, ctx.Err())
 	if err == nil {
 		t.Fatal("expected non-nil error from context cancellation")
 	}

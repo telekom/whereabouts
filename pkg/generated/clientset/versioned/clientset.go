@@ -21,7 +21,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	whereaboutsv1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

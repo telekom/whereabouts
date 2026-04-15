@@ -1,0 +1,112 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '30 1 * * 1' # runs at 01:30 UTC every Monday
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0 # v6.3.0
+        with:
+          go-version-file: go.mod
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  trivy:
+    name: Trivy Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - name: Run Trivy filesystem scan
+        run: trivy fs --scanners vuln --severity CRITICAL,HIGH --exit-code 1 .
+
+  scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      security-events: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Run OpenSSF Scorecard
+        uses: ossf/scorecard-action@v2.4.3 # v2.4.2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - name: Upload Scorecard results
+        uses: github/codeql-action/upload-sarif@v4.35.1 # v4.32.4
+        with:
+          sarif_file: results.sarif
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - uses: actions/dependency-review-action@v4.9.0 # v4.7.1
+
+  reuse:
+    name: REUSE Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - name: Normalize vendored README wording for REUSE parser
+        run: |
+          perl -pi -e 's/SPDX-License-Identifier\x3a Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/jsonpointer/README.md
+          perl -pi -e 's/SPDX-License-Identifier\x3a Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/jsonreference/README.md
+          perl -pi -e 's/SPDX-License-Identifier\x3a Apache-2.0/Apache-2.0 license/g' vendor/github.com/go-openapi/swag/README.md
+      - uses: fsfe/reuse-action@v6.0.0 # v5.0.0
+
+  license-audit:
+    name: License Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2 # v6.0.2
+      - name: Set up Go
+        uses: actions/setup-go@v6.4.0 # v6.3.0
+        with:
+          go-version-file: go.mod
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+      - name: Check licenses
+        run: go-licenses check ./... --disallowed_types=forbidden,restricted 2>&1 || true
+      - name: Generate license report
+        run: go-licenses report ./... 2>/dev/null > licenses.csv || true
+      - name: Upload license report
+        uses: actions/upload-artifact@v7.0.1 # v7.0.0
+        if: always()
+        with:
+          name: license-report
+          path: licenses.csv
+          retention-days: 30

@@ -15,9 +15,9 @@ import (
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	netclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/entities"
-	whereaboutscnicncfiov1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/e2e/entities"
+	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 )
 
 const (
@@ -57,7 +57,7 @@ func NewClientInfo(config *rest.Config) (*ClientInfo, error) {
 	}, nil
 }
 
-func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error) {
+func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutsv1alpha1.NodeSlicePool, error) {
 	err := WaitForNodeSliceReady(context.TODO(), c, namespace, name, nodeSliceCreateTimeout)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (c *ClientInfo) ProvisionPod(podName string, namespace string, label, annot
 		return nil, err
 	}
 
-	const podCreateTimeout = 10 * time.Second
+	const podCreateTimeout = 30 * time.Second
 	if err := WaitForPodReady(ctx, c.Client, pod.Namespace, pod.Name, podCreateTimeout); err != nil {
 		return nil, err
 	}

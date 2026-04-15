@@ -375,6 +375,9 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 
 		_, err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Create(
 			ctx, clusteripres, metav1.CreateOptions{})
+		if apierrors.IsAlreadyExists(err) {
+			return &temporaryError{fmt.Errorf("ORIP %s already exists (concurrent allocation): %w", normalizedIP, err)}
+		}
 
 	case whereaboutstypes.Deallocate:
 		verb = "deallocate"

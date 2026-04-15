@@ -824,3 +824,44 @@ func TestIPManagementEmptyPodName(t *testing.T) {
 		t.Errorf("unexpected error: %s", got)
 	}
 }
+
+// TestORIPCreateAlreadyExistsIsTransient verifies that when an
+// OverlappingRangeIPReservation Create returns AlreadyExists, the function
+// returns a temporary error (not a hard failure), allowing the allocator to
+// retry with a different IP rather than aborting.
+func TestORIPCreateAlreadyExistsIsTransient(t *testing.T) {
+	ip := net.ParseIP("10.0.0.5")
+	existingORIP := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "10.0.0.5",
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/otherpod",
+			IfName: "eth0",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(existingORIP)
+
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/newpod", "eth0", "")
+	if err == nil {
+		t.Fatal("expected error when ORIP already exists")
+	}
+
+	type temporary interface {
+		Temporary() bool
+	}
+	te, ok := err.(temporary)
+	if !ok {
+		t.Fatalf("expected a temporary error, got: %T: %v", err, err)
+	}
+	if !te.Temporary() {
+		t.Errorf("expected Temporary() == true, got false")
+	}
+}

@@ -178,7 +178,7 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(warnings).To(BeEmpty())
 		})
 
-		It("should warn on a range change but allow it", func() {
+		It("should reject a range change (spec.range is immutable)", func() {
 			oldPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -199,10 +199,9 @@ var _ = Describe("IPPoolValidator", func() {
 					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
 				},
 			}
-			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(warnings).To(HaveLen(1))
-			Expect(warnings[0]).To(ContainSubstring("spec.range changed"))
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("immutable"))
 		})
 
 		It("should reject an update with invalid podRef", func() {
@@ -340,7 +339,7 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should block update when updated CIDR overlaps a different existing pool", func() {
+		It("should block update when spec.range changes (immutability takes precedence over overlap check)", func() {
 			otherPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "other-pool",
@@ -357,21 +356,19 @@ var _ = Describe("IPPoolValidator", func() {
 				Build()
 			v := &IPPoolValidator{Reader: fakeClient}
 
-			// Updating "other-pool" to a CIDR that overlaps "existing-pool".
 			updatedOtherPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "other-pool",
 					Namespace: "default",
 				},
 				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range:       "10.0.0.0/25", // overlaps with existing-pool's 10.0.0.0/24
+					Range:       "10.0.0.0/25",
 					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
 				},
 			}
 			_, err := v.ValidateUpdate(ctx, otherPool, updatedOtherPool)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("overlaps with existing IPPool"))
-			Expect(err.Error()).To(ContainSubstring("existing-pool"))
+			Expect(err.Error()).To(ContainSubstring("immutable"))
 		})
 
 		It("should skip overlap check when Reader is nil (graceful degradation)", func() {

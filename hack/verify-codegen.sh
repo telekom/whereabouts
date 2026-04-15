@@ -39,6 +39,9 @@ if [[ $ret -eq 0 ]]; then
     cp -a "${TMP_DIFFROOT_API}/." "${DIFFROOT_API}/"
     echo "pkg/ and api/ up to date."
 else
+    # Restore the original snapshot so the working tree is not left dirty.
+    cp -a "${TMP_DIFFROOT_PKG}/." "${DIFFROOT_PKG}/"
+    cp -a "${TMP_DIFFROOT_API}/." "${DIFFROOT_API}/"
     echo "pkg/ or api/ is out of date. Please run hack/update-codegen.sh"
     exit 1
 fi

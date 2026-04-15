@@ -11,6 +11,7 @@ data:
     case "$ARCH" in
       x86_64)  ARCH="amd64" ;;
       aarch64) ARCH="arm64" ;;
+      *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
     esac
     CNI_VERSION="v1.6.2"
     wget "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"

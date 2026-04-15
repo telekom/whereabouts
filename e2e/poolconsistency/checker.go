@@ -24,10 +24,13 @@ func (pc *Checker) MissingIPs() []string {
 	for i := range pc.podList {
 		pod := &pc.podList[i]
 		podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
-		podIP := podIPs[len(podIPs)-1]
 		if err != nil {
 			return []string{}
 		}
+		if len(podIPs) == 0 {
+			return []string{}
+		}
+		podIP := podIPs[len(podIPs)-1]
 
 		var found bool
 		for _, allocation := range pc.ipPool.Allocations() {
@@ -54,10 +57,13 @@ func (pc *Checker) StaleIPs() []string {
 		for i := range pc.podList {
 			pod := &pc.podList[i]
 			podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
-			podIP := podIPs[len(podIPs)-1]
 			if err != nil {
 				continue
 			}
+			if len(podIPs) == 0 {
+				continue
+			}
+			podIP := podIPs[len(podIPs)-1]
 
 			if reservedIP == podIP {
 				found = true

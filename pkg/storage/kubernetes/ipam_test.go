@@ -9,8 +9,10 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	fake "k8s.io/client-go/kubernetes/fake"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
+	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
 	"github.com/telekom/whereabouts/pkg/types"
 )
 
@@ -466,9 +468,24 @@ func TestIsRetryableRollbackErrorAPITimeout(t *testing.T) {
 	}
 }
 
+// newTestIPAM constructs a KubernetesIPAM backed by fake clients, suitable for
+// unit tests that call IPManagementKubernetesUpdate directly.
+func newTestIPAM() *KubernetesIPAM {
+	wbClient := wbfake.NewClientset()
+	k8sClient := fake.NewClientset()
+	return &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "c1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+}
+
 // TestCtxCancelPropagatesErrorInRetryLoop verifies that when the request context
-// is canceled before the RETRYLOOP has a chance to do any work, the function
-// returns a non-nil error instead of silently succeeding with an empty IP list.
+// is canceled before the RETRYLOOP has a chance to do any work,
+// IPManagementKubernetesUpdate returns a non-nil error instead of silently
+// succeeding with an empty IP list.
 // This is the regression test for the "silent CNI ADD" bug where ctx.Done()
 // caused a break without setting err, making callers interpret nil error as success.
 func TestCtxCancelPropagatesErrorInRetryLoop(t *testing.T) {
@@ -476,37 +493,46 @@ func TestCtxCancelPropagatesErrorInRetryLoop(t *testing.T) {
 	// Cancel before calling — simulates context already canceled on entry.
 	cancel()
 
-	pool := &mockIPPool{
-		allocations: []types.IPReservation{},
+	ipam := newTestIPAM()
+	conf := types.IPAMConfig{
+		PodName:      "pod1",
+		PodNamespace: "default",
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
 	}
-	committed := []committedAlloc{{pool: pool, ip: net.ParseIP("10.0.0.1")}}
 
-	// rollbackCommitted should not panic on a canceled context.
-	// (The real fix is in IPManagementKubernetesUpdate; this validates propagation.)
-	rollbackCommitted(ctx, committed)
-
-	// Verify the ctx.Err() is correctly set so callers detect the cancellation.
-	if ctx.Err() == nil {
-		t.Error("expected context to be canceled")
-	}
-}
-
-// TestNormalizeRangeCtxCancelSignal is a direct unit test for the ctx.Done branch.
-// It verifies that when ctx is already done, the err variable is set, so the
-// "IP allocation failed" path fires rather than a silent nil-error return.
-func TestNormalizeRangeCtxCancelSignal(t *testing.T) {
-	// We test the invariant: after ctx.Done() fires in the select,
-	// err must be non-nil. We exercise this by checking that context.DeadlineExceeded
-	// wraps correctly through fmt.Errorf("... %w", ctx.Err()).
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// Simulate what the fixed code does:
-	err := fmt.Errorf("IPAM context canceled before attempt %d: %w", 1, ctx.Err())
+	_, err := IPManagementKubernetesUpdate(ctx, types.Allocate, ipam, conf)
 	if err == nil {
-		t.Fatal("expected non-nil error from context cancellation")
+		t.Fatal("expected non-nil error when context is canceled before RETRYLOOP")
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected errors.Is(err, context.Canceled) to be true, got: %v", err)
+	}
+}
+
+// TestNormalizeRangeCtxCancelSignal verifies that the ctx.Done() branch in the
+// RETRYLOOP sets err so the caller receives context.Canceled — not a silent
+// nil-error return. It calls the real IPManagementKubernetesUpdate with a
+// pre-cancelled context and asserts the returned error wraps context.Canceled.
+func TestNormalizeRangeCtxCancelSignal(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ipam := newTestIPAM()
+	conf := types.IPAMConfig{
+		PodName:      "pod1",
+		PodNamespace: "default",
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
+	}
+
+	_, err := IPManagementKubernetesUpdate(ctx, types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected non-nil error: RETRYLOOP ctx.Done() branch must set err")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected error to wrap context.Canceled, got: %v", err)
 	}
 }

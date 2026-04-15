@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -78,11 +79,15 @@ func newControllerCommand() *cobra.Command {
 			}
 
 			// Reconcilers (leader-elected).
+			serviceCIDRs, err := parseServiceCIDRs(serviceCIDR)
+			if err != nil {
+				return fmt.Errorf("parsing --service-cidr: %w", err)
+			}
 			if err := controller.SetupWithManager(mgr, reconcileInterval, controller.ReconcilerOptions{
 				CleanupTerminating:  cleanupTerminating,
 				CleanupDisrupted:    cleanupDisrupted,
 				VerifyNetworkStatus: verifyNetworkStatus,
-				ServiceCIDRs:        parseServiceCIDRs(serviceCIDR),
+				ServiceCIDRs:        serviceCIDRs,
 			}); err != nil {
 				return err
 			}
@@ -140,16 +145,21 @@ func newControllerCommand() *cobra.Command {
 	return cmd
 }
 
-// parseServiceCIDRs splits a comma-separated CIDR string and removes empty entries.
-func parseServiceCIDRs(s string) []string {
+// parseServiceCIDRs splits a comma-separated CIDR string, validates each entry, and removes empty entries.
+func parseServiceCIDRs(s string) ([]string, error) {
 	if s == "" {
-		return nil
+		return nil, nil
 	}
 	var result []string
 	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			result = append(result, trimmed)
+		cidr := strings.TrimSpace(part)
+		if cidr == "" {
+			continue
 		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return nil, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+		}
+		result = append(result, cidr)
 	}
-	return result
+	return result, nil
 }

@@ -876,7 +876,7 @@ func TestORIPCreateAlreadyExistsIsTransient(t *testing.T) {
 //
 // Scenario: the first attempt to create the OverlappingRangeIPReservation
 // races with another allocator and receives AlreadyExists. The call site must
-// recognise the temporaryError, roll back the pool update, and re-enter the
+// recognize the temporaryError, roll back the pool update, and re-enter the
 // RETRYLOOP. On the subsequent attempt the ORIP creation succeeds and the
 // overall allocation completes without error.
 func TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict(t *testing.T) {
@@ -897,8 +897,8 @@ func TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict(t *testing.T
 
 	// Count how many times Create is called for OverlappingRangeIPReservations.
 	var createCalls int
-	wbClient.Fake.PrependReactor("create", "overlappingrangeipreservations",
-		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+	wbClient.PrependReactor("create", "overlappingrangeipreservations",
+		func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			createCalls++
 			if createCalls == 1 {
 				// Simulate a concurrent AlreadyExists on the first attempt.

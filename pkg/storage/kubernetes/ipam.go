@@ -833,7 +833,6 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// Allocation not found in this range — continue to remaining
 					// ranges so that IPs in other ranges are still released.
 					logging.Debugf("No allocation found for container ID %q in range %s, continuing to next range", ipam.ContainerID, ipRange.Range)
-					skipOverlappingRangeUpdate = true
 					requestCancel()
 					break RETRYLOOP
 				}

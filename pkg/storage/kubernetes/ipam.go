@@ -251,7 +251,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	for _, o := range patch {
 		// safeguard add ops -- "add" will update existing paths, this "test" ensures the path is empty
 		if o.Operation == "add" {
-			var m map[string]interface{}
+			var m map[string]any
 			ops = append(ops, jsonpatch.Operation{Operation: "test", Path: o.Path, Value: m})
 		}
 	}
@@ -265,7 +265,9 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	_, err = p.client.WhereaboutsV1alpha1().IPPools(orig.GetNamespace()).Patch(ctx, orig.GetName(), types.JSONPatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		if apierrors.IsInvalid(err) {
-			// expect "invalid" errors if any of the jsonpatch "test" Operations fail
+			return &temporaryError{err}
+		}
+		if apierrors.IsConflict(err) {
 			return &temporaryError{err}
 		}
 		return err
@@ -467,7 +469,8 @@ func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	data := make([]byte, 1024) // Adjust the buffer size as needed
 	n, err := file.Read(data)
 	if err != nil {
-		logging.Errorf("Error reading file /etc/hostname: %w", err)
+		logging.Errorf("Error reading file: %w", err)
+		return "", err
 	}
 
 	// Convert bytes to string
@@ -763,7 +766,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
 					OmitRanges: ipRange.OmitRanges,
-					Range:      ipRange.Range,
+					Range:      nodeSliceRange,
 					RangeStart: rangeStart,
 					RangeEnd:   rangeEnd,
 				}

@@ -57,6 +57,9 @@ func CIDRsOverlap(a, b string) (bool, error) {
 // It returns (overlappingCIDR, true, nil) on the first match, or ("", false, nil)
 // if no overlap is found. An error is returned if any CIDR string is unparseable.
 func CIDROverlapsAny(cidr string, others []string) (overlapping string, found bool, err error) {
+	if _, _, err := net.ParseCIDR(cidr); err != nil {
+		return "", false, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+	}
 	for _, other := range others {
 		overlap, err := CIDRsOverlap(cidr, other)
 		if err != nil {

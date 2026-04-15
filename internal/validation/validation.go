@@ -29,7 +29,7 @@ func ValidateCIDR(cidr string) error {
 func ValidateOmitRanges(omitRanges []string, _ string) error {
 	for i, omitRange := range omitRanges {
 		if err := validateOmitRange(omitRange); err != nil {
-			return fmt.Errorf("omitRanges[%d] %q is not a valid CIDR or IP range: %w", i, omitRange, err)
+			return fmt.Errorf("omitRanges[%d] %q is not a valid CIDR, IP, or IP range: %w", i, omitRange, err)
 		}
 	}
 	return nil

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -75,7 +75,7 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	var reservation whereaboutsv1alpha1.OverlappingRangeIPReservation
 	if err := r.client.Get(ctx, req.NamespacedName, &reservation); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("getting OverlappingRangeIPReservation: %w", err)
@@ -95,7 +95,7 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	var pod corev1.Pod
 	err := r.client.Get(ctx, types.NamespacedName{Namespace: podNS, Name: podName}, &pod)
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		logger.V(1).Info("pod not found, deleting overlapping reservation",
 			"name", reservation.Name, "podRef", reservation.Spec.PodRef)
 		return r.deleteReservation(ctx, &reservation)
@@ -138,7 +138,7 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 func (r *OverlappingRangeReconciler) deleteReservation(ctx context.Context, reservation *whereaboutsv1alpha1.OverlappingRangeIPReservation) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	if err := r.client.Delete(ctx, reservation); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("deleting OverlappingRangeIPReservation %s: %w", reservation.Name, err)

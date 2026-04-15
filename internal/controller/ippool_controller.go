@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"sort"
 	"strings"
 	"time"
 
@@ -142,6 +143,12 @@ const (
 	// ippoolFinalizer is used to ensure overlapping range reservations are
 	// cleaned up before an IPPool is deleted.
 	ippoolFinalizer = "whereabouts.cni.cncf.io/ippool-cleanup"
+
+	// cidrCollisionAnnotation tracks the last CIDRCollision event message
+	// emitted for the pool. warnOnCIDRCollisions only emits a new Warning
+	// event when the collision set changes, avoiding a storm of duplicate
+	// events on every reconcile cycle.
+	cidrCollisionAnnotation = "whereabouts.cni.cncf.io/last-cidr-collision"
 
 	// retryRequeueInterval is the interval to retry when transient errors
 	// occur (e.g. overlapping reservation cleanup failure).
@@ -399,8 +406,11 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
 }
 
-// warnOnCIDRCollisions emits Warning events when pool.Spec.Range overlaps with
-// any service CIDR or any Node's PodCIDR. It never blocks reconciliation.
+// warnOnCIDRCollisions emits a Warning event when pool.Spec.Range overlaps
+// with any service CIDR or any Node's PodCIDR. To avoid a storm of duplicate
+// events, the event is only emitted when the collision set changes. The last
+// known collision message is stored in the cidrCollisionAnnotation annotation
+// on the pool object (in-memory only; the caller's PatchHelper persists it).
 func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) error {
 	logger := log.FromContext(ctx)
 	var collisions []string
@@ -442,9 +452,36 @@ func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *where
 		}
 	}
 
+	// Sort for stable comparison across reconcile cycles.
+	sort.Strings(collisions)
+
+	var msg string
 	if len(collisions) > 0 {
-		r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
-			"pool range %s overlaps with: %s", pool.Spec.Range, strings.Join(collisions, ", "))
+		msg = fmt.Sprintf("pool range %s overlaps with: %s", pool.Spec.Range, strings.Join(collisions, ", "))
+	}
+
+	// Only emit an event when the collision set changes. Kubernetes' event
+	// deduplication compresses identical messages, but the recorder still
+	// calls through on every reconcile, which can overwhelm etcd. Storing
+	// the last message in an annotation lets us skip the recorder entirely
+	// when nothing changed.
+	lastMsg := pool.Annotations[cidrCollisionAnnotation]
+	if msg == lastMsg {
+		return nil
+	}
+
+	// Persist the new collision state in the annotation (in-memory; the
+	// caller's PatchHelper will persist it alongside the status patch).
+	if pool.Annotations == nil {
+		pool.Annotations = make(map[string]string)
+	}
+	if msg != "" {
+		pool.Annotations[cidrCollisionAnnotation] = msg
+		r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile", "%s", msg)
+	} else {
+		// Collisions cleared — remove the annotation so a future collision
+		// will trigger a fresh event.
+		delete(pool.Annotations, cidrCollisionAnnotation)
 	}
 
 	return nil

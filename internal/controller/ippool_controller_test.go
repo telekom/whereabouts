@@ -854,4 +854,35 @@ var _ = Describe("warnOnCIDRCollisions", func() {
 			}).NotTo(Panic())
 		})
 	})
+
+	Context("deduplication", func() {
+		It("emits only one event for repeated reconciles with the same collision set", func() {
+			r := buildCollisionReconciler([]string{"10.0.0.0/16"})
+			p := pool(poolRange)
+			// First call: collision detected, event emitted.
+			Expect(r.warnOnCIDRCollisions(ctx, p)).To(Succeed())
+			Eventually(fakeRecorder.Events).Should(Receive(ContainSubstring("CIDRCollision")))
+
+			// Second call with same pool (annotation now set): no new event.
+			Expect(r.warnOnCIDRCollisions(ctx, p)).To(Succeed())
+			Consistently(fakeRecorder.Events).ShouldNot(Receive())
+		})
+
+		It("emits a new event when the collision set changes", func() {
+			r := buildCollisionReconciler([]string{"10.0.0.0/16"})
+			p := pool(poolRange)
+			// First call: service CIDR collision.
+			Expect(r.warnOnCIDRCollisions(ctx, p)).To(Succeed())
+			var msg string
+			Eventually(fakeRecorder.Events).Should(Receive(&msg))
+			Expect(msg).To(ContainSubstring("CIDRCollision"))
+
+			// Simulate the collision set changing: remove service CIDR overlap,
+			// add no overlap — annotation should be cleared, no new event.
+			r2 := buildCollisionReconciler([]string{"192.168.0.0/16"})
+			Expect(r2.warnOnCIDRCollisions(ctx, p)).To(Succeed())
+			Consistently(fakeRecorder.Events).ShouldNot(Receive())
+			Expect(p.Annotations).NotTo(HaveKey(cidrCollisionAnnotation))
+		})
+	})
 })

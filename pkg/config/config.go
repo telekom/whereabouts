@@ -18,6 +18,7 @@ import (
 
 	netutils "k8s.io/utils/net"
 
+	"github.com/telekom/whereabouts/internal/validation"
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/types"
 )
@@ -134,20 +135,15 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 		}
 	}
 
-	for i := range n.IPAM.OmitRanges {
-		_, _, err := netutils.ParseCIDRSloppy(n.IPAM.OmitRanges[i])
-		if err != nil {
-			return nil, "", fmt.Errorf("invalid CIDR in exclude list %s: %w", n.IPAM.OmitRanges[i], err)
-		}
+	// Validate top-level OmitRanges (legacy single-range config).
+	if err := validation.ValidateOmitRanges(n.IPAM.OmitRanges, n.IPAM.Range); err != nil {
+		return nil, "", fmt.Errorf("invalid exclude list: %w", err)
 	}
 
+	// Validate per-range OmitRanges.
 	for idx := range n.IPAM.IPRanges {
-		for _, exclude := range n.IPAM.IPRanges[idx].OmitRanges {
-			if _, _, err := netutils.ParseCIDRSloppy(exclude); err != nil {
-				if ip := netutils.ParseIPSloppy(exclude); ip == nil {
-					return nil, "", fmt.Errorf("invalid CIDR in exclude list for range %s: %s: %w", n.IPAM.IPRanges[idx].Range, exclude, err)
-				}
-			}
+		if err := validation.ValidateOmitRanges(n.IPAM.IPRanges[idx].OmitRanges, n.IPAM.IPRanges[idx].Range); err != nil {
+			return nil, "", fmt.Errorf("invalid exclude list for range %s: %w", n.IPAM.IPRanges[idx].Range, err)
 		}
 	}
 

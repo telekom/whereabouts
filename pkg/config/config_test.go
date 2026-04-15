@@ -632,7 +632,7 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("192.168.1.0/24"))
 			Expect(err.Error()).To(ContainSubstring("not-a-cidr"))
 		})
@@ -654,7 +654,7 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("192.168.2.0/24"))
 			Expect(err.Error()).To(ContainSubstring("bad-cidr/999"))
 		})
@@ -679,7 +679,7 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("10.0.1.0/24"))
 			Expect(err.Error()).To(ContainSubstring("invalid-cidr"))
 		})

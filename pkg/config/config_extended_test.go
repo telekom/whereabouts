@@ -341,7 +341,7 @@ var _ = Describe("LoadIPAMConfig edge cases", func() {
 		}`)
 		_, _, err := LoadIPAMConfig(data, "")
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude"))
+		Expect(err.Error()).To(ContainSubstring("invalid exclude list"))
 	})
 
 	It("parses range format with dash (start-end/cidr)", func() {

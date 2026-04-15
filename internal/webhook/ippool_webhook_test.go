@@ -9,9 +9,18 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 )
+
+func newWebhookTestScheme() *runtime.Scheme {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(whereaboutsv1alpha1.AddToScheme(scheme))
+	return scheme
+}
 
 var _ = Describe("IPPoolValidator", func() {
 	var (
@@ -169,7 +178,7 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(warnings).To(BeEmpty())
 		})
 
-		It("should warn on a range change but allow it", func() {
+		It("should reject a range change (spec.range is immutable)", func() {
 			oldPool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pool",
@@ -190,10 +199,9 @@ var _ = Describe("IPPoolValidator", func() {
 					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
 				},
 			}
-			warnings, err := validator.ValidateUpdate(ctx, oldPool, newPool)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(warnings).To(HaveLen(1))
-			Expect(warnings[0]).To(ContainSubstring("spec.range changed"))
+			_, err := validator.ValidateUpdate(ctx, oldPool, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("immutable"))
 		})
 
 		It("should reject an update with invalid podRef", func() {
@@ -244,6 +252,162 @@ var _ = Describe("IPPoolValidator", func() {
 			warnings, err := validator.ValidateDelete(ctx, pool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(warnings).To(BeNil())
+		})
+	})
+
+	Context("pool-to-pool overlap detection", func() {
+		var (
+			existingPool *whereaboutsv1alpha1.IPPool
+		)
+
+		BeforeEach(func() {
+			existingPool = &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "existing-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+		})
+
+		It("should block create when new pool CIDR overlaps an existing pool", func() {
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.128/25", // overlaps with 10.0.0.0/24
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("overlaps with existing IPPool"))
+			Expect(err.Error()).To(ContainSubstring("existing-pool"))
+		})
+
+		It("should allow create when new pool CIDR does not overlap any existing pool", func() {
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.1.0/24", // does not overlap with 10.0.0.0/24
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should allow update of the same pool (self-overlap excluded)", func() {
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			// Updating the same pool with the same name/namespace — must not flag itself.
+			updatedPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "existing-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateUpdate(ctx, existingPool, updatedPool)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should block update when spec.range changes (immutability takes precedence over overlap check)", func() {
+			otherPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "other-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "192.168.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool, otherPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			updatedOtherPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "other-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/25",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateUpdate(ctx, otherPool, updatedOtherPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("immutable"))
+		})
+
+		It("should skip overlap check when Reader is nil (graceful degradation)", func() {
+			v := &IPPoolValidator{Reader: nil}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should not flag pools in a different namespace as overlapping", func() {
+			// existingPool is in "default"; new pool is in "kube-system" — list is namespace-scoped.
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "new-pool",
+					Namespace: "kube-system",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.0/24", // same CIDR but different namespace
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

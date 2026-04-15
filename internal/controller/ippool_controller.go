@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"sort"
 	"strings"
 	"time"
 
@@ -56,6 +57,11 @@ type IPPoolReconciler struct {
 	// orphaned. Disable this if your environment uses a CNI that does not
 	// populate the k8s.v1.cni.cncf.io/network-status annotation.
 	verifyNetworkStatus bool
+
+	// serviceCIDRs holds the Kubernetes service CIDR ranges configured via
+	// --service-cidr operator flag. warnOnCIDRCollisions checks each IPPool
+	// range against these CIDRs and emits a Warning event on overlap.
+	serviceCIDRs []string
 }
 
 // computePoolStats populates the IPPool's status with total, used, free IPs,
@@ -138,6 +144,12 @@ const (
 	// cleaned up before an IPPool is deleted.
 	ippoolFinalizer = "whereabouts.cni.cncf.io/ippool-cleanup"
 
+	// cidrCollisionAnnotation tracks the last CIDRCollision event message
+	// emitted for the pool. warnOnCIDRCollisions only emits a new Warning
+	// event when the collision set changes, avoiding a storm of duplicate
+	// events on every reconcile cycle.
+	cidrCollisionAnnotation = "whereabouts.cni.cncf.io/last-cidr-collision"
+
 	// retryRequeueInterval is the interval to retry when transient errors
 	// occur (e.g. overlapping reservation cleanup failure).
 	retryRequeueInterval = 5 * time.Second
@@ -157,6 +169,7 @@ func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, op
 		cleanupTerminating:  opts.CleanupTerminating,
 		cleanupDisrupted:    opts.CleanupDisrupted,
 		verifyNetworkStatus: opts.VerifyNetworkStatus,
+		serviceCIDRs:        opts.ServiceCIDRs,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -177,6 +190,7 @@ func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, op
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=ippools/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=overlappingrangeipreservations,verbs=get;list;watch;delete
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile checks all allocations in the IPPool against live pods and removes
 // orphaned entries.
@@ -238,6 +252,12 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	markReconciling(&pool, "checking allocations for orphaned entries")
+
+	// Check for CIDR collisions with service CIDRs and node PodCIDRs.
+	// Log the error but never block reconciliation.
+	if err := r.warnOnCIDRCollisions(ctx, &pool); err != nil {
+		logger.Error(err, "CIDR collision check failed, skipping")
+	}
 
 	// Report current allocation count.
 	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
@@ -323,11 +343,11 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Remove orphaned allocations (in-memory; PatchHelper persists later).
+	orphanedKeys := make([]string, 0, len(orphanedAllocs))
+	for k := range orphanedAllocs {
+		orphanedKeys = append(orphanedKeys, k)
+	}
 	if len(orphanedAllocs) > 0 {
-		orphanedKeys := make([]string, 0, len(orphanedAllocs))
-		for k := range orphanedAllocs {
-			orphanedKeys = append(orphanedKeys, k)
-		}
 		removeAllocations(&pool, orphanedKeys)
 		ippoolOrphansCleaned.WithLabelValues(pool.Name).Add(float64(len(orphanedAllocs)))
 		logger.Info("cleaned up orphaned allocations",
@@ -384,6 +404,87 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
+}
+
+// warnOnCIDRCollisions emits a Warning event when pool.Spec.Range overlaps
+// with any service CIDR or any Node's PodCIDR. To avoid a storm of duplicate
+// events, the event is only emitted when the collision set changes. The last
+// known collision message is stored in the cidrCollisionAnnotation annotation
+// on the pool object (in-memory only; the caller's PatchHelper persists it).
+func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) error {
+	logger := log.FromContext(ctx)
+	var collisions []string
+
+	for _, svcCIDR := range r.serviceCIDRs {
+		overlap, err := iphelpers.CIDRsOverlap(pool.Spec.Range, svcCIDR)
+		if err != nil {
+			logger.V(1).Info("skipping service CIDR collision check due to parse error", "cidr", svcCIDR, "error", err)
+			continue
+		}
+		if overlap {
+			collisions = append(collisions, fmt.Sprintf("service CIDR %s", svcCIDR))
+		}
+	}
+
+	var nodeList corev1.NodeList
+	if err := r.client.List(ctx, &nodeList); err != nil {
+		return fmt.Errorf("listing nodes for CIDR collision check: %w", err)
+	}
+
+	for i := range nodeList.Items {
+		node := &nodeList.Items[i]
+
+		cidrs := node.Spec.PodCIDRs
+		if len(cidrs) == 0 && node.Spec.PodCIDR != "" {
+			cidrs = []string{node.Spec.PodCIDR}
+		}
+
+		for _, podCIDR := range cidrs {
+			overlap, err := iphelpers.CIDRsOverlap(pool.Spec.Range, podCIDR)
+			if err != nil {
+				logger.V(1).Info("skipping node PodCIDR collision check due to parse error",
+					"node", node.Name, "podCIDR", podCIDR, "error", err)
+				continue
+			}
+			if overlap {
+				collisions = append(collisions, fmt.Sprintf("node %s PodCIDR %s", node.Name, podCIDR))
+			}
+		}
+	}
+
+	// Sort for stable comparison across reconcile cycles.
+	sort.Strings(collisions)
+
+	var msg string
+	if len(collisions) > 0 {
+		msg = fmt.Sprintf("pool range %s overlaps with: %s", pool.Spec.Range, strings.Join(collisions, ", "))
+	}
+
+	// Only emit an event when the collision set changes. Kubernetes' event
+	// deduplication compresses identical messages, but the recorder still
+	// calls through on every reconcile, which can overwhelm etcd. Storing
+	// the last message in an annotation lets us skip the recorder entirely
+	// when nothing changed.
+	lastMsg := pool.Annotations[cidrCollisionAnnotation]
+	if msg == lastMsg {
+		return nil
+	}
+
+	// Persist the new collision state in the annotation (in-memory; the
+	// caller's PatchHelper will persist it alongside the status patch).
+	if pool.Annotations == nil {
+		pool.Annotations = make(map[string]string)
+	}
+	if msg != "" {
+		pool.Annotations[cidrCollisionAnnotation] = msg
+		r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile", "%s", msg)
+	} else {
+		// Collisions cleared — remove the annotation so a future collision
+		// will trigger a fresh event.
+		delete(pool.Annotations, cidrCollisionAnnotation)
+	}
+
+	return nil
 }
 
 // removeAllocations removes the specified allocation keys from the IPPool

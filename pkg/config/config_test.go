@@ -632,7 +632,7 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("192.168.1.0/24"))
 			Expect(err.Error()).To(ContainSubstring("not-a-cidr"))
 		})
@@ -654,7 +654,7 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("192.168.2.0/24"))
 			Expect(err.Error()).To(ContainSubstring("bad-cidr/999"))
 		})
@@ -679,9 +679,34 @@ var _ = Describe("Allocation operations", func() {
 			}`
 			_, _, err := LoadIPAMConfig([]byte(conf), "")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("invalid CIDR in exclude list for range"))
+			Expect(err.Error()).To(ContainSubstring("invalid exclude list for range"))
 			Expect(err.Error()).To(ContainSubstring("10.0.1.0/24"))
 			Expect(err.Error()).To(ContainSubstring("invalid-cidr"))
+		})
+	})
+
+	// ── Security: raw config bytes must not appear in error messages ──────────
+	Context("error message redaction", func() {
+		It("does not include raw config bytes in LoadIPAMConfig JSON parse errors", func() {
+			sensitiveConf := []byte(`{"secret":"hunter2", "ipam": { broken`)
+			_, _, err := LoadIPAMConfig(sensitiveConf, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("LoadIPAMConfig - JSON Parsing Error"))
+			Expect(err.Error()).NotTo(ContainSubstring("hunter2"))
+			Expect(err.Error()).NotTo(ContainSubstring(string(sensitiveConf)))
+		})
+
+		It("does not include raw flat-file bytes in GetFlatIPAM JSON parse errors", func() {
+			sensitiveContent := []byte(`{"secret":"s3cr3t", broken json`)
+			confPath := filepath.Join(tmpDir, "whereabouts.conf")
+			Expect(os.WriteFile(confPath, sensitiveContent, 0600)).To(Succeed())
+
+			ipamConf := &types.IPAMConfig{ConfigurationPath: confPath}
+			_, _, err := GetFlatIPAM(false, ipamConf)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("JSON Parsing Error"))
+			Expect(err.Error()).NotTo(ContainSubstring("s3cr3t"))
+			Expect(err.Error()).NotTo(ContainSubstring(string(sensitiveContent)))
 		})
 	})
 

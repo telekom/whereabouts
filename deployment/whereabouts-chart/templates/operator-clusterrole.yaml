@@ -10,6 +10,10 @@ rules:
 - apiGroups: [whereabouts.cni.cncf.io]
   resources: [ippools]
   verbs: [get, list, watch, update, patch]
+# IPPool status subresource
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [ippools/status]
+  verbs: [get, update, patch]
 # NodeSlicePool CRUD for node-slice management
 - apiGroups: [whereabouts.cni.cncf.io]
   resources: [nodeslicepools]
@@ -22,6 +26,10 @@ rules:
 - apiGroups: [whereabouts.cni.cncf.io]
   resources: [overlappingrangeipreservations]
   verbs: [get, list, watch, delete]
+# OverlappingRangeIPReservation status subresource
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [overlappingrangeipreservations/status]
+  verbs: [get, update, patch]
 # Pods for orphan detection
 - apiGroups: [""]
   resources: [pods]

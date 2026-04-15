@@ -56,7 +56,7 @@ func CIDRsOverlap(a, b string) (bool, error) {
 // CIDROverlapsAny checks whether cidr overlaps with any of the provided others.
 // It returns (overlappingCIDR, true, nil) on the first match, or ("", false, nil)
 // if no overlap is found. An error is returned if any CIDR string is unparseable.
-func CIDROverlapsAny(cidr string, others []string) (string, bool, error) {
+func CIDROverlapsAny(cidr string, others []string) (overlapping string, found bool, err error) {
 	for _, other := range others {
 		overlap, err := CIDRsOverlap(cidr, other)
 		if err != nil {

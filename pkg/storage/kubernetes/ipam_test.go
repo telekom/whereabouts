@@ -514,7 +514,7 @@ func TestCtxCancelPropagatesErrorInRetryLoop(t *testing.T) {
 // TestNormalizeRangeCtxCancelSignal verifies that the ctx.Done() branch in the
 // RETRYLOOP sets err so the caller receives context.Canceled — not a silent
 // nil-error return. It calls the real IPManagementKubernetesUpdate with a
-// pre-cancelled context and asserts the returned error wraps context.Canceled.
+// pre-canceled context and asserts the returned error wraps context.Canceled.
 func TestNormalizeRangeCtxCancelSignal(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

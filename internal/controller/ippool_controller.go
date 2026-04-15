@@ -403,6 +403,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 // any service CIDR or any Node's PodCIDR. It never blocks reconciliation.
 func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) error {
 	logger := log.FromContext(ctx)
+	var collisions []string
 
 	for _, svcCIDR := range r.serviceCIDRs {
 		overlap, err := iphelpers.CIDRsOverlap(pool.Spec.Range, svcCIDR)
@@ -411,8 +412,7 @@ func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *where
 			continue
 		}
 		if overlap {
-			r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
-				"pool range %s overlaps with service CIDR %s", pool.Spec.Range, svcCIDR)
+			collisions = append(collisions, fmt.Sprintf("service CIDR %s", svcCIDR))
 		}
 	}
 
@@ -437,10 +437,14 @@ func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *where
 				continue
 			}
 			if overlap {
-				r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
-					"pool range %s overlaps with node %s PodCIDR %s", pool.Spec.Range, node.Name, podCIDR)
+				collisions = append(collisions, fmt.Sprintf("node %s PodCIDR %s", node.Name, podCIDR))
 			}
 		}
+	}
+
+	if len(collisions) > 0 {
+		r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
+			"pool range %s overlaps with: %s", pool.Spec.Range, strings.Join(collisions, ", "))
 	}
 
 	return nil

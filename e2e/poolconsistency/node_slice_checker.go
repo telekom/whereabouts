@@ -27,6 +27,9 @@ func (pc *NodeSliceChecker) MissingIPs() []string {
 		if err != nil {
 			return []string{}
 		}
+		if len(podIPs) == 0 {
+			continue
+		}
 		podIP := podIPs[len(podIPs)-1]
 
 		var found bool

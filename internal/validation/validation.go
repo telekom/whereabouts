@@ -26,7 +26,7 @@ func ValidateCIDR(cidr string) error {
 }
 
 // ValidateOmitRanges validates omitRanges entries as CIDRs or IP ranges.
-func ValidateOmitRanges(omitRanges []string, poolCIDR string) error {
+func ValidateOmitRanges(omitRanges []string, _ string) error {
 	for i, omitRange := range omitRanges {
 		if err := validateOmitRange(omitRange); err != nil {
 			return fmt.Errorf("omitRanges[%d] %q is not a valid CIDR or IP range: %w", i, omitRange, err)

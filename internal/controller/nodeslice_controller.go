@@ -12,7 +12,7 @@ import (
 	"github.com/fluxcd/pkg/runtime/conditions"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -71,7 +71,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the NAD.
 	var nad nadv1.NetworkAttachmentDefinition
 	if err := r.client.Get(ctx, req.NamespacedName, &nad); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// NAD deleted — NodeSlicePool will be garbage collected via OwnerReference.
 			return ctrl.Result{}, nil
 		}
@@ -122,7 +122,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	var pool whereaboutsv1alpha1.NodeSlicePool
 	exists := true
 	if err := r.client.Get(ctx, poolKey, &pool); err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return ctrl.Result{}, fmt.Errorf("getting NodeSlicePool: %w", err)
 		}
 		exists = false

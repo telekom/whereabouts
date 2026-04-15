@@ -14,7 +14,7 @@ import (
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -186,7 +186,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	var pool whereaboutsv1alpha1.IPPool
 	if err := r.client.Get(ctx, req.NamespacedName, &pool); err != nil {
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			ippoolAllocationsGauge.DeleteLabelValues(req.Name)
 			return ctrl.Result{}, nil
 		}
@@ -271,7 +271,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		var pod corev1.Pod
 		err := r.client.Get(ctx, types.NamespacedName{Namespace: podNS, Name: podName}, &pod)
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			logger.V(1).Info("pod not found, marking allocation orphaned",
 				"key", key, "podRef", alloc.PodRef)
 			orphanedAllocs[key] = alloc
@@ -455,7 +455,7 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 			// our List() call above and this point.
 			var fresh whereaboutsv1alpha1.OverlappingRangeIPReservation
 			if err := r.client.Get(ctx, types.NamespacedName{Namespace: pool.Namespace, Name: res.Name}, &fresh); err != nil {
-				if errors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					// Already deleted by another actor — nothing to do.
 					logger.V(1).Info("overlapping reservation already gone, skipping",
 						"name", res.Name)
@@ -482,7 +482,7 @@ func (r *IPPoolReconciler) cleanupOverlappingReservations(ctx context.Context, p
 			// the object was replaced between our Get() and Delete().
 			uid := fresh.UID
 			if err := r.client.Delete(ctx, &fresh, client.Preconditions{UID: &uid}); err != nil {
-				if errors.IsNotFound(err) {
+				if apierrors.IsNotFound(err) {
 					// Deleted between re-fetch and delete call — treat as success.
 					overlappingReservationsCleaned.Inc()
 					logger.V(1).Info("overlapping reservation deleted concurrently, treating as success",

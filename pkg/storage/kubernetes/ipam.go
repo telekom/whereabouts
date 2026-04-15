@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"os"
@@ -457,25 +458,21 @@ func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	nodeNamePath := fmt.Sprintf("%s/%s", ipam.Config.ConfigurationPath, "nodename")
 	file, err := os.Open(nodeNamePath)
 	if err != nil {
-		file, err = os.Open("/etc/hostname")
-		if err != nil {
-			logging.Errorf("Could not determine nodename and could not open /etc/hostname: %w", err)
-			return "", err
-		}
+		logging.Errorf("Could not open nodename file %s: %w", nodeNamePath, err)
+		return "", err
 	}
 	defer file.Close()
 
-	// Read the contents of the file
-	data := make([]byte, 1024) // Adjust the buffer size as needed
-	n, err := file.Read(data)
+	data, err := io.ReadAll(file)
 	if err != nil {
-		logging.Errorf("Error reading file: %w", err)
+		logging.Errorf("Error reading nodename file %s: %w", nodeNamePath, err)
 		return "", err
 	}
 
-	// Convert bytes to string
-	hostname := string(data[:n])
-	hostname = strings.TrimSpace(hostname)
+	hostname := strings.TrimSpace(string(data))
+	if hostname == "" {
+		return "", fmt.Errorf("nodename file %s is empty", nodeNamePath)
+	}
 	logging.Debugf("discovered current hostname as: %s", hostname)
 	return hostname, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"testing"
@@ -263,42 +262,6 @@ func TestIPPoolName(t *testing.T) {
 			}
 		})
 	}
-}
-
-func buildNodeSliceRangeConfiguration(_ string, nodeSlice string, omitRanges []string, start, end net.IP) types.RangeConfiguration {
-	return types.RangeConfiguration{
-		OmitRanges: omitRanges,
-		Range:      nodeSlice,
-		RangeStart: start,
-		RangeEnd:   end,
-	}
-}
-
-func TestNodeSliceRangeUsed(t *testing.T) {
-	t.Run("uses node slice range in constructed range configuration", func(t *testing.T) {
-		originalRange := "10.0.0.0/24"
-		nodeSliceRange := "10.0.0.0/25"
-		start := net.ParseIP("10.0.0.1")
-		end := net.ParseIP("10.0.0.126")
-
-		constructed := buildNodeSliceRangeConfiguration(
-			originalRange,
-			nodeSliceRange,
-			[]string{"10.0.0.10/32"},
-			start,
-			end,
-		)
-
-		if constructed.Range != nodeSliceRange {
-			t.Fatalf("expected node slice range %q, got %q", nodeSliceRange, constructed.Range)
-		}
-		if constructed.Range == originalRange {
-			t.Fatalf("expected constructed range to differ from original full range %q", originalRange)
-		}
-		if !constructed.RangeStart.Equal(start) || !constructed.RangeEnd.Equal(end) {
-			t.Fatalf("unexpected range bounds: got %s-%s", constructed.RangeStart, constructed.RangeEnd)
-		}
-	})
 }
 
 func TestToIPReservationList(t *testing.T) {
@@ -743,12 +706,10 @@ func TestGetNodeNameReturnsErrorOnReadFailure(t *testing.T) {
 
 	dir := t.TempDir()
 
-	f, err := os.CreateTemp(dir, "nodename")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
+	path := dir + "/nodename"
+	if err := os.WriteFile(path, []byte{}, 0o600); err != nil {
+		t.Fatalf("failed to create empty nodename file: %v", err)
 	}
-	nodename := f.Name()
-	f.Close()
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
@@ -758,23 +719,12 @@ func TestGetNodeNameReturnsErrorOnReadFailure(t *testing.T) {
 		},
 	}
 
-	configNodename := dir + "/nodename"
-	if nodename != configNodename {
-		if err := os.Rename(nodename, configNodename); err != nil {
-			t.Fatalf("rename: %v", err)
-		}
-	}
-
 	hostname, err := getNodeName(ipam)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return
-		}
-		t.Logf("getNodeName returned error for empty nodename file: %v (acceptable)", err)
-		return
+	if err == nil {
+		t.Fatalf("expected getNodeName to return an error for empty nodename file, got hostname %q", hostname)
 	}
 	if hostname != "" {
-		t.Logf("empty nodename file returned hostname %q (trimmed from empty read)", hostname)
+		t.Fatalf("expected empty hostname on read error, got %q", hostname)
 	}
 }
 
@@ -828,31 +778,5 @@ func TestPoolUpdateConflictIsRetried(t *testing.T) {
 	}
 	if got := newips[0].String(); got != "10.0.0.1/24" {
 		t.Fatalf("expected allocated IP 10.0.0.1/24, got %s", got)
-	}
-}
-
-func TestGetNodeNameFileReadError(t *testing.T) {
-	t.Setenv("NODENAME", "")
-
-	dir := t.TempDir()
-	path := dir + "/nodename"
-	if err := os.WriteFile(path, []byte{}, 0o600); err != nil {
-		t.Fatalf("failed to create empty nodename file: %v", err)
-	}
-
-	ipam := &KubernetesIPAM{
-		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
-		Namespace: "default",
-		Config: types.IPAMConfig{
-			ConfigurationPath: dir,
-		},
-	}
-
-	hostname, err := getNodeName(ipam)
-	if err == nil {
-		t.Fatal("expected getNodeName to return an error for empty nodename file, got nil")
-	}
-	if hostname != "" {
-		t.Fatalf("expected empty hostname on read error, got %q", hostname)
 	}
 }

@@ -761,6 +761,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					return newips, err
 				}
+				// BEHAVIORAL NOTE: When NodeSliceSize is configured, allocation
+				// operates on nodeSliceRange (the per-node slice, e.g. 10.0.1.0/24)
+				// rather than the originally configured pool range (e.g. 10.0.0.0/16).
+				// This ensures each node allocates only within its assigned slice,
+				// preventing address collisions between nodes. OmitRanges from the
+				// original configuration are preserved so excluded subnets remain excluded.
 				ipRange = whereaboutstypes.RangeConfiguration{
 					OmitRanges: ipRange.OmitRanges,
 					Range:      nodeSliceRange,

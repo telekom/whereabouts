@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -50,6 +51,14 @@ func newControllerCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			setupLogger(cmd)
 			log := ctrl.Log.WithName("controller")
+
+			// Validate --service-cidr entries at startup so misconfiguration is
+			// caught early with a clear error rather than silently ignored.
+			for _, cidr := range serviceCIDRs {
+				if _, _, err := net.ParseCIDR(cidr); err != nil {
+					return fmt.Errorf("invalid --service-cidr %q: %w", cidr, err)
+				}
+			}
 
 			cfg, err := ctrl.GetConfig()
 			if err != nil {

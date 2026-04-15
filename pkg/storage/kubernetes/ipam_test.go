@@ -793,7 +793,7 @@ func TestPoolUpdateConflictIsRetried(t *testing.T) {
 
 	wbClient := wbfake.NewClientset(pool)
 	patchCalls := 0
-	wbClient.Fake.PrependReactor("patch", "ippools", func(action k8stesting.Action) (bool, runtime.Object, error) {
+	wbClient.PrependReactor("patch", "ippools", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		patchCalls++
 		if patchCalls == 1 {
 			return true, nil, apierrors.NewConflict(schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"}, "10.0.0.0-24", fmt.Errorf("stale resource"))

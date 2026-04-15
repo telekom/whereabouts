@@ -869,31 +869,37 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				requestCancel()
 				break RETRYLOOP
 			}
+			// Update the clusterwide overlapping range reservation inside the retry
+			// loop so that a transient ORIP conflict (AlreadyExists) causes a retry
+			// rather than a hard failure.
+			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
+				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
+					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName)
+				overlappingCancel()
+				if err != nil {
+					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)
+					// Roll back the pool update so the IP is not reserved without
+					// overlap protection, then decide whether to retry.
+					if mode == whereaboutstypes.Allocate && pool != nil {
+						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam}})
+					}
+					if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+						requestCancel()
+						retryBackoff(ctx, backoff)
+						backoff = min(backoff*2, retryMaxBackoff)
+						continue
+					}
+					requestCancel()
+					break RETRYLOOP
+				}
+			}
 			requestCancel()
 			break RETRYLOOP
 		}
 
 		if err != nil {
 			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %w", configuredRange, attempts, err)
-		}
-
-		if ipamConf.OverlappingRanges {
-			if !skipOverlappingRangeUpdate {
-				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
-					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName)
-				overlappingCancel()
-				if err != nil {
-					logging.Errorf("Error performing UpdateOverlappingRangeAllocation: %w", err)
-					// Best-effort rollback: if we just allocated an IP in the pool
-					// but failed to create the ORIP, attempt to remove the allocation
-					// so the IP isn't reserved without overlap protection.
-					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam}})
-					}
-					return newips, err
-				}
-			}
 		}
 
 		// Track this allocation so we can roll it back if a later range fails.

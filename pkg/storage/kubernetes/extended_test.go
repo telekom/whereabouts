@@ -15,6 +15,10 @@ import (
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
 	"github.com/telekom/whereabouts/pkg/types"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 // TestNormalizeIP tests the NormalizeIP function.
@@ -863,5 +867,95 @@ func TestORIPCreateAlreadyExistsIsTransient(t *testing.T) {
 	}
 	if !te.Temporary() {
 		t.Errorf("expected Temporary() == true, got false")
+	}
+}
+
+// TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict verifies the
+// end-to-end retry behavior when UpdateOverlappingRangeAllocation returns a
+// transient error (ORIP AlreadyExists) during IPManagementKubernetesUpdate.
+//
+// Scenario: the first attempt to create the OverlappingRangeIPReservation
+// races with another allocator and receives AlreadyExists. The call site must
+// recognise the temporaryError, roll back the pool update, and re-enter the
+// RETRYLOOP. On the subsequent attempt the ORIP creation succeeds and the
+// overall allocation completes without error.
+func TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict(t *testing.T) {
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool)
+	k8sClient := fake.NewClientset()
+
+	// Count how many times Create is called for OverlappingRangeIPReservations.
+	var createCalls int
+	wbClient.Fake.PrependReactor("create", "overlappingrangeipreservations",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			createCalls++
+			if createCalls == 1 {
+				// Simulate a concurrent AlreadyExists on the first attempt.
+				return true, nil, apierrors.NewAlreadyExists(
+					schema.GroupResource{
+						Group:    "whereabouts.cni.cncf.io",
+						Resource: "overlappingrangeipreservations",
+					},
+					"10.0.0.1",
+				)
+			}
+			// Let subsequent calls fall through to the real fake.
+			return false, nil, nil
+		},
+	)
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("expected allocation to succeed after retry, got error: %v", err)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 allocated IP, got %d", len(newips))
+	}
+
+	// The reactor must have been invoked at least twice: once for the
+	// simulated AlreadyExists failure and once for the successful retry.
+	if createCalls < 2 {
+		t.Errorf("expected at least 2 Create calls (1 transient failure + 1 success), got %d", createCalls)
+	}
+
+	// Verify the OverlappingRangeIPReservation was ultimately created.
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+	res, err := store.GetOverlappingRangeIPReservation(context.Background(), newips[0].IP, "default/pod1", "")
+	if err != nil {
+		t.Fatalf("GetOverlappingRangeIPReservation error: %v", err)
+	}
+	if res == nil {
+		t.Error("expected OverlappingRangeIPReservation to exist after successful retry")
 	}
 }

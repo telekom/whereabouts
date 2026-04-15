@@ -73,9 +73,11 @@ jobs:
           # Create sync branch from main
           git checkout -b "$SYNC_BRANCH" origin/main
 
-          # Merge upstream (allow conflicts — they'll be flagged in the PR)
+          # Merge upstream (allow conflicts — they'll be flagged in the PR).
+          # --no-ff ensures a merge commit is always created even for fast-forwards,
+          # so that --amend later rewrites the merge commit (not an upstream commit).
           MERGE_CLEAN=true
-          git merge upstream/master --no-edit || MERGE_CLEAN=false
+          git merge upstream/master --no-ff --no-edit || MERGE_CLEAN=false
 
           # GITHUB_TOKEN cannot push .github/workflows/ changes — GitHub enforces
           # this regardless of declared permissions because the token is a GitHub App
@@ -111,7 +113,13 @@ jobs:
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
             fi
             git commit --no-edit
-            BODY=$(printf '⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR has **merge conflicts** that need manual resolution.\n\n**${{ steps.check.outputs.behind }}** new upstream commit(s) detected.\n\n**Conflicting files:** `%s`\n\nTo resolve locally:\n```bash\ngit fetch upstream\ngit merge upstream/master\n# Resolve conflicts, then:\ngit add . && git commit\n```%s' "$CONFLICTS" "$WORKFLOW_NOTE")
+            # After stripping workflow files, check whether any real conflicts remain.
+            REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')
+            if [ -z "$REMAINING_CONFLICTS" ] && [ -z "$(echo "$CONFLICTS" | tr -d ' '| grep -v '^\.github/workflows/')" ]; then
+              BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
+            else
+              BODY=$(printf '⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR has **merge conflicts** that need manual resolution.\n\n**${{ steps.check.outputs.behind }}** new upstream commit(s) detected.\n\n**Conflicting files:** `%s`\n\nTo resolve locally:\n```bash\ngit fetch upstream\ngit merge upstream/master\n# Resolve conflicts, then:\ngit add . && git commit\n```%s' "$CONFLICTS" "$WORKFLOW_NOTE")
+            fi
           fi
 
           git push origin "$SYNC_BRANCH" --force

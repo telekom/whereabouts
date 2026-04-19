@@ -12,10 +12,10 @@ require (
 	github.com/onsi/gomega v1.39.1
 	github.com/pkg/errors v0.9.1
 	gomodules.xyz/jsonpatch/v2 v2.5.0
-	k8s.io/api v0.35.3
-	k8s.io/apimachinery v0.35.3
-	k8s.io/client-go v0.35.3
-	k8s.io/code-generator v0.35.3
+	k8s.io/api v0.35.4
+	k8s.io/apimachinery v0.35.4
+	k8s.io/client-go v0.35.4
+	k8s.io/code-generator v0.35.4
 	k8s.io/kube-openapi v0.0.0-20260304202019-5b3e3fdb0acf
 )
 
@@ -25,7 +25,7 @@ require (
 	github.com/open-policy-agent/cert-controller v0.16.0
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/controller-runtime v0.23.3
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0
 )
 
 require (

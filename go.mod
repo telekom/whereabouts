@@ -30,7 +30,7 @@ require (
 
 require (
 	github.com/fluxcd/pkg/apis/meta v1.26.0
-	github.com/fluxcd/pkg/runtime v0.103.0
+	github.com/fluxcd/pkg/runtime v0.105.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	go.uber.org/zap v1.27.1

@@ -718,6 +718,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			select {
 			case <-ctx.Done():
 				requestCancel()
+				err = fmt.Errorf("IPAM context canceled before attempt %d: %w", j+1, ctx.Err())
 				break RETRYLOOP
 			default:
 				// retry the IPAM loop if the context has not been canceled

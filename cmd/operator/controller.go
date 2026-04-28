@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -41,6 +42,7 @@ func newControllerCommand() *cobra.Command {
 		cleanupTerminating   bool
 		cleanupDisrupted     bool
 		verifyNetworkStatus  bool
+		serviceCIDRs         []string
 	)
 
 	cmd := &cobra.Command{
@@ -49,6 +51,14 @@ func newControllerCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			setupLogger(cmd)
 			log := ctrl.Log.WithName("controller")
+
+			// Validate --service-cidr entries at startup so misconfiguration is
+			// caught early with a clear error rather than silently ignored.
+			for _, cidr := range serviceCIDRs {
+				if _, _, err := net.ParseCIDR(cidr); err != nil {
+					return fmt.Errorf("invalid --service-cidr %q: %w", cidr, err)
+				}
+			}
 
 			cfg, err := ctrl.GetConfig()
 			if err != nil {
@@ -80,6 +90,7 @@ func newControllerCommand() *cobra.Command {
 				CleanupTerminating:  cleanupTerminating,
 				CleanupDisrupted:    cleanupDisrupted,
 				VerifyNetworkStatus: verifyNetworkStatus,
+				ServiceCIDRs:        serviceCIDRs,
 			}); err != nil {
 				return err
 			}
@@ -132,6 +143,7 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&cleanupTerminating, "cleanup-terminating-pods", false, "Treat terminating pods (DeletionTimestamp set) as orphaned and release their IPs immediately")
 	cmd.Flags().BoolVar(&cleanupDisrupted, "cleanup-disrupted-pods", true, "Treat pods with DisruptionTarget condition (taint-manager eviction) as orphaned")
 	cmd.Flags().BoolVar(&verifyNetworkStatus, "verify-network-status", true, "Verify allocated IPs against Multus network-status annotation on pods")
+	cmd.Flags().StringArrayVar(&serviceCIDRs, "service-cidr", nil, "Kubernetes service CIDR range for collision detection (e.g. 10.96.0.0/12); may be repeated")
 
 	return cmd
 }

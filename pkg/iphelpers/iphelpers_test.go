@@ -1002,6 +1002,61 @@ func TestDivideRangeBySizeIPv6Large(t *testing.T) {
 	}
 }
 
+var _ = Describe("CIDRsOverlap", func() {
+	It("detects overlapping IPv4 CIDRs", func() {
+		overlap, err := CIDRsOverlap("10.0.0.0/24", "10.0.0.128/25")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeTrue())
+	})
+	It("detects non-overlapping IPv4 CIDRs", func() {
+		overlap, err := CIDRsOverlap("10.0.0.0/24", "10.0.1.0/24")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeFalse())
+	})
+	It("detects identical CIDRs as overlapping", func() {
+		overlap, err := CIDRsOverlap("192.168.1.0/24", "192.168.1.0/24")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeTrue())
+	})
+	It("detects overlapping IPv6 CIDRs", func() {
+		overlap, err := CIDRsOverlap("fd00::/48", "fd00::/64")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeTrue())
+	})
+	It("detects non-overlapping IPv6 CIDRs", func() {
+		overlap, err := CIDRsOverlap("fd00::/64", "fd01::/64")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(overlap).To(BeFalse())
+	})
+	It("returns error on invalid CIDR", func() {
+		_, err := CIDRsOverlap("not-a-cidr", "10.0.0.0/24")
+		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("CIDROverlapsAny", func() {
+	It("returns the matching CIDR when overlap found", func() {
+		matched, found, err := CIDROverlapsAny("10.0.0.0/24", []string{"192.168.0.0/24", "10.0.0.0/16"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(matched).To(Equal("10.0.0.0/16"))
+	})
+	It("returns false when no overlap", func() {
+		_, found, err := CIDROverlapsAny("172.16.0.0/24", []string{"10.0.0.0/8", "192.168.0.0/16"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeFalse())
+	})
+	It("returns false for empty others slice", func() {
+		_, found, err := CIDROverlapsAny("10.0.0.0/24", nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeFalse())
+	})
+	It("returns error on invalid cidr in others", func() {
+		_, _, err := CIDROverlapsAny("10.0.0.0/24", []string{"not-valid"})
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 var _ = Describe("CountUsableIPs", func() {
 	It("counts usable IPs in a /24 IPv4 range", func() {
 		count, err := CountUsableIPs("10.0.0.0/24")

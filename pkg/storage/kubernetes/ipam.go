@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"os"
@@ -251,7 +252,7 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	for _, o := range patch {
 		// safeguard add ops -- "add" will update existing paths, this "test" ensures the path is empty
 		if o.Operation == "add" {
-			var m map[string]interface{}
+			var m map[string]any
 			ops = append(ops, jsonpatch.Operation{Operation: "test", Path: o.Path, Value: m})
 		}
 	}
@@ -265,7 +266,9 @@ func (p *KubernetesIPPool) Update(ctx context.Context, reservations []whereabout
 	_, err = p.client.WhereaboutsV1alpha1().IPPools(orig.GetNamespace()).Patch(ctx, orig.GetName(), types.JSONPatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		if apierrors.IsInvalid(err) {
-			// expect "invalid" errors if any of the jsonpatch "test" Operations fail
+			return &temporaryError{err}
+		}
+		if apierrors.IsConflict(err) {
 			return &temporaryError{err}
 		}
 		return err
@@ -445,7 +448,9 @@ func LegacyNormalizeIP(ip net.IP, networkName string) string {
 	return raw
 }
 
-// getNodeName prefers an OS env var of NODENAME, or, uses a file named ./nodename in the whereabouts configuration path.
+// getNodeName prefers an OS env var of NODENAME, then a file named
+// ./nodename in the whereabouts configuration path, and finally falls
+// back to /etc/hostname (the system hostname).
 func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	envName := os.Getenv("NODENAME")
 	if envName != "" {
@@ -455,24 +460,26 @@ func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	nodeNamePath := fmt.Sprintf("%s/%s", ipam.Config.ConfigurationPath, "nodename")
 	file, err := os.Open(nodeNamePath)
 	if err != nil {
+		// Fall back to /etc/hostname which contains the node name in
+		// standard Kubernetes deployments (including KIND).
 		file, err = os.Open("/etc/hostname")
 		if err != nil {
-			logging.Errorf("Could not determine nodename and could not open /etc/hostname: %w", err)
+			logging.Errorf("Could not determine nodename: %s not found and /etc/hostname unreadable: %w", nodeNamePath, err)
 			return "", err
 		}
 	}
 	defer file.Close()
 
-	// Read the contents of the file
-	data := make([]byte, 1024) // Adjust the buffer size as needed
-	n, err := file.Read(data)
+	data, err := io.ReadAll(file)
 	if err != nil {
-		logging.Errorf("Error reading file /etc/hostname: %w", err)
+		logging.Errorf("Error reading nodename: %w", err)
+		return "", err
 	}
 
-	// Convert bytes to string
-	hostname := string(data[:n])
-	hostname = strings.TrimSpace(hostname)
+	hostname := strings.TrimSpace(string(data))
+	if hostname == "" {
+		return "", fmt.Errorf("nodename file is empty (tried %s and /etc/hostname)", nodeNamePath)
+	}
 	logging.Debugf("discovered current hostname as: %s", hostname)
 	return hostname, nil
 }
@@ -761,9 +768,15 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					return newips, err
 				}
+				// BEHAVIORAL NOTE: When NodeSliceSize is configured, allocation
+				// operates on nodeSliceRange (the per-node slice, e.g. 10.0.1.0/24)
+				// rather than the originally configured pool range (e.g. 10.0.0.0/16).
+				// This ensures each node allocates only within its assigned slice,
+				// preventing address collisions between nodes. OmitRanges from the
+				// original configuration are preserved so excluded subnets remain excluded.
 				ipRange = whereaboutstypes.RangeConfiguration{
 					OmitRanges: ipRange.OmitRanges,
-					Range:      ipRange.Range,
+					Range:      nodeSliceRange,
 					RangeStart: rangeStart,
 					RangeEnd:   rangeEnd,
 				}

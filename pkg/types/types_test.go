@@ -137,6 +137,27 @@ var _ = Describe("IPAMConfig", func() {
 			Expect(err).To(Succeed())
 			Expect(cfg.OverlappingRanges).To(BeTrue()) // default
 		})
+
+		It("parses service_cidrs field", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24","service_cidrs":["10.96.0.0/12"]}`
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
+			Expect(cfg.ServiceCIDRs).To(ConsistOf("10.96.0.0/12"))
+		})
+
+		It("parses multiple service_cidrs values", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24","service_cidrs":["10.96.0.0/12","10.100.0.0/16"]}`
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
+			Expect(cfg.ServiceCIDRs).To(ConsistOf("10.96.0.0/12", "10.100.0.0/16"))
+		})
+
+		It("leaves ServiceCIDRs nil when service_cidrs is absent (omitempty)", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24"}`
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
+			Expect(cfg.ServiceCIDRs).To(BeNil())
+		})
 	})
 
 	Describe("GetPodRef", func() {

@@ -668,36 +668,54 @@ func TestTemporaryErrorWrapsConflict(t *testing.T) {
 	}
 }
 
-func TestGetNodeNameReturnsErrorOnUnreadableFile(t *testing.T) {
+func TestGetNodeNameReadsFromConfigPath(t *testing.T) {
 	t.Setenv("NODENAME", "")
 
 	dir := t.TempDir()
-
-	unreadable, err := os.CreateTemp(dir, "nodename-*")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
+	if err := os.WriteFile(dir+"/nodename", []byte("my-node\n"), 0o644); err != nil {
+		t.Fatalf("failed to write nodename file: %v", err)
 	}
-	name := unreadable.Name()
-	unreadable.Close()
-	if err := os.Remove(name); err != nil {
-		t.Fatalf("failed to remove temp file: %v", err)
-	}
-	if err := os.Mkdir(name, 0o755); err != nil {
-		t.Fatalf("failed to create directory at nodename path: %v", err)
-	}
-	nodenamePath := name
 
 	ipam := &KubernetesIPAM{
 		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
 		Namespace: "default",
 		Config: types.IPAMConfig{
-			ConfigurationPath: nodenamePath,
+			ConfigurationPath: dir,
 		},
 	}
 
-	_, gotErr := getNodeName(ipam)
-	if gotErr == nil {
-		t.Fatal("expected getNodeName to return an error when nodename path is a directory, got nil")
+	hostname, err := getNodeName(ipam)
+	if err != nil {
+		t.Fatalf("expected getNodeName to succeed, got error: %v", err)
+	}
+	if hostname != "my-node" {
+		t.Fatalf("expected hostname %q, got %q", "my-node", hostname)
+	}
+}
+
+func TestGetNodeNameFallsBackToEtcHostname(t *testing.T) {
+	t.Setenv("NODENAME", "")
+
+	ipam := &KubernetesIPAM{
+		Client:    *NewKubernetesClient(wbfake.NewClientset(), fake.NewClientset()),
+		Namespace: "default",
+		Config: types.IPAMConfig{
+			ConfigurationPath: t.TempDir(),
+		},
+	}
+
+	hostname, err := getNodeName(ipam)
+	if _, statErr := os.Stat("/etc/hostname"); statErr == nil {
+		if err != nil {
+			t.Fatalf("expected getNodeName to fall back to /etc/hostname, got error: %v", err)
+		}
+		if hostname == "" {
+			t.Fatal("expected non-empty hostname from /etc/hostname fallback")
+		}
+	} else {
+		if err == nil {
+			t.Fatal("expected getNodeName to return an error when no hostname source is available")
+		}
 	}
 }
 

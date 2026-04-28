@@ -448,7 +448,9 @@ func LegacyNormalizeIP(ip net.IP, networkName string) string {
 	return raw
 }
 
-// getNodeName prefers an OS env var of NODENAME, or, uses a file named ./nodename in the whereabouts configuration path.
+// getNodeName prefers an OS env var of NODENAME, then a file named
+// ./nodename in the whereabouts configuration path, and finally falls
+// back to /etc/hostname (the system hostname).
 func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	envName := os.Getenv("NODENAME")
 	if envName != "" {
@@ -458,20 +460,25 @@ func getNodeName(ipam *KubernetesIPAM) (string, error) {
 	nodeNamePath := fmt.Sprintf("%s/%s", ipam.Config.ConfigurationPath, "nodename")
 	file, err := os.Open(nodeNamePath)
 	if err != nil {
-		logging.Errorf("Could not open nodename file %s: %w", nodeNamePath, err)
-		return "", err
+		// Fall back to /etc/hostname which contains the node name in
+		// standard Kubernetes deployments (including KIND).
+		file, err = os.Open("/etc/hostname")
+		if err != nil {
+			logging.Errorf("Could not determine nodename: %s not found and /etc/hostname unreadable: %w", nodeNamePath, err)
+			return "", err
+		}
 	}
 	defer file.Close()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		logging.Errorf("Error reading nodename file %s: %w", nodeNamePath, err)
+		logging.Errorf("Error reading nodename: %w", err)
 		return "", err
 	}
 
 	hostname := strings.TrimSpace(string(data))
 	if hostname == "" {
-		return "", fmt.Errorf("nodename file %s is empty", nodeNamePath)
+		return "", fmt.Errorf("nodename file is empty (tried %s and /etc/hostname)", nodeNamePath)
 	}
 	logging.Debugf("discovered current hostname as: %s", hostname)
 	return hostname, nil

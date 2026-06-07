@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -773,7 +774,7 @@ func TestGetNodeNameReturnsErrorOnUnreadableFile(t *testing.T) {
 	// Create a directory at <ConfigurationPath>/nodename so that os.Open on it returns an error.
 	// getNodeName builds the path as ConfigurationPath + "/nodename", so we set ConfigurationPath
 	// to dir and place the directory at dir/nodename.
-	nodenamePath := dir + "/nodename"
+	nodenamePath := filepath.Join(dir, "nodename")
 	if err := os.Mkdir(nodenamePath, 0o755); err != nil {
 		t.Fatalf("failed to create directory at nodename path: %v", err)
 	}

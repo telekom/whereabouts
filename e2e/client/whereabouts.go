@@ -200,17 +200,27 @@ func (c *ClientInfo) DeleteStatefulSet(namespace string, serviceName string, lab
 }
 
 func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, deltaInstance int) error {
-	statefulSet, err := c.Client.AppsV1().StatefulSets(namespace).Get(context.TODO(), statefulSetName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	newReplicas := *statefulSet.Spec.Replicas + int32(deltaInstance)
-	statefulSet.Spec.Replicas = &newReplicas
+	ctx := context.Background()
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		statefulSet, err := c.Client.AppsV1().StatefulSets(namespace).Get(ctx, statefulSetName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		newReplicas := *statefulSet.Spec.Replicas + int32(deltaInstance)
+		statefulSet.Spec.Replicas = &newReplicas
 
-	if _, err := c.Client.AppsV1().StatefulSets(namespace).Update(context.TODO(), statefulSet, metav1.UpdateOptions{}); err != nil {
-		return err
+		_, err = c.Client.AppsV1().StatefulSets(namespace).Update(ctx, statefulSet, metav1.UpdateOptions{})
+		if err == nil {
+			return nil
+		}
+		if !errors.IsConflict(err) {
+			return err
+		}
+		lastErr = err
+		time.Sleep(200 * time.Millisecond)
 	}
-	return nil
+	return lastErr
 }
 
 func deleteRightNowAndBlockUntilAssociatedPodsAreGone() metav1.DeleteOptions {

@@ -853,7 +853,7 @@ func TestORIPCreateAlreadyExistsIsTransient(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/newpod", "eth0", "")
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/newpod", "eth0", "", "")
 	if err == nil {
 		t.Fatal("expected error when ORIP already exists")
 	}

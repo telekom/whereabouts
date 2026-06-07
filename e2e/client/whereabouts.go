@@ -202,7 +202,7 @@ func (c *ClientInfo) DeleteStatefulSet(namespace string, serviceName string, lab
 func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, deltaInstance int) error {
 	ctx := context.Background()
 	var lastErr error
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		statefulSet, err := c.Client.AppsV1().StatefulSets(namespace).Get(ctx, statefulSetName, metav1.GetOptions{})
 		if err != nil {
 			return err

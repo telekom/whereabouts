@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -38,26 +39,29 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 	w, err := validateIPPool(pool)
 	if err != nil {
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
+		recordValidation("ippool", "create", err)
+		return w, err
 	}
-	recordValidation("ippool", "create", err)
-	return w, err
+	recordValidation("ippool", "create", nil)
+	return w, nil
 }
 
 // ValidateUpdate validates an IPPool on update.
 func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	var warnings admission.Warnings
-	// Warn (but allow) range changes to support expansion/resizing.
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
-		warnings = append(warnings, fmt.Sprintf(
-			"spec.range changed from %q to %q - existing allocations outside the new range will be orphaned",
-			oldPool.Spec.Range, pool.Spec.Range))
+		err := field.Forbidden(field.NewPath("spec", "range"), "IPPool spec.range is immutable")
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("ippool", "update", err)
+		return nil, err
 	}
 	w, err := validateIPPool(pool)
 	if err != nil {
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("ippool", "update", err)
+		return w, err
 	}
-	recordValidation("ippool", "update", err)
-	return append(warnings, w...), err
+	recordValidation("ippool", "update", nil)
+	return w, nil
 }
 
 // ValidateDelete is a no-op — deletes are always allowed.

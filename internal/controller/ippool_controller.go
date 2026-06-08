@@ -56,6 +56,11 @@ type IPPoolReconciler struct {
 	// orphaned. Disable this if your environment uses a CNI that does not
 	// populate the k8s.v1.cni.cncf.io/network-status annotation.
 	verifyNetworkStatus bool
+
+	// serviceCIDRs holds the Kubernetes service CIDR ranges configured via
+	// --service-cidr operator flag. warnOnCIDRCollisions checks each IPPool
+	// range against these CIDRs and emits a Warning event on overlap.
+	serviceCIDRs []string
 }
 
 // computePoolStats populates the IPPool's status with total, used, free IPs,
@@ -157,6 +162,7 @@ func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, op
 		cleanupTerminating:  opts.CleanupTerminating,
 		cleanupDisrupted:    opts.CleanupDisrupted,
 		verifyNetworkStatus: opts.VerifyNetworkStatus,
+		serviceCIDRs:        opts.ServiceCIDRs,
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -177,6 +183,7 @@ func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, op
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=ippools/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=overlappingrangeipreservations,verbs=get;list;watch;delete
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 // Reconcile checks all allocations in the IPPool against live pods and removes
 // orphaned entries.
@@ -238,6 +245,12 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	markReconciling(&pool, "checking allocations for orphaned entries")
+
+	// Check for CIDR collisions with service CIDRs and node PodCIDRs.
+	// Log the error but never block reconciliation.
+	if err := r.warnOnCIDRCollisions(ctx, &pool); err != nil {
+		logger.Error(err, "CIDR collision check failed, skipping")
+	}
 
 	// Report current allocation count.
 	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
@@ -384,6 +397,53 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
+}
+
+// warnOnCIDRCollisions emits Warning events when pool.Spec.Range overlaps with
+// any service CIDR or any Node's PodCIDR. It never blocks reconciliation.
+func (r *IPPoolReconciler) warnOnCIDRCollisions(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) error {
+	logger := log.FromContext(ctx)
+
+	for _, svcCIDR := range r.serviceCIDRs {
+		overlap, err := iphelpers.CIDRsOverlap(pool.Spec.Range, svcCIDR)
+		if err != nil {
+			logger.V(1).Info("skipping service CIDR collision check due to parse error", "cidr", svcCIDR, "error", err)
+			continue
+		}
+		if overlap {
+			r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
+				"pool range %s overlaps with service CIDR %s", pool.Spec.Range, svcCIDR)
+		}
+	}
+
+	var nodeList corev1.NodeList
+	if err := r.client.List(ctx, &nodeList); err != nil {
+		return fmt.Errorf("listing nodes for CIDR collision check: %w", err)
+	}
+
+	for i := range nodeList.Items {
+		node := &nodeList.Items[i]
+
+		cidrs := node.Spec.PodCIDRs
+		if len(cidrs) == 0 && node.Spec.PodCIDR != "" {
+			cidrs = []string{node.Spec.PodCIDR}
+		}
+
+		for _, podCIDR := range cidrs {
+			overlap, err := iphelpers.CIDRsOverlap(pool.Spec.Range, podCIDR)
+			if err != nil {
+				logger.V(1).Info("skipping node PodCIDR collision check due to parse error",
+					"node", node.Name, "podCIDR", podCIDR, "error", err)
+				continue
+			}
+			if overlap {
+				r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "CIDRCollision", "Reconcile",
+					"pool range %s overlaps with node %s PodCIDR %s", pool.Spec.Range, node.Name, podCIDR)
+			}
+		}
+	}
+
+	return nil
 }
 
 // removeAllocations removes the specified allocation keys from the IPPool

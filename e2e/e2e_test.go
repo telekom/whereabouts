@@ -3059,13 +3059,14 @@ var _ = Describe("Whereabouts functionality", func() {
 						entities.PodNetworkSelectionElements(networkName)),
 					metav1.CreateOptions{})
 				if err == nil {
-					// Pod was created but should fail to get an IP — clean it up.
-					defer func() { _ = clientInfo.DeletePod(overflowPod) }()
 					// Wait briefly for the pod to fail scheduling due to IP exhaustion.
 					err = wbtestclient.WaitForPodReady(context.Background(), clientInfo.Client,
 						testNamespace, overflowPod.Name, 10*time.Second)
 				}
 				Expect(err).To(HaveOccurred(), "should fail when IPv6 pool is exhausted")
+				if overflowPod != nil {
+					Expect(clientInfo.DeletePod(overflowPod)).To(Succeed())
+				}
 
 				By("deleting one pod to free an IP")
 				freedPod := pods[0]
@@ -3076,11 +3077,22 @@ var _ = Describe("Whereabouts functionality", func() {
 				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, freedPod.Name, freedIPs)
 
 				By("creating a new pod — should succeed after recovery")
-				pRecovered, err := clientInfo.ProvisionPod(
-					"wb-exhaust-v6-recovered", testNamespace,
-					util.PodTierLabel("wb-exhaust-v6-recovered"),
-					entities.PodNetworkSelectionElements(networkName))
-				Expect(err).NotTo(HaveOccurred())
+				var pRecovered *corev1.Pod
+				Eventually(func() error {
+					// Clean up a previous attempt if the pod object was created
+					// but did not become ready before the readiness timeout.
+					if pRecovered != nil {
+						_ = clientInfo.DeletePod(pRecovered)
+						pRecovered = nil
+					}
+					var provErr error
+					pRecovered, provErr = clientInfo.ProvisionPod(
+						"wb-exhaust-v6-recovered", testNamespace,
+						util.PodTierLabel("wb-exhaust-v6-recovered"),
+						entities.PodNetworkSelectionElements(networkName))
+					return provErr
+				}, 2*time.Minute, 5*time.Second).Should(Succeed(),
+					"freed IPv6 IP should become available for reallocation")
 				defer func() { _ = clientInfo.DeletePod(pRecovered) }()
 
 				ips, err := retrievers.SecondaryIfaceIPValue(pRecovered, "net1")

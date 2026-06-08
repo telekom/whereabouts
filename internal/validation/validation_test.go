@@ -4,6 +4,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,36 @@ func TestValidateSliceSize(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("ValidateSliceSize(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateOmitRanges(t *testing.T) {
+	tests := []struct {
+		name       string
+		omitRanges []string
+		poolCIDR   string
+		wantErr    bool
+		errMsg     string
+	}{
+		{name: "empty slice", omitRanges: nil, poolCIDR: "10.0.0.0/24", wantErr: false},
+		{name: "valid cidr in pool", omitRanges: []string{"10.0.0.0/28"}, poolCIDR: "10.0.0.0/24", wantErr: false},
+		{name: "valid cidr outside pool", omitRanges: []string{"192.168.0.0/24"}, poolCIDR: "10.0.0.0/24", wantErr: false},
+		{name: "valid ip range", omitRanges: []string{"10.0.0.1-10.0.0.5"}, poolCIDR: "10.0.0.0/24", wantErr: false},
+		{name: "not a cidr", omitRanges: []string{"not-a-cidr"}, poolCIDR: "10.0.0.0/24", wantErr: true, errMsg: "not-a-cidr"},
+		{name: "invalid cidr", omitRanges: []string{"999.999.999.999/32"}, poolCIDR: "10.0.0.0/24", wantErr: true, errMsg: "999.999.999.999/32"},
+		{name: "mixed valid and invalid", omitRanges: []string{"10.0.0.0/28", "bad-entry"}, poolCIDR: "10.0.0.0/24", wantErr: true, errMsg: "omitRanges[1]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateOmitRanges(tt.omitRanges, tt.poolCIDR)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateOmitRanges(%v, %q) error = %v, wantErr %v", tt.omitRanges, tt.poolCIDR, err, tt.wantErr)
+			}
+			if tt.errMsg != "" && err != nil && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("ValidateOmitRanges(%v, %q) error = %q, want substring %q", tt.omitRanges, tt.poolCIDR, err.Error(), tt.errMsg)
 			}
 		})
 	}

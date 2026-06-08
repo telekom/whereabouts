@@ -3059,13 +3059,14 @@ var _ = Describe("Whereabouts functionality", func() {
 						entities.PodNetworkSelectionElements(networkName)),
 					metav1.CreateOptions{})
 				if err == nil {
-					// Pod was created but should fail to get an IP — clean it up.
-					defer func() { _ = clientInfo.DeletePod(overflowPod) }()
 					// Wait briefly for the pod to fail scheduling due to IP exhaustion.
 					err = wbtestclient.WaitForPodReady(context.Background(), clientInfo.Client,
 						testNamespace, overflowPod.Name, 10*time.Second)
 				}
 				Expect(err).To(HaveOccurred(), "should fail when IPv6 pool is exhausted")
+				if overflowPod != nil {
+					Expect(clientInfo.DeletePod(overflowPod)).To(Succeed())
+				}
 
 				By("deleting one pod to free an IP")
 				freedPod := pods[0]

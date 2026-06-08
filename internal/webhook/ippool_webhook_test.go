@@ -351,6 +351,51 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		It("should allow overlapping CIDRs for different named networks", func() {
+			existingPool.Name = "net-a-10.0.0.0-24"
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "net-b-10.0.0.128-25",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.128/25",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should block overlapping CIDRs for the same named network", func() {
+			existingPool.Name = "net-a-10.0.0.0-24"
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(newWebhookTestScheme()).
+				WithObjects(existingPool).
+				Build()
+			v := &IPPoolValidator{Reader: fakeClient}
+
+			newPool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "net-a-10.0.0.128-25",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{
+					Range:       "10.0.0.128/25",
+					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+				},
+			}
+			_, err := v.ValidateCreate(ctx, newPool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("overlaps with existing IPPool"))
+		})
+
 		It("should allow update of the same pool (self-overlap excluded)", func() {
 			fakeClient := fake.NewClientBuilder().
 				WithScheme(newWebhookTestScheme()).

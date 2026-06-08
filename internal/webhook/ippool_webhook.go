@@ -34,8 +34,12 @@ var _ admission.Validator[*whereaboutsv1alpha1.IPPool] = &IPPoolValidator{}
 // SetupIPPoolWebhook registers the IPPool validating webhook with the manager.
 func SetupIPPoolWebhook(mgr manager.Manager) error {
 	return builder.WebhookManagedBy(mgr, &whereaboutsv1alpha1.IPPool{}).
-		WithValidator(&IPPoolValidator{Reader: mgr.GetClient()}).
+		WithValidator(newIPPoolValidator(mgr)).
 		Complete()
+}
+
+func newIPPoolValidator(mgr manager.Manager) *IPPoolValidator {
+	return &IPPoolValidator{Reader: mgr.GetAPIReader()}
 }
 
 //+kubebuilder:webhook:path=/validate-whereabouts-cni-cncf-io-v1alpha1-ippool,mutating=false,failurePolicy=Fail,sideEffects=None,groups=whereabouts.cni.cncf.io,resources=ippools,verbs=create;update,versions=v1alpha1,name=vippool.whereabouts.cni.cncf.io,admissionReviewVersions=v1

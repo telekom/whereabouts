@@ -6,6 +6,7 @@ package webhook
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -107,6 +108,9 @@ func (v *IPPoolValidator) checkPoolOverlap(ctx context.Context, pool *whereabout
 		if existing.Name == pool.Name && existing.Namespace == pool.Namespace {
 			continue
 		}
+		if poolNetworkKey(pool) != poolNetworkKey(existing) {
+			continue
+		}
 		overlaps, err := iphelpers.CIDRsOverlap(pool.Spec.Range, existing.Spec.Range)
 		if err != nil {
 			// Invalid CIDR in an existing pool — skip it (don't block on others' misconfiguration).
@@ -120,6 +124,29 @@ func (v *IPPoolValidator) checkPoolOverlap(ctx context.Context, pool *whereabout
 		}
 	}
 	return nil
+}
+
+func poolNetworkKey(pool *whereaboutsv1alpha1.IPPool) string {
+	normalizedRange := normalizePoolRange(pool.Spec.Range)
+	if pool.Name == normalizedRange {
+		return ""
+	}
+	if networkName, ok := strings.CutSuffix(pool.Name, "-"+normalizedRange); ok {
+		return networkName
+	}
+	// Keep non-standard test or manually-created pool names conservative.
+	return ""
+}
+
+func normalizePoolRange(ipRange string) string {
+	if ipRange == "" {
+		return ""
+	}
+	if ipRange[len(ipRange)-1] == ':' {
+		ipRange += "0"
+	}
+	normalized := strings.ReplaceAll(ipRange, ":", "-")
+	return strings.ReplaceAll(normalized, "/", "-")
 }
 
 func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {

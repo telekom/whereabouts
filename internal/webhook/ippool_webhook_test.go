@@ -11,10 +11,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 )
+
+type ippoolValidatorTestManager struct {
+	manager.Manager
+
+	cachedClient client.Client
+	apiReader    client.Reader
+}
+
+func (m ippoolValidatorTestManager) GetClient() client.Client {
+	return m.cachedClient
+}
+
+func (m ippoolValidatorTestManager) GetAPIReader() client.Reader {
+	return m.apiReader
+}
 
 func newWebhookTestScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
@@ -31,6 +48,23 @@ var _ = Describe("IPPoolValidator", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		validator = &IPPoolValidator{}
+	})
+
+	Context("webhook setup", func() {
+		It("should use the API reader for pool overlap detection", func() {
+			scheme := newWebhookTestScheme()
+			cachedClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+			apiReader := fake.NewClientBuilder().WithScheme(scheme).Build()
+			mgr := ippoolValidatorTestManager{
+				cachedClient: cachedClient,
+				apiReader:    apiReader,
+			}
+
+			validator := newIPPoolValidator(mgr)
+
+			Expect(validator.Reader).To(BeIdenticalTo(apiReader))
+			Expect(validator.Reader).NotTo(BeIdenticalTo(cachedClient))
+		})
 	})
 
 	Context("ValidateCreate", func() {

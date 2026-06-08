@@ -846,12 +846,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 							logging.Debugf("Stale ORIP for %v: stored UID %q differs from current UID %q; deleting stale reservation",
 								newip.IP, overlappingRangeIPReservation.Spec.PodUID, ipamConf.PodUID)
 							delCtx, delCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-							// Pass "" as podUID so the dealloc guard (which protects valid
-							// reservations from wrong-pod deletion) does not block this
-							// intentional stale-cleanup — we have already verified the mismatch
-							// above and explicitly want to force-remove the old reservation.
+							// Pass the observed stale UID into the delete path. If the
+							// reservation changes between the read above and the delete,
+							// UpdateOverlappingRangeAllocation's UID guard will skip the
+							// deletion instead of removing a newer reservation.
 							delErr := overlappingrangestore.UpdateOverlappingRangeAllocation(delCtx, whereaboutstypes.Deallocate, newip.IP,
-								ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, "")
+								ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, overlappingRangeIPReservation.Spec.PodUID)
 							delCancel()
 							if delErr != nil {
 								requestCancel()

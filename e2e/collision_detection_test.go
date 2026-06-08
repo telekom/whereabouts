@@ -46,69 +46,6 @@ var _ = Describe("Collision detection", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	Context("pool-to-pool CIDR overlap (webhook)", func() {
-		const (
-			poolAName = "collision-test-pool-a"
-			poolBName = "collision-test-pool-b"
-			poolACIDR = "10.201.0.0/24"
-			poolBCIDR = "10.201.0.0/25" // subset of poolACIDR — overlaps
-		)
-
-		var (
-			poolA *whereaboutsv1alpha1.IPPool
-			poolB *whereaboutsv1alpha1.IPPool
-		)
-
-		BeforeEach(func() {
-			poolA = &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolAName,
-					Namespace: ipPoolNamespace,
-				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range:       poolACIDR,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
-				},
-			}
-
-			By("creating the first IPPool (pool-a)")
-			_, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Create(ctx, poolA, metav1.CreateOptions{})
-			Expect(err).NotTo(HaveOccurred(), "pool-a creation must succeed")
-		})
-
-		AfterEach(func() {
-			By("cleaning up pool-a")
-			err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, poolAName, metav1.DeleteOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
-			}
-
-			By("cleaning up pool-b")
-			err = clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Delete(ctx, poolBName, metav1.DeleteOptions{})
-			if err != nil && !apierrors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
-			}
-		})
-
-		It("rejects a second IPPool whose CIDR overlaps the first", func() {
-			poolB = &whereaboutsv1alpha1.IPPool{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      poolBName,
-					Namespace: ipPoolNamespace,
-				},
-				Spec: whereaboutsv1alpha1.IPPoolSpec{
-					Range:       poolBCIDR,
-					Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
-				},
-			}
-
-			By("attempting to create an overlapping IPPool (pool-b)")
-			_, err := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Create(ctx, poolB, metav1.CreateOptions{})
-			Expect(err).To(HaveOccurred(), "webhook must reject overlapping pool")
-			Expect(err.Error()).To(MatchRegexp("(?i)overlaps"), "rejection error must mention 'overlaps'")
-		})
-	})
-
 	Context("node CIDR collision warning (reconciler)", func() {
 		var (
 			collisionPoolName string

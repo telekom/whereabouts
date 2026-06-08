@@ -6,27 +6,20 @@ package webhook
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 
 	"github.com/telekom/whereabouts/internal/validation"
-	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
 
 // IPPoolValidator validates IPPool resources.
-type IPPoolValidator struct {
-	// Reader is used to list existing IPPools for overlap detection.
-	// When nil, pool-to-pool overlap checks are skipped (safe default for tests).
-	Reader client.Reader
-}
+type IPPoolValidator struct{}
 
 var ippoolLog = ctrl.Log.WithName("webhook").WithName("ippool")
 
@@ -35,25 +28,16 @@ var _ admission.Validator[*whereaboutsv1alpha1.IPPool] = &IPPoolValidator{}
 // SetupIPPoolWebhook registers the IPPool validating webhook with the manager.
 func SetupIPPoolWebhook(mgr manager.Manager) error {
 	return builder.WebhookManagedBy(mgr, &whereaboutsv1alpha1.IPPool{}).
-		WithValidator(newIPPoolValidator(mgr)).
+		WithValidator(&IPPoolValidator{}).
 		Complete()
-}
-
-func newIPPoolValidator(mgr manager.Manager) *IPPoolValidator {
-	return &IPPoolValidator{Reader: mgr.GetAPIReader()}
 }
 
 //+kubebuilder:webhook:path=/validate-whereabouts-cni-cncf-io-v1alpha1-ippool,mutating=false,failurePolicy=Fail,sideEffects=None,groups=whereabouts.cni.cncf.io,resources=ippools,verbs=create;update,versions=v1alpha1,name=vippool.whereabouts.cni.cncf.io,admissionReviewVersions=v1
 
 // ValidateCreate validates an IPPool on creation.
-func (v *IPPoolValidator) ValidateCreate(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	w, err := validateIPPool(pool)
 	if err != nil {
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
-		recordValidation("ippool", "create", err)
-		return w, err
-	}
-	if err := v.checkPoolOverlap(ctx, pool); err != nil {
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
 		recordValidation("ippool", "create", err)
 		return w, err
@@ -63,7 +47,7 @@ func (v *IPPoolValidator) ValidateCreate(ctx context.Context, pool *whereaboutsv
 }
 
 // ValidateUpdate validates an IPPool on update.
-func (v *IPPoolValidator) ValidateUpdate(ctx context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
+func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
 		err := field.Forbidden(field.NewPath("spec", "range"), "IPPool spec.range is immutable")
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
@@ -76,11 +60,6 @@ func (v *IPPoolValidator) ValidateUpdate(ctx context.Context, oldPool, pool *whe
 		recordValidation("ippool", "update", err)
 		return w, err
 	}
-	if err := v.checkPoolOverlap(ctx, pool); err != nil {
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-		recordValidation("ippool", "update", err)
-		return w, err
-	}
 	recordValidation("ippool", "update", nil)
 	return w, nil
 }
@@ -89,64 +68,6 @@ func (v *IPPoolValidator) ValidateUpdate(ctx context.Context, oldPool, pool *whe
 func (v *IPPoolValidator) ValidateDelete(_ context.Context, _ *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	recordValidation("ippool", "delete", nil)
 	return nil, nil
-}
-
-// checkPoolOverlap returns an error if pool's spec.range overlaps any existing IPPool
-// (excluding the pool itself, identified by name+namespace). When v.Reader is nil,
-// the check is skipped (safe for unit tests without a live client).
-func (v *IPPoolValidator) checkPoolOverlap(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) error {
-	if v.Reader == nil {
-		return nil
-	}
-	var poolList whereaboutsv1alpha1.IPPoolList
-	if err := v.Reader.List(ctx, &poolList, client.InNamespace(pool.Namespace)); err != nil {
-		return fmt.Errorf("listing existing IPPools: %w", err)
-	}
-	for i := range poolList.Items {
-		existing := &poolList.Items[i]
-		// Skip self-comparison (same name+namespace = update of the same pool).
-		if existing.Name == pool.Name && existing.Namespace == pool.Namespace {
-			continue
-		}
-		if poolNetworkKey(pool) != poolNetworkKey(existing) {
-			continue
-		}
-		overlaps, err := iphelpers.CIDRsOverlap(pool.Spec.Range, existing.Spec.Range)
-		if err != nil {
-			// Invalid CIDR in an existing pool — skip it (don't block on others' misconfiguration).
-			ippoolLog.Error(err, "skipping overlap check for existing pool with invalid CIDR",
-				"pool", existing.Name, "range", existing.Spec.Range)
-			continue
-		}
-		if overlaps {
-			return fmt.Errorf("spec.range %q overlaps with existing IPPool %q (%s)",
-				pool.Spec.Range, existing.Name, existing.Spec.Range)
-		}
-	}
-	return nil
-}
-
-func poolNetworkKey(pool *whereaboutsv1alpha1.IPPool) string {
-	normalizedRange := normalizePoolRange(pool.Spec.Range)
-	if pool.Name == normalizedRange {
-		return ""
-	}
-	if networkName, ok := strings.CutSuffix(pool.Name, "-"+normalizedRange); ok {
-		return networkName
-	}
-	// Keep non-standard test or manually-created pool names conservative.
-	return ""
-}
-
-func normalizePoolRange(ipRange string) string {
-	if ipRange == "" {
-		return ""
-	}
-	if ipRange[len(ipRange)-1] == ':' {
-		ipRange += "0"
-	}
-	normalized := strings.ReplaceAll(ipRange, ":", "-")
-	return strings.ReplaceAll(normalized, "/", "-")
 }
 
 func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {

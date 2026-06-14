@@ -31,7 +31,7 @@ jobs:
           platform: ${{ matrix.platform }}
 
       - name: Check out code
-        uses: actions/checkout@v6.0.2 # v6.0.2
+        uses: actions/checkout@v6.0.3 # v6.0.2
 
       - name: Set up QEMU
         if: matrix.platform != 'linux/amd64'

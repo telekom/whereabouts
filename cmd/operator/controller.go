@@ -5,6 +5,8 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -41,6 +43,7 @@ func newControllerCommand() *cobra.Command {
 		cleanupTerminating   bool
 		cleanupDisrupted     bool
 		verifyNetworkStatus  bool
+		serviceCIDR          string
 	)
 
 	cmd := &cobra.Command{
@@ -76,10 +79,15 @@ func newControllerCommand() *cobra.Command {
 			}
 
 			// Reconcilers (leader-elected).
+			serviceCIDRs, err := parseServiceCIDRs(serviceCIDR)
+			if err != nil {
+				return fmt.Errorf("parsing --service-cidr: %w", err)
+			}
 			if err := controller.SetupWithManager(mgr, reconcileInterval, controller.ReconcilerOptions{
 				CleanupTerminating:  cleanupTerminating,
 				CleanupDisrupted:    cleanupDisrupted,
 				VerifyNetworkStatus: verifyNetworkStatus,
+				ServiceCIDRs:        serviceCIDRs,
 			}); err != nil {
 				return err
 			}
@@ -132,6 +140,26 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&cleanupTerminating, "cleanup-terminating-pods", false, "Treat terminating pods (DeletionTimestamp set) as orphaned and release their IPs immediately")
 	cmd.Flags().BoolVar(&cleanupDisrupted, "cleanup-disrupted-pods", true, "Treat pods with DisruptionTarget condition (taint-manager eviction) as orphaned")
 	cmd.Flags().BoolVar(&verifyNetworkStatus, "verify-network-status", true, "Verify allocated IPs against Multus network-status annotation on pods")
+	cmd.Flags().StringVar(&serviceCIDR, "service-cidr", "", "Comma-separated list of Kubernetes service CIDR ranges for collision detection (e.g. 10.96.0.0/12)")
 
 	return cmd
+}
+
+// parseServiceCIDRs splits a comma-separated CIDR string, validates each entry, and removes empty entries.
+func parseServiceCIDRs(s string) ([]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		cidr := strings.TrimSpace(part)
+		if cidr == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return nil, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+		}
+		result = append(result, cidr)
+	}
+	return result, nil
 }

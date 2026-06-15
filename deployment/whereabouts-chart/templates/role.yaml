@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "whereabouts.serviceAccountName" . }}
+  {{- include "whereabouts.namespace" . | nindent 2 }}
+  labels:
+    {{- include "whereabouts.labels" . | nindent 4 }}
+rules:
+# CNI plugin allocates/deallocates IPs only in the whereabouts namespace.
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [ippools]
+  verbs: [get, list, create, patch]
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [overlappingrangeipreservations]
+  verbs: [get, create, delete]
+# CNI plugin reads NodeSlicePool for Fast IPAM.
+- apiGroups: [whereabouts.cni.cncf.io]
+  resources: [nodeslicepools]
+  verbs: [get]
+# Optimistic locking via namespaced leases.
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, create, update]

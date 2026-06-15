@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6.0.2 # v6.0.2
+      uses: actions/checkout@v6.0.3 # v6.0.2
 
     - name: Install Go
       uses: actions/setup-go@v6.4.0 # v6.3.0
@@ -97,7 +97,7 @@ jobs:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2 # v6.0.2
+        uses: actions/checkout@v6.0.3 # v6.0.2
 
       - name: Set up Go
         uses: actions/setup-go@v6.4.0 # v6.3.0
@@ -202,7 +202,7 @@ jobs:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2 # v6.0.2
+        uses: actions/checkout@v6.0.3 # v6.0.2
 
       - name: Set up Go
         uses: actions/setup-go@v6.4.0 # v6.3.0

@@ -31,7 +31,7 @@ func SetupOverlappingRangeWebhook(mgr manager.Manager) error {
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-whereabouts-cni-cncf-io-v1alpha1-overlappingrangeipreservation,mutating=false,failurePolicy=Fail,sideEffects=None,groups=whereabouts.cni.cncf.io,resources=overlappingrangeipreservations,verbs=create;update,versions=v1alpha1,name=voverlappingrangeipreservation.whereabouts.cni.cncf.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-whereabouts-cni-cncf-io-v1alpha1-overlappingrangeipreservation,mutating=false,failurePolicy=Ignore,sideEffects=None,groups=whereabouts.cni.cncf.io,resources=overlappingrangeipreservations,verbs=create;update,versions=v1alpha1,name=voverlappingrangeipreservation.whereabouts.cni.cncf.io,admissionReviewVersions=v1
 
 // ValidateCreate validates an OverlappingRangeIPReservation on creation.
 func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {

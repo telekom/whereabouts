@@ -28,6 +28,12 @@ type OverlappingRangeIPReservationSpecApplyConfiguration struct {
 	PodRef *string `json:"podref,omitempty"`
 	// IfName is the network interface name inside the pod for this reservation.
 	IfName *string `json:"ifname,omitempty"`
+	// PodUID is the immutable UID of the pod that created this reservation.
+	// When non-empty, it is used to detect stale reservations left by an evicted
+	// pod whose name was reused: if the requesting pod's UID differs from the
+	// stored UID, the reservation is considered stale and cleaned up so the new
+	// pod can obtain a fresh IP address.
+	PodUID *string `json:"poduid,omitempty"`
 }
 
 // OverlappingRangeIPReservationSpecApplyConfiguration constructs a declarative configuration of the OverlappingRangeIPReservationSpec type for use with
@@ -57,5 +63,13 @@ func (b *OverlappingRangeIPReservationSpecApplyConfiguration) WithPodRef(value s
 // If called multiple times, the IfName field is set to the value of the last call.
 func (b *OverlappingRangeIPReservationSpecApplyConfiguration) WithIfName(value string) *OverlappingRangeIPReservationSpecApplyConfiguration {
 	b.IfName = &value
+	return b
+}
+
+// WithPodUID sets the PodUID field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PodUID field is set to the value of the last call.
+func (b *OverlappingRangeIPReservationSpecApplyConfiguration) WithPodUID(value string) *OverlappingRangeIPReservationSpecApplyConfiguration {
+	b.PodUID = &value
 	return b
 }

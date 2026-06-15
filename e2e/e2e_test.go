@@ -512,7 +512,12 @@ var _ = Describe("Whereabouts functionality", func() {
 								return fmt.Errorf("IP pool is empty")
 							}
 
-							if allocationForPodRef(podRef, *ipPool)[0].ContainerID == containerID {
+							allocations := allocationForPodRef(podRef, *ipPool)
+							if len(allocations) == 0 {
+								return fmt.Errorf("IP allocation for pod %s not recreated yet", podRef)
+							}
+
+							if allocations[0].ContainerID == containerID {
 								return fmt.Errorf("IP allocation not recreated")
 							}
 

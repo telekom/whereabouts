@@ -461,7 +461,7 @@ func ParsePrevResult(stdinData []byte) (*current.Result, error) {
 		}
 		rawResult, parseErr := cniversion.NewResult(cniVer, resultBytes)
 		if parseErr != nil {
-			return nil, fmt.Errorf("failed to parse prevResult: %w (original: %v)", parseErr, err)
+			return nil, fmt.Errorf("failed to parse prevResult: %w (original: %w)", parseErr, err)
 		}
 		converted, convertErr := current.NewResultFromResult(rawResult)
 		if convertErr != nil {

@@ -19,11 +19,18 @@ rules:
   - secrets
   verbs:
   - create
-  - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resourceNames:
+  - whereabouts-webhook-cert
+  resources:
+  - secrets
+  verbs:
+  - get
   - patch
   - update
-  - watch
 - apiGroups:
   - admissionregistration.k8s.io
   resources:

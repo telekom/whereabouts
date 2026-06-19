@@ -38,7 +38,8 @@ type Options struct {
 	IsReady chan struct{}
 }
 
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=list;watch;create
+//+kubebuilder:rbac:groups="",resources=secrets,resourceNames=whereabouts-webhook-cert,verbs=get;update;patch
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;update;patch
 
 // ensureSecret creates the TLS secret if it does not already exist.

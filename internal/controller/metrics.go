@@ -30,6 +30,30 @@ var (
 		[]string{"pool"},
 	)
 
+	// ippoolCapacityGauge reports the total usable IP capacity in each
+	// IPPool. Labels: pool (IPPool name).
+	ippoolCapacityGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "whereabouts",
+			Subsystem: "ippool",
+			Name:      "capacity",
+			Help:      "Total number of usable IPs in the pool.",
+		},
+		[]string{"pool"},
+	)
+
+	// ippoolFreeGauge reports the current number of free IPs in each IPPool.
+	// Labels: pool (IPPool name).
+	ippoolFreeGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "whereabouts",
+			Subsystem: "ippool",
+			Name:      "free",
+			Help:      "Current number of free IPs in the pool.",
+		},
+		[]string{"pool"},
+	)
+
 	// ippoolOrphansCleaned counts the total number of orphaned allocations
 	// removed from IP pools. Labels: pool (IPPool name).
 	ippoolOrphansCleaned = prometheus.NewCounterVec(
@@ -83,11 +107,27 @@ var (
 func init() {
 	metrics.Registry.MustRegister(
 		ippoolAllocationsGauge,
+		ippoolCapacityGauge,
+		ippoolFreeGauge,
 		ippoolOrphansCleaned,
 		overlappingReservationsCleaned,
 		nodesliceNodesGauge,
 		nodesliceSlicesGauge,
 	)
+}
+
+// recordIPPoolMetrics updates gauges that reflect the current IPPool status.
+func recordIPPoolMetrics(poolName string, totalIPs, usedIPs, freeIPs int32) {
+	ippoolAllocationsGauge.WithLabelValues(poolName).Set(float64(usedIPs))
+	ippoolCapacityGauge.WithLabelValues(poolName).Set(float64(totalIPs))
+	ippoolFreeGauge.WithLabelValues(poolName).Set(float64(freeIPs))
+}
+
+// deleteIPPoolMetrics removes all per-pool gauges for a deleted IPPool.
+func deleteIPPoolMetrics(poolName string) {
+	ippoolAllocationsGauge.DeleteLabelValues(poolName)
+	ippoolCapacityGauge.DeleteLabelValues(poolName)
+	ippoolFreeGauge.DeleteLabelValues(poolName)
 }
 
 // recordNodeSliceMetrics updates the NodeSlicePool gauges.

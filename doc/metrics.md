@@ -40,6 +40,20 @@ Registered on the `controller` subcommand's metrics endpoint.
   every reconciliation. Useful for capacity monitoring and alerting when pools
   approach exhaustion.
 
+#### `whereabouts_ippool_capacity`
+
+- **Type:** Gauge
+- **Labels:** `pool` (IPPool name)
+- **Description:** Total number of usable IPs in each IPPool, computed from the
+  pool CIDR using the same logic as the IPPool status fields.
+
+#### `whereabouts_ippool_free`
+
+- **Type:** Gauge
+- **Labels:** `pool` (IPPool name)
+- **Description:** Current number of free IPs in each IPPool after orphan
+  cleanup has been applied during reconciliation.
+
 #### `whereabouts_ippool_orphans_cleaned_total`
 
 - **Type:** Counter
@@ -95,17 +109,18 @@ groups:
   - name: whereabouts
     rules:
       # Alert when an IP pool is more than 90% full.
-      # TODO: This alert requires a whereabouts_ippool_capacity metric that
-      # is not yet implemented. Uncomment once the metric is available.
-      # - alert: IPPoolNearlyFull
-      #   expr: |
-      #     whereabouts_ippool_allocations / on(pool) group_left
-      #     whereabouts_ippool_capacity > 0.9
-      #   for: 5m
-      #   labels:
-      #     severity: warning
-      #   annotations:
-      #     summary: "IPPool {{ $labels.pool }} is {{ $value | humanizePercentage }} full"
+      - alert: IPPoolNearlyFull
+        expr: |
+          (
+            whereabouts_ippool_allocations
+            / on(pool) whereabouts_ippool_capacity
+          ) > 0.9
+          and on(pool) whereabouts_ippool_capacity > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "IPPool {{ $labels.pool }} is more than 90% full"
 
       # Alert on sustained orphan cleanup — may indicate pod churn issues.
       - alert: HighOrphanCleanupRate
@@ -132,7 +147,7 @@ groups:
 
 A basic dashboard can be built with these panels:
 
-1. **IP Pool Utilization** — `whereabouts_ippool_allocations` per pool
+1. **IP Pool Utilization** — `whereabouts_ippool_allocations / on(pool) whereabouts_ippool_capacity`
 2. **Orphan Cleanup Rate** — `rate(whereabouts_ippool_orphans_cleaned_total[5m])`
 3. **Reconciliation Latency** — `controller_runtime_reconcile_time_seconds` histogram
 4. **Webhook Validation** — `whereabouts_webhook_validation_total` stacked by result

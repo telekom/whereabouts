@@ -121,11 +121,12 @@ var _ = Describe("Collision detection", func() {
 
 	Context("service CIDR collision warning (reconciler)", func() {
 		const svcCIDRPoolName = "collision-test-svc-cidr"
+		const defaultServiceCIDR = "10.96.0.0/12"
 
 		It("emits a CIDRCollision Warning event when pool overlaps service CIDR", func() {
-			serviceCIDR, ok := os.LookupEnv("SERVICE_CIDR")
-			if !ok || serviceCIDR == "" {
-				Skip("SERVICE_CIDR env var not set — skipping service CIDR collision test")
+			serviceCIDR := os.Getenv("SERVICE_CIDR")
+			if serviceCIDR == "" {
+				serviceCIDR = defaultServiceCIDR
 			}
 
 			By("creating IPPool with service CIDR range " + serviceCIDR)

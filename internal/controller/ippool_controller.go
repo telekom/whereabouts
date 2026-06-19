@@ -187,7 +187,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	var pool whereaboutsv1alpha1.IPPool
 	if err := r.client.Get(ctx, req.NamespacedName, &pool); err != nil {
 		if apierrors.IsNotFound(err) {
-			ippoolAllocationsGauge.DeleteLabelValues(req.Name)
+			deleteIPPoolMetrics(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("getting IPPool: %w", err)
@@ -216,6 +216,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err := r.client.Update(ctx, &pool); err != nil {
 				return ctrl.Result{}, fmt.Errorf("removing finalizer: %w", err)
 			}
+			deleteIPPoolMetrics(pool.Name)
 			logger.Info("finalizer removed, IPPool can be deleted", "pool", pool.Name)
 		}
 		return ctrl.Result{}, nil
@@ -239,11 +240,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	markReconciling(&pool, "checking allocations for orphaned entries")
 
-	// Report current allocation count.
-	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
-
 	if len(pool.Spec.Allocations) == 0 {
 		r.computePoolStats(ctx, &pool, 0, 0)
+		recordIPPoolMetrics(pool.Name, pool.Status.TotalIPs, pool.Status.UsedIPs, pool.Status.FreeIPs)
 		markReady(&pool, ReasonReconciled, "no allocations to reconcile")
 		if err := patchHelper.Patch(ctx, &pool); err != nil {
 			logger.Error(err, "failed to patch status")
@@ -347,6 +346,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Requeue sooner if pending pods exist.
 	if pendingCount > 0 {
 		r.computePoolStats(ctx, &pool, int32(len(orphanedAllocs)), pendingCount)
+		recordIPPoolMetrics(pool.Name, pool.Status.TotalIPs, pool.Status.UsedIPs, pool.Status.FreeIPs)
 		markReconciling(&pool, "waiting for pending pods to be scheduled")
 		if err := patchHelper.Patch(ctx, &pool); err != nil {
 			if len(orphanedAllocs) > 0 {
@@ -360,11 +360,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: pendingPodRequeueInterval}, nil
 	}
 
-	// Update allocation gauge after cleanup.
-	ippoolAllocationsGauge.WithLabelValues(pool.Name).Set(float64(len(pool.Spec.Allocations)))
-
 	// Mark as ready after successful reconciliation.
 	r.computePoolStats(ctx, &pool, int32(len(orphanedAllocs)), pendingCount)
+	recordIPPoolMetrics(pool.Name, pool.Status.TotalIPs, pool.Status.UsedIPs, pool.Status.FreeIPs)
 	if len(orphanedAllocs) > 0 {
 		markReady(&pool, ReasonOrphansCleaned, fmt.Sprintf("cleaned %d orphaned allocation(s)", len(orphanedAllocs)))
 	} else {

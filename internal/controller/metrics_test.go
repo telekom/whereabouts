@@ -5,6 +5,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 )
@@ -31,6 +33,27 @@ func getCounterValue(counter interface{ Write(*dto.Metric) error }) float64 {
 	var m dto.Metric
 	ExpectWithOffset(1, counter.Write(&m)).To(Succeed())
 	return m.GetCounter().GetValue()
+}
+
+func hasPoolMetric(metricName, poolName string) bool {
+	metricFamilies, err := ctrlmetrics.Registry.Gather()
+	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+
+	for _, metricFamily := range metricFamilies {
+		if metricFamily.GetName() != metricName {
+			continue
+		}
+
+		for _, metric := range metricFamily.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "pool" && label.GetValue() == poolName {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 var _ = Describe("Controller Metrics", func() {
@@ -84,6 +107,10 @@ var _ = Describe("Controller Metrics", func() {
 
 			gauge := ippoolAllocationsGauge.WithLabelValues("test-pool")
 			Expect(getGaugeValue(gauge)).To(Equal(float64(3)))
+			capacityGauge := ippoolCapacityGauge.WithLabelValues("test-pool")
+			Expect(getGaugeValue(capacityGauge)).To(Equal(float64(254)))
+			freeGauge := ippoolFreeGauge.WithLabelValues("test-pool")
+			Expect(getGaugeValue(freeGauge)).To(Equal(float64(251)))
 		})
 
 		It("should increment orphan cleanup counter", func() {
@@ -161,6 +188,64 @@ var _ = Describe("Controller Metrics", func() {
 			// the cleaned-up state (1 remaining allocation).
 			gauge := ippoolAllocationsGauge.WithLabelValues("gauge-update-pool")
 			Expect(getGaugeValue(gauge)).To(Equal(float64(1)))
+			capacityGauge := ippoolCapacityGauge.WithLabelValues("gauge-update-pool")
+			Expect(getGaugeValue(capacityGauge)).To(Equal(float64(254)))
+			freeGauge := ippoolFreeGauge.WithLabelValues("gauge-update-pool")
+			Expect(getGaugeValue(freeGauge)).To(Equal(float64(253)))
+		})
+
+		It("should remove pool gauges when the pool is not found", func() {
+			const deletedPool = "deleted-metrics-pool"
+			recordIPPoolMetrics(deletedPool, 10, 4, 6)
+			Expect(hasPoolMetric("whereabouts_ippool_allocations", deletedPool)).To(BeTrue())
+			Expect(hasPoolMetric("whereabouts_ippool_capacity", deletedPool)).To(BeTrue())
+			Expect(hasPoolMetric("whereabouts_ippool_free", deletedPool)).To(BeTrue())
+
+			c := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
+				Build()
+
+			r := &IPPoolReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
+			_, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: deletedPool, Namespace: "default"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(hasPoolMetric("whereabouts_ippool_allocations", deletedPool)).To(BeFalse())
+			Expect(hasPoolMetric("whereabouts_ippool_capacity", deletedPool)).To(BeFalse())
+			Expect(hasPoolMetric("whereabouts_ippool_free", deletedPool)).To(BeFalse())
+		})
+
+		It("should remove pool gauges when finalizing a deleted pool", func() {
+			const deletedPool = "finalizing-metrics-pool"
+			deletionTime := metav1.NewTime(time.Now())
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              deletedPool,
+					Namespace:         "default",
+					Finalizers:        []string{ippoolFinalizer},
+					DeletionTimestamp: &deletionTime,
+				},
+				Spec: whereaboutsv1alpha1.IPPoolSpec{Range: "10.0.3.0/24"},
+			}
+			recordIPPoolMetrics(deletedPool, 10, 4, 6)
+
+			c := fake.NewClientBuilder().
+				WithScheme(newTestScheme()).
+				WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
+				WithObjects(pool).
+				Build()
+
+			r := &IPPoolReconciler{client: c, recorder: events.NewFakeRecorder(10), reconcileInterval: 30}
+			_, err := r.Reconcile(context.Background(), ctrl.Request{
+				NamespacedName: types.NamespacedName{Name: deletedPool, Namespace: "default"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(hasPoolMetric("whereabouts_ippool_allocations", deletedPool)).To(BeFalse())
+			Expect(hasPoolMetric("whereabouts_ippool_capacity", deletedPool)).To(BeFalse())
+			Expect(hasPoolMetric("whereabouts_ippool_free", deletedPool)).To(BeFalse())
 		})
 	})
 

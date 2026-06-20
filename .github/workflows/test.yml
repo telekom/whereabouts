@@ -42,6 +42,9 @@ jobs:
     - name: Generate code
       run: make generate && hack/verify-codegen.sh
 
+    - name: Verify Helm webhook failurePolicy
+      run: make verify-helm-webhook-failurepolicy
+
     - name: Run go fmt
       run: go fmt ./...
       #run: diff -u <(echo -n) <(gofmt -d -s .)

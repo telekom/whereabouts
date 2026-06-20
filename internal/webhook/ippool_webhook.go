@@ -45,19 +45,18 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 
 // ValidateUpdate validates an IPPool on update.
 func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
-	var warnings admission.Warnings
-	// Warn (but allow) range changes to support expansion/resizing.
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
-		warnings = append(warnings, fmt.Sprintf(
-			"spec.range changed from %q to %q - existing allocations outside the new range will be orphaned",
-			oldPool.Spec.Range, pool.Spec.Range))
+		err := fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range)
+		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		recordValidation("ippool", "update", err)
+		return nil, err
 	}
 	w, err := validateIPPool(pool)
 	if err != nil {
 		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
 	}
 	recordValidation("ippool", "update", err)
-	return append(warnings, w...), err
+	return w, err
 }
 
 // ValidateDelete is a no-op — deletes are always allowed.

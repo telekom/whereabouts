@@ -40,16 +40,13 @@ spec:
         - --webhook-port=9443
         - --cert-dir=/var/run/webhook-certs
         - --namespace=$(WHEREABOUTS_NAMESPACE)
-        - --service-cidr=$(SERVICE_CIDR)
+        # Add --service-cidr=<cluster-service-cidr> in overlays for clusters
+        # where service-CIDR collision warnings should be enabled.
         env:
         - name: WHEREABOUTS_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        # Kind/kubeadm default; override this env value when deploying to
-        # clusters with a different service CIDR.
-        - name: SERVICE_CIDR
-          value: 10.96.0.0/12
         ports:
         - containerPort: 8080
           name: metrics

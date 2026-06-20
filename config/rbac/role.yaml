@@ -23,10 +23,10 @@ rules:
   - watch
 - apiGroups:
   - ""
-  resources:
-  - secrets
   resourceNames:
   - whereabouts-webhook-cert
+  resources:
+  - secrets
   verbs:
   - get
   - patch

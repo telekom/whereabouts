@@ -74,6 +74,10 @@ generate-api: manifests generate ## Generate all API artifacts (CRDs + deepcopy 
 verify-codegen: ## Verify generated code is up to date.
 	hack/verify-codegen.sh
 
+.PHONY: verify-helm-webhook-failurepolicy
+verify-helm-webhook-failurepolicy: ## Verify Helm webhooks render fail-open by default.
+	hack/verify-helm-webhook-failurepolicy.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...

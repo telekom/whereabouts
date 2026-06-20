@@ -5,23 +5,7 @@ metadata:
   labels:
     {{- include "whereabouts.labels" . | nindent 4 }}
 rules:
-# CNI plugin needs CRUD on IPPool and OverlappingRangeIPReservation for allocation/deallocation
-- apiGroups: [whereabouts.cni.cncf.io]
-  resources: [ippools, overlappingrangeipreservations]
-  verbs: [get, list, watch, create, update, patch, delete]
-# CNI plugin reads NodeSlicePool for Fast IPAM
-- apiGroups: [whereabouts.cni.cncf.io]
-  resources: [nodeslicepools]
-  verbs: [get, list, watch]
-# Optimistic locking via leases
-- apiGroups: [coordination.k8s.io]
-  resources: [leases]
-  verbs: [get, create, update, delete]
 # Preferred/sticky IP: CNI reads pod annotations to determine preferred IP
 - apiGroups: [""]
   resources: [pods]
   verbs: [get]
-# Events for allocation logging
-- apiGroups: ["", events.k8s.io]
-  resources: [events]
-  verbs: [create, patch, update, get]

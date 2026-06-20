@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -45,9 +45,10 @@ jobs:
     - name: Verify Helm webhook failurePolicy
       run: make verify-helm-webhook-failurepolicy
 
-    - name: Run go fmt
-      run: go fmt ./...
-      #run: diff -u <(echo -n) <(gofmt -d -s .)
+    - name: Verify go fmt
+      run: |
+        go fmt ./...
+        git diff --exit-code -- '*.go'
 
     - name: Test
       run: make test

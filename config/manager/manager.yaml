@@ -40,6 +40,8 @@ spec:
         - --webhook-port=9443
         - --cert-dir=/var/run/webhook-certs
         - --namespace=$(WHEREABOUTS_NAMESPACE)
+        # Add --service-cidr=<cluster-service-cidr> in overlays for clusters
+        # where service-CIDR collision warnings should be enabled.
         env:
         - name: WHEREABOUTS_NAMESPACE
           valueFrom:

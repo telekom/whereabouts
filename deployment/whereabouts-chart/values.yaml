@@ -84,6 +84,9 @@ operator:
   #     matchLabels:
   #       app: whereabouts-operator
   topologySpreadConstraints: []
+  # Optional Kubernetes service CIDR ranges used by the operator to warn when
+  # IPPool ranges overlap Service IP space.
+  serviceCIDRs: []
 
 webhook:
   # failurePolicy for the ValidatingWebhookConfiguration (Fail or Ignore).

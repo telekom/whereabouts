@@ -104,6 +104,13 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, fmt.Errorf("getting pod %s: %w", reservation.Spec.PodRef, err)
 	}
 
+	if reservation.Spec.PodUID != "" && pod.UID != "" && reservation.Spec.PodUID != string(pod.UID) {
+		logger.V(1).Info("pod UID mismatch, deleting stale overlapping reservation",
+			"name", reservation.Name, "podRef", reservation.Spec.PodRef,
+			"reservationPodUID", reservation.Spec.PodUID, "podUID", pod.UID)
+		return r.deleteReservation(ctx, &reservation)
+	}
+
 	// Pod marked for deletion by taint manager. Gated behind
 	// cleanupDisrupted (default true).
 	if r.cleanupDisrupted && isPodMarkedForDeletion(pod.Status.Conditions) {

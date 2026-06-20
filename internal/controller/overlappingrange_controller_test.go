@@ -95,6 +95,41 @@ var _ = Describe("OverlappingRangeReconciler", func() {
 			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
 			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 		})
+
+		It("should delete the reservation when the stored pod UID differs from the live pod UID", func() {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "reused-name",
+					Namespace: "default",
+					UID:       types.UID("new-pod-uid"),
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+				},
+			}
+			reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resName,
+					Namespace: resNamespace,
+				},
+				Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+					ContainerID: "abc123",
+					PodRef:      "default/reused-name",
+					PodUID:      "old-pod-uid",
+					IfName:      "eth0",
+				},
+			}
+			buildReconciler(reservation, pod)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+			err = reconciler.client.Get(ctx, req.NamespacedName, &updated)
+			Expect(err).To(HaveOccurred())
+			Expect(client.IgnoreNotFound(err)).To(Succeed())
+		})
 	})
 
 	Context("when the reservation's pod is missing", func() {

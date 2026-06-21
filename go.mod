@@ -11,7 +11,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/gomega v1.42.0
 	github.com/pkg/errors v0.9.1
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	k8s.io/api v0.36.2
@@ -23,7 +23,7 @@ require (
 
 require (
 	github.com/gaissmai/extnetip v1.3.1
-	github.com/onsi/ginkgo/v2 v2.30.0
+	github.com/onsi/ginkgo/v2 v2.31.0
 	github.com/open-policy-agent/cert-controller v0.16.0
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/controller-runtime v0.24.1

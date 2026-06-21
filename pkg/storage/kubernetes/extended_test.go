@@ -477,7 +477,7 @@ func TestOverlappingRangeStoreUpdateAllocate(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, net.ParseIP("10.0.0.5"), "default/pod1", "eth0", "")
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, net.ParseIP("10.0.0.5"), "default/pod1", "eth0", "", "")
 	if err != nil {
 		t.Fatalf("UpdateOverlappingRangeAllocation(Allocate) error: %v", err)
 	}
@@ -512,7 +512,7 @@ func TestOverlappingRangeStoreUpdateDeallocate(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, net.ParseIP("10.0.0.5"), "default/pod1", "eth0", "")
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, net.ParseIP("10.0.0.5"), "default/pod1", "eth0", "", "")
 	if err != nil {
 		t.Fatalf("UpdateOverlappingRangeAllocation(Deallocate) error: %v", err)
 	}
@@ -635,7 +635,7 @@ func TestUpdateOverlappingRangeDeallocateLegacyFallback(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, ip, "default/pod1", "eth0", UnnamedNetwork)
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, ip, "default/pod1", "eth0", UnnamedNetwork, "")
 	if err != nil {
 		t.Fatalf("UpdateOverlappingRangeAllocation(Deallocate) with legacy name error: %v", err)
 	}
@@ -660,7 +660,7 @@ func TestUpdateOverlappingRangeAllocateUsesNewFormat(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/pod1", "eth0", UnnamedNetwork)
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/pod1", "eth0", UnnamedNetwork, "")
 	if err != nil {
 		t.Fatalf("UpdateOverlappingRangeAllocation(Allocate) error: %v", err)
 	}
@@ -853,7 +853,7 @@ func TestORIPCreateAlreadyExistsIsTransient(t *testing.T) {
 		namespace: "default",
 	}
 
-	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/newpod", "eth0", "")
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Allocate, ip, "default/newpod", "eth0", "", "")
 	if err == nil {
 		t.Fatal("expected error when ORIP already exists")
 	}

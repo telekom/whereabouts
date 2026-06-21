@@ -356,7 +356,7 @@ func (c *KubernetesOverlappingRangeStore) GetOverlappingRangeIPReservation(ctx c
 
 // UpdateOverlappingRangeAllocation updates clusterwide allocation for overlapping ranges.
 func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx context.Context, mode int, ip net.IP,
-	podRef, ifName, networkName string) error {
+	podRef, ifName, networkName, podUID string) error {
 	normalizedIP := NormalizeIP(ip, networkName)
 
 	clusteripres := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
@@ -373,6 +373,7 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 		clusteripres.Spec = whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
 			PodRef: podRef,
 			IfName: ifName,
+			PodUID: podUID,
 		}
 
 		_, err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Create(
@@ -383,6 +384,19 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 
 	case whereaboutstypes.Deallocate:
 		verb = "deallocate"
+
+		if podUID != "" {
+			existing, getErr := c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, normalizedIP, metav1.GetOptions{})
+			if getErr != nil && !apierrors.IsNotFound(getErr) {
+				return fmt.Errorf("k8s get OverlappingRangeIPReservation error: %w", getErr)
+			}
+			if getErr == nil && existing.Spec.PodUID != "" && existing.Spec.PodUID != podUID {
+				logging.Debugf("Skipping delete of ORIP %q: stored UID %q differs from caller UID %q (stale reservation of another pod lifecycle)",
+					normalizedIP, existing.Spec.PodUID, podUID)
+				return nil
+			}
+		}
+
 		err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, clusteripres.GetName(), metav1.DeleteOptions{})
 		if apierrors.IsNotFound(err) {
 			// New-format name not found — attempt deletion by legacy name for backward
@@ -825,7 +839,28 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 							continue
 						}
 
-						skipOverlappingRangeUpdate = true
+						// Same PodRef — check UID to detect stale reservations from an evicted
+						// pod whose name was reused by a new pod with a different UID.
+						if ipamConf.PodUID != "" && overlappingRangeIPReservation.Spec.PodUID != "" &&
+							overlappingRangeIPReservation.Spec.PodUID != ipamConf.PodUID {
+							logging.Debugf("Stale ORIP for %v: stored UID %q differs from current UID %q; deleting stale reservation",
+								newip.IP, overlappingRangeIPReservation.Spec.PodUID, ipamConf.PodUID)
+							delCtx, delCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+							// Pass the observed stale UID into the delete path. If the
+							// reservation changes between the read above and the delete,
+							// UpdateOverlappingRangeAllocation's UID guard will skip the
+							// deletion instead of removing a newer reservation.
+							delErr := overlappingrangestore.UpdateOverlappingRangeAllocation(delCtx, whereaboutstypes.Deallocate, newip.IP,
+								ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, overlappingRangeIPReservation.Spec.PodUID)
+							delCancel()
+							if delErr != nil {
+								requestCancel()
+								return newips, logging.Errorf("failed to delete stale ORIP for %v: %w", newip.IP, delErr)
+							}
+							// Fall through: create a fresh reservation below.
+						} else {
+							skipOverlappingRangeUpdate = true
+						}
 					}
 
 					ipforoverlappingrangeupdate = newip.IP
@@ -878,7 +913,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
 				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
-					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName)
+					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, ipamConf.PodUID)
 				overlappingCancel()
 				if err != nil {
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)

@@ -47,9 +47,11 @@ jobs:
         if: steps.check.outputs.behind != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          if ! gh label view "upstream-sync" &>/dev/null; then
+          if ! gh label view "upstream-sync" --repo "$GH_REPO" &>/dev/null; then
             gh label create "upstream-sync" \
+              --repo "$GH_REPO" \
               --description "Automated upstream synchronisation PR" \
               --color "0075ca"
           fi
@@ -58,11 +60,12 @@ jobs:
         if: steps.check.outputs.behind != '0'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           SYNC_BRANCH="upstream-sync/$(date +%Y-%m-%d)"
 
           # Check if a sync PR already exists
-          EXISTING_PR=$(gh pr list --head "$SYNC_BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+          EXISTING_PR=$(gh pr list --repo "$GH_REPO" --head "$SYNC_BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
           if [ -n "$EXISTING_PR" ]; then
             echo "Sync PR #$EXISTING_PR already exists, skipping"
             exit 0
@@ -127,6 +130,7 @@ jobs:
           git push origin "$SYNC_BRANCH" --force
 
           gh pr create \
+            --repo "$GH_REPO" \
             --base main \
             --head "$SYNC_BRANCH" \
             --title "chore: sync upstream whereabouts $(date +%Y-%m-%d)" \

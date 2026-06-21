@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   govulncheck:
@@ -104,7 +104,7 @@ jobs:
       - name: Install go-licenses
         run: go install github.com/google/go-licenses@v1.6.0
       - name: Check licenses
-        run: go-licenses check ./... --disallowed_types=forbidden,restricted 2>&1 || true
+        run: go-licenses check ./... --disallowed_types=forbidden,restricted
       - name: Generate license report
         run: go-licenses report ./... 2>/dev/null > licenses.csv || true
       - name: Upload license report

@@ -150,7 +150,7 @@ func parseServiceCIDRs(s string) ([]string, error) {
 	if s == "" {
 		return nil, nil
 	}
-	var result []string
+	result := make([]string, 0, len(strings.Split(s, ",")))
 	for _, part := range strings.Split(s, ",") {
 		cidr := strings.TrimSpace(part)
 		if cidr == "" {

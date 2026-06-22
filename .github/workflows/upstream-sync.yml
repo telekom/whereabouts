@@ -49,12 +49,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if ! gh label view "upstream-sync" --repo "$GH_REPO" &>/dev/null; then
-            gh label create "upstream-sync" \
-              --repo "$GH_REPO" \
-              --description "Automated upstream synchronisation PR" \
-              --color "0075ca"
-          fi
+          gh label create "upstream-sync" \
+            --repo "$GH_REPO" \
+            --description "Automated upstream synchronisation PR" \
+            --color "0075ca" \
+            --force
 
       - name: Create sync branch and PR
         if: steps.check.outputs.behind != '0'

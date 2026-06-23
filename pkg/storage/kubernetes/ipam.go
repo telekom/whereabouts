@@ -838,6 +838,14 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 							requestCancel()
 							continue
 						}
+						if overlappingRangeIPReservation.Spec.IfName != ipam.IfName {
+							logging.Debugf("Continuing loop, IP is already allocated to podRef %q on ifName %q: %v",
+								ipamConf.GetPodRef(), overlappingRangeIPReservation.Spec.IfName, newip)
+							// Same pod on another interface must not reuse the reservation.
+							overlappingrangeallocations = append(overlappingrangeallocations, whereaboutstypes.IPReservation{IP: newip.IP, IsAllocated: true})
+							requestCancel()
+							continue
+						}
 
 						// Same PodRef — check UID to detect stale reservations from an evicted
 						// pod whose name was reused by a new pod with a different UID.

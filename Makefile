@@ -33,7 +33,7 @@ GIT_TREE_STATE := $(shell test -n "$$(git status --porcelain --untracked-files=n
 GIT_TAG := $(shell git describe --tags --abbrev=0 --exact-match 2>/dev/null)
 GIT_TAG_LAST := $(shell git describe --tags --abbrev=0 2>/dev/null)
 VERSION ?= $(GIT_TAG_LAST)
-RELEASE_STATUS := $(if $(strip $(VERSION)$(GIT_TAG)),released,unreleased)
+RELEASE_STATUS := $(if $(strip $(GIT_TAG)),released,unreleased)
 VERSION_PKG := github.com/telekom/whereabouts/pkg/version
 LDFLAGS := -X $(VERSION_PKG).Version=$(VERSION) \
            -X $(VERSION_PKG).GitSHA=$(GIT_SHA) \
@@ -69,6 +69,15 @@ generate: $(CONTROLLER_GEN) ## Generate deepcopy and clientsets/informers/lister
 
 .PHONY: generate-api
 generate-api: manifests generate ## Generate all API artifacts (CRDs + deepcopy + clientsets).
+
+.PHONY: verify-generate-api
+verify-generate-api: generate-api ## Verify all generated API artifacts are committed.
+	git diff --exit-code -- \
+		api/whereabouts.cni.cncf.io \
+		config \
+		deployment/whereabouts-chart/crds \
+		hack/openapi-violations.list \
+		pkg/generated
 
 .PHONY: verify-codegen
 verify-codegen: ## Verify generated code is up to date.
@@ -205,8 +214,8 @@ $(YQ): | $(BIN_DIR); $(info installing yq)
 
 .PHONY: chart-prepare-release
 chart-prepare-release: | $(YQ) ; ## Prepare chart for release.
-	@GITHUB_TAG=$(GITHUB_TAG) GITHUB_TOKEN=$(GITHUB_TOKEN) GITHUB_REPO_OWNER=$(GITHUB_REPO_OWNER) hack/release/chart-update.sh
+	@GITHUB_TAG="$${GITHUB_TAG}" GITHUB_TOKEN="$${GITHUB_TOKEN}" GITHUB_REPO_OWNER="$${GITHUB_REPO_OWNER}" hack/release/chart-update.sh
 
 .PHONY: chart-push-release
 chart-push-release: ## Push release chart.
-	@GITHUB_TAG=$(GITHUB_TAG) GITHUB_TOKEN=$(GITHUB_TOKEN) GITHUB_REPO_OWNER=$(GITHUB_REPO_OWNER) hack/release/chart-push.sh
+	@GITHUB_TAG="$${GITHUB_TAG}" GITHUB_TOKEN="$${GITHUB_TOKEN}" GITHUB_REPO_OWNER="$${GITHUB_REPO_OWNER}" hack/release/chart-push.sh

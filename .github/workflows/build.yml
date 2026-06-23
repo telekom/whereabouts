@@ -28,8 +28,8 @@ jobs:
       with:
         go-version-file: go.mod
 
-    - name: Generate code
-      run: make generate
+    - name: Verify generated API artifacts
+      run: make verify-generate-api
 
     - name: Build
       env:

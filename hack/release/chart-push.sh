@@ -33,6 +33,8 @@ if [ -z "$GITHUB_TAG" ]; then
     exit 1
 fi
 
+bash "${BASE}/hack/release/validate-tag.sh" "${GITHUB_TAG}"
+
 helm package "${HELM_CHART}"
 printf '%s' "${GITHUB_TOKEN}" | helm registry login ghcr.io -u "${GITHUB_REPO_OWNER}" --password-stdin
 helm push "${HELM_CHART_TARBALL}" "oci://ghcr.io/${GITHUB_REPO_OWNER}"

@@ -238,7 +238,7 @@ func writeKubeConfig(cfg *config) error {
 	}
 
 	path := cfg.kubeconfigPath()
-	if err := os.WriteFile(path, data, defaultKubeConfigMode); err != nil {
+	if err := atomicWriteFile(path, data); err != nil {
 		return fmt.Errorf("writing kubeconfig to %s: %w", path, err)
 	}
 	slog.Info("wrote kubeconfig", "path", path)
@@ -275,7 +275,7 @@ func writeWhereaboutsConf(cfg *config) error {
 	data = append(data, '\n')
 
 	path := cfg.whereaboutsConfPath()
-	if err := os.WriteFile(path, data, defaultKubeConfigMode); err != nil {
+	if err := atomicWriteFile(path, data); err != nil {
 		return fmt.Errorf("writing whereabouts.conf to %s: %w", path, err)
 	}
 	slog.Info("wrote whereabouts.conf", "path", path)
@@ -291,11 +291,43 @@ func writeNodeNameFile(cfg *config) error {
 	}
 
 	path := cfg.nodeNamePath()
-	if err := os.WriteFile(path, []byte(nodeName), defaultKubeConfigMode); err != nil {
+	if err := atomicWriteFile(path, []byte(nodeName)); err != nil {
 		return fmt.Errorf("writing nodename to %s: %w", path, err)
 	}
 	slog.Info("wrote nodename", "path", path)
 	return nil
+}
+
+// atomicWriteFile writes data to path without exposing partial content at the
+// final path. The temporary file is created in the destination directory so the
+// rename is atomic on POSIX filesystems.
+func atomicWriteFile(path string, data []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".whereabouts-tmp-*")
+	if err != nil {
+		return fmt.Errorf("creating temp file in %s: %w", filepath.Dir(path), err)
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("writing temp file %s: %w", tmpPath, err)
+	}
+	if err := tmp.Chmod(defaultKubeConfigMode); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmpPath, err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("syncing temp file %s: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("closing temp file %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("renaming %s to %s: %w", tmpPath, path, err)
+	}
+	return syncDirectory(filepath.Dir(path))
 }
 
 // copyFile copies src to dst atomically, preserving the executable bit.
@@ -353,17 +385,24 @@ func copyFile(src, dst string) error {
 	// also durable.  A crash between rename and this fsync would still
 	// leave the old dst visible; the new file would be safely on disk
 	// but the directory entry would revert on journal replay.
-	dir, err := os.Open(filepath.Dir(dst))
+	if err := syncDirectory(filepath.Dir(dst)); err != nil {
+		return err
+	}
+
+	slog.Info("copied whereabouts binary", "src", src, "dst", dst)
+	return nil
+}
+
+func syncDirectory(path string) error {
+	dir, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("opening directory %s for fsync: %w", filepath.Dir(dst), err)
+		return fmt.Errorf("opening directory %s for fsync: %w", path, err)
 	}
 	syncErr := dir.Sync()
 	dir.Close()
 	if syncErr != nil {
-		return fmt.Errorf("syncing directory %s: %w", filepath.Dir(dst), syncErr)
+		return fmt.Errorf("syncing directory %s: %w", path, syncErr)
 	}
-
-	slog.Info("copied whereabouts binary", "src", src, "dst", dst)
 	return nil
 }
 

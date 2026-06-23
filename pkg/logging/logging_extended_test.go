@@ -2,6 +2,7 @@ package logging
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -184,7 +185,33 @@ var _ = Describe("GetLoggingLevel", func() {
 	})
 })
 
+var _ = Describe("default logging level", func() {
+	It("defaults to error-only output unless configured otherwise", func() {
+		Expect(defaultLoggingLevel).To(Equal(ErrorLevel))
+	})
+})
+
 var _ = Describe("SetLogFile", func() {
+	BeforeEach(func() {
+		mu.Lock()
+		if loggingFp != nil {
+			loggingFp.Close()
+		}
+		loggingStderr = false
+		loggingFp = nil
+		loggingLevel = DebugLevel
+		mu.Unlock()
+	})
+
+	AfterEach(func() {
+		mu.Lock()
+		if loggingFp != nil {
+			loggingFp.Close()
+			loggingFp = nil
+		}
+		mu.Unlock()
+	})
+
 	It("closes previously opened file when called again", func() {
 		tmpFile1, err := os.CreateTemp("", "wb-log-1-*.log")
 		Expect(err).NotTo(HaveOccurred())
@@ -209,14 +236,49 @@ var _ = Describe("SetLogFile", func() {
 		Expect(loggingFp).NotTo(BeNil())
 		Expect(loggingFp).NotTo(Equal(fp1))
 		mu.Unlock()
+	})
 
-		// Clean up
+	It("rejects relative paths", func() {
+		SetLogFile("whereabouts.log")
+
 		mu.Lock()
-		if loggingFp != nil {
-			loggingFp.Close()
-			loggingFp = nil
-		}
-		mu.Unlock()
+		defer mu.Unlock()
+		Expect(loggingFp).To(BeNil())
+	})
+
+	It("rejects paths outside allowed roots", func() {
+		SetLogFile(filepath.Join(string(os.PathSeparator), "etc", "whereabouts.log"))
+
+		mu.Lock()
+		defer mu.Unlock()
+		Expect(loggingFp).To(BeNil())
+	})
+
+	It("rejects directories", func() {
+		SetLogFile(os.TempDir())
+
+		mu.Lock()
+		defer mu.Unlock()
+		Expect(loggingFp).To(BeNil())
+	})
+
+	It("rejects symlink log files", func() {
+		tmpDir, err := os.MkdirTemp("", "wb-log-symlink-*")
+		Expect(err).NotTo(HaveOccurred())
+		defer os.RemoveAll(tmpDir)
+
+		target, err := os.CreateTemp(tmpDir, "target-*.log")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(target.Close()).To(Succeed())
+
+		linkName := filepath.Join(tmpDir, "whereabouts.log")
+		Expect(os.Symlink(target.Name(), linkName)).To(Succeed())
+
+		SetLogFile(linkName)
+
+		mu.Lock()
+		defer mu.Unlock()
+		Expect(loggingFp).To(BeNil())
 	})
 })
 

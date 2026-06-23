@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"dario.cat/mergo"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	cniversion "github.com/containernetworking/cni/pkg/version"
-	"github.com/imdario/mergo"
 
 	netutils "k8s.io/utils/net"
 

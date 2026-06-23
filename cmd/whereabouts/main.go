@@ -238,7 +238,8 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 
 func validateStaticAddressesOutsideManagedRanges(addresses []types.Address, ranges []types.RangeConfiguration) error {
 	for _, address := range addresses {
-		for _, ipRange := range ranges {
+		for rangeIndex := range ranges {
+			ipRange := &ranges[rangeIndex]
 			_, ipNet, err := net.ParseCIDR(ipRange.Range)
 			if err != nil {
 				return fmt.Errorf("invalid managed range %q: %w", ipRange.Range, err)

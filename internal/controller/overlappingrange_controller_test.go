@@ -130,6 +130,43 @@ var _ = Describe("OverlappingRangeReconciler", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(client.IgnoreNotFound(err)).To(Succeed())
 		})
+
+		DescribeTable("should delete the reservation when the pod is completed",
+			func(phase corev1.PodPhase) {
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "completed-pod",
+						Namespace: "default",
+					},
+					Status: corev1.PodStatus{
+						Phase: phase,
+					},
+				}
+				reservation := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resName,
+						Namespace: resNamespace,
+					},
+					Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+						ContainerID: "abc123",
+						PodRef:      "default/completed-pod",
+						IfName:      "eth0",
+					},
+				}
+				buildReconciler(reservation, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(BeZero())
+
+				var updated whereaboutsv1alpha1.OverlappingRangeIPReservation
+				err = reconciler.client.Get(ctx, req.NamespacedName, &updated)
+				Expect(err).To(HaveOccurred())
+				Expect(client.IgnoreNotFound(err)).To(Succeed())
+			},
+			Entry("succeeded pod", corev1.PodSucceeded),
+			Entry("failed pod", corev1.PodFailed),
+		)
 	})
 
 	Context("when the reservation's pod is missing", func() {

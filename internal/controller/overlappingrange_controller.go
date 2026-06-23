@@ -127,6 +127,12 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return r.deleteReservation(ctx, &reservation)
 	}
 
+	if isPodCompleted(pod.Status.Phase) {
+		logger.V(1).Info("pod is completed, deleting overlapping reservation",
+			"name", reservation.Name, "podRef", reservation.Spec.PodRef, "phase", pod.Status.Phase)
+		return r.deleteReservation(ctx, &reservation)
+	}
+
 	// Pod exists and is healthy — mark reservation as ready.
 	patchHelper, pErr := NewPatchHelper(&reservation, r.client)
 	if pErr != nil {

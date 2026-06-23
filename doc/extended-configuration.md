@@ -29,7 +29,7 @@ Note that we're also including a Custom Resource Definition (CRD) to use the `ku
 
 There are two optional parameters for logging, they are:
 
-* `log_file`: A file path to a logfile to log to.
+* `log_file`: An absolute path to a logfile under `/var/log` or the node's system temporary directory. Symlinks are rejected.
 * `log_level`: Set the logging verbosity, from most to least: `debug`,`verbose`,`error`,`panic`
 
 ## Flatfile configuration
@@ -180,7 +180,7 @@ are in **milliseconds**. Defaults are suitable for most deployments.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `log_file` | string | `""` | Path to the whereabouts log file. If empty, logs go to stderr. |
+| `log_file` | string | `""` | Absolute path under `/var/log` or the node's system temporary directory. Symlink paths are rejected. If empty, logs go to stderr. |
 | `log_level` | string | `""` | Logging verbosity: `"debug"`, `"verbose"`, `"error"`, or `"panic"`. |
 
 ### Kubernetes Configuration

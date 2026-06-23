@@ -5,12 +5,13 @@ package hack_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"sigs.k8s.io/yaml"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 type rbacManifest struct {
@@ -95,7 +96,7 @@ func roleHasSecretRotationRules(manifest rbacManifest) bool {
 func readRBACManifests(t *testing.T, paths ...string) []rbacManifest {
 	t.Helper()
 
-	var manifests []rbacManifest
+	manifests := make([]rbacManifest, 0, len(paths)*2)
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -120,15 +121,20 @@ func renderHelmRBAC(t *testing.T) []rbacManifest {
 func decodeRBACManifests(t *testing.T, data []byte) []rbacManifest {
 	t.Helper()
 
-	var manifests []rbacManifest
-	for _, doc := range bytes.Split(data, []byte("\n---")) {
+	docs := bytes.Split(data, []byte("\n---"))
+	manifests := make([]rbacManifest, 0, len(docs))
+	for _, doc := range docs {
 		doc = bytes.TrimSpace(doc)
 		if len(doc) == 0 {
 			continue
 		}
 
 		var manifest rbacManifest
-		if err := yaml.Unmarshal(doc, &manifest); err != nil {
+		jsonDoc, err := yaml.ToJSON(doc)
+		if err != nil {
+			t.Fatalf("converting RBAC manifest to JSON:\n%s\nerror: %v", doc, err)
+		}
+		if err := json.Unmarshal(jsonDoc, &manifest); err != nil {
 			t.Fatalf("decoding RBAC manifest:\n%s\nerror: %v", doc, err)
 		}
 		if manifest.Kind == "ClusterRole" || manifest.Kind == "Role" {

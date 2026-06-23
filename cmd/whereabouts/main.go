@@ -25,7 +25,7 @@ func cmdAddFunc(args *skel.CmdArgs) error {
 	if err != nil {
 		return logging.Errorf("IPAM configuration load failed: %w", err)
 	}
-	logging.Debugf("ADD - IPAM configuration successfully read: %+v", *ipamConf)
+	logIPAMConfigLoaded("ADD", ipamConf)
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 	if err != nil {
 		return logging.Errorf("failed to create Kubernetes IPAM manager: %w", err)
@@ -51,7 +51,7 @@ func cmdDelFunc(args *skel.CmdArgs) error {
 		logging.Errorf("IPAM configuration load failed (DEL tolerant): %w", err)
 		return nil
 	}
-	logging.Debugf("DEL - IPAM configuration successfully read: %+v", *ipamConf)
+	logIPAMConfigLoaded("DEL", ipamConf)
 
 	var lastErr error
 	backoff := delInitialBackoff
@@ -105,7 +105,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return logging.Errorf("IPAM configuration load failed: %w", err)
 	}
-	logging.Debugf("CHECK - IPAM configuration successfully read: %+v", *ipamConf)
+	logIPAMConfigLoaded("CHECK", ipamConf)
 
 	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
 	if err != nil {
@@ -183,6 +183,22 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 	}
 
 	return nil
+}
+
+func logIPAMConfigLoaded(operation string, ipamConf *types.IPAMConfig) {
+	logging.Debugf(
+		"%s - IPAM configuration read: ranges=%d staticAddresses=%d routes=%d dnsNameservers=%d gatewayConfigured=%t networkNameSet=%t nodeSliceEnabled=%t overlappingRanges=%t optimisticIPAM=%t",
+		operation,
+		len(ipamConf.IPRanges),
+		len(ipamConf.Addresses),
+		len(ipamConf.Routes),
+		len(ipamConf.DNS.Nameservers),
+		ipamConf.Gateway != nil,
+		ipamConf.NetworkName != "",
+		ipamConf.NodeSliceSize != "",
+		ipamConf.OverlappingRanges,
+		ipamConf.OptimisticIPAM,
+	)
 }
 
 func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {

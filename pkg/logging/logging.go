@@ -47,7 +47,10 @@ var loggingLevel Level
 // must not hold a reader lock that would let them write to a closed file.
 var mu sync.Mutex
 
-const defaultTimestampFormat = time.RFC3339
+const (
+	defaultTimestampFormat = time.RFC3339
+	defaultLoggingLevel    = ErrorLevel
+)
 
 func (l Level) String() string {
 	switch l {
@@ -173,5 +176,5 @@ func SetLogFile(filename string) {
 func init() {
 	loggingStderr = true
 	loggingFp = nil
-	loggingLevel = DebugLevel
+	loggingLevel = defaultLoggingLevel
 }

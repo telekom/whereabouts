@@ -38,9 +38,10 @@ type Options struct {
 	IsReady chan struct{}
 }
 
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=list;watch;create
-//+kubebuilder:rbac:groups="",resources=secrets,resourceNames=whereabouts-webhook-cert,verbs=get;update;patch
-//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;update;patch
+// Secret permissions are granted by config/rbac/webhook_secret_role.yaml so
+// list/watch stay namespaced instead of becoming cluster-wide.
+//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch
+//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,resourceNames=whereabouts-validating-webhook-configuration,verbs=update;patch
 
 // ensureSecret creates the TLS secret if it does not already exist.
 // cert-controller's refreshCertIfNeeded reads the secret with Get and its

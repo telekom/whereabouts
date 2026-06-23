@@ -14,33 +14,22 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - create
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resourceNames:
-  - whereabouts-webhook-cert
-  resources:
-  - secrets
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - admissionregistration.k8s.io
   resources:
   - validatingwebhookconfigurations
   verbs:
   - get
   - list
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resourceNames:
+  - whereabouts-validating-webhook-configuration
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
   - patch
   - update
-  - watch
 - apiGroups:
   - k8s.cni.cncf.io
   resources:

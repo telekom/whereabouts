@@ -14,10 +14,10 @@ OCI_BIN ?= docker
 GO ?= go
 
 # Tool versions
-CONTROLLER_GEN_VERSION ?= v0.20.0
-STATICCHECK_VERSION ?= v0.6.0
-KUSTOMIZE_VERSION ?= v5.6.0
-GOLANGCI_LINT_VERSION ?= v2.1.5
+CONTROLLER_GEN_VERSION ?= v0.21.0
+STATICCHECK_VERSION ?= v0.7.0
+KUSTOMIZE_VERSION ?= v5.8.1
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # Resolved tool paths
 CONTROLLER_GEN := $(BIN_DIR)/controller-gen
@@ -192,7 +192,7 @@ $(GOLANGCI_LINT): | $(BIN_DIR)
 	GOBIN=$(BIN_DIR) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 YQ=$(BIN_DIR)/yq
-YQ_VERSION=v4.44.1
+YQ_VERSION=v4.53.3
 $(YQ): | $(BIN_DIR); $(info installing yq)
 	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]') && ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/' | sed 's/arm64/arm64/') && \
 	curl -fsSL -o $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$${OS}_$${ARCH} && chmod +x $(YQ)

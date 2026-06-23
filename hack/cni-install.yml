@@ -12,7 +12,7 @@ data:
       x86_64)  ARCH="amd64" ;;
       aarch64) ARCH="arm64" ;;
     esac
-    CNI_VERSION="v1.6.2"
+    CNI_VERSION="v1.9.1"
     wget "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
     cd /host/opt/cni/bin
     tar xvfzp "/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"

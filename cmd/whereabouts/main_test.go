@@ -1558,6 +1558,26 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(err.Error()).To(ContainSubstring("missing from prevResult"))
 		})
 
+		It("fails without creating a missing pool", func() {
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset())
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+
+			pools, err := client.ListIPPools()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pools).To(BeEmpty())
+		})
+
 		It("collects all duplicate allocations in the same pool and detects mismatch", func() {
 			// Simulate a corrupt pool state: two entries for the same containerID/ifName
 			// with different IP offsets (1 → 192.168.1.1, 2 → 192.168.1.2).
@@ -1819,6 +1839,33 @@ var _ = Describe("Whereabouts operations", func() {
 			}
 			Expect(found).To(BeFalse(), "allocation should have been removed")
 		})
+
+		DescribeTable("does not create a missing pool",
+			func(optimistic bool) {
+				ipamNetworkName := ""
+				ipRange := "192.168.1.0/24"
+				ipGateway := "192.168.10.1"
+
+				ipamConf := ipamConfig(podName, podNamespace, ipamNetworkName, ipRange, ipGateway, kubeConfigPath)
+				Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+				ipamConf.OptimisticIPAM = optimistic
+
+				wbClient := *kubernetes.NewKubernetesClient(
+					fake.NewClientset(),
+					fakek8sclient.NewClientset())
+
+				client := mutateK8sIPAM("missing-del-container", ifname, ipamConf, wbClient)
+
+				err := cmdDel(client)
+				Expect(err).NotTo(HaveOccurred())
+
+				pools, err := client.ListIPPools()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(pools).To(BeEmpty())
+			},
+			Entry("leader-election path", false),
+			Entry("optimistic path", true),
+		)
 	})
 })
 

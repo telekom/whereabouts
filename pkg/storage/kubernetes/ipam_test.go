@@ -287,6 +287,74 @@ func TestNodeSlicePreservesPickAddresses(t *testing.T) {
 	}
 }
 
+func TestGetExistingIPPoolDoesNotCreateMissingPool(t *testing.T) {
+	wbClient := wbfake.NewClientset()
+	client := *NewKubernetesClient(wbClient, fake.NewClientset())
+	ipam := newKubernetesIPAM("container-id", "eth0", types.IPAMConfig{}, "default", client)
+	poolID := PoolIdentifier{IPRange: "10.0.0.0/24", NetworkName: UnnamedNetwork}
+
+	_, err := ipam.GetExistingIPPool(context.Background(), poolID)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+
+	pools, err := wbClient.WhereaboutsV1alpha1().IPPools("default").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list IPPools: %v", err)
+	}
+	if len(pools.Items) != 0 {
+		t.Fatalf("expected no IPPools to be created, got %d", len(pools.Items))
+	}
+}
+
+func TestGetIPPoolInitializesMissingPool(t *testing.T) {
+	wbClient := wbfake.NewClientset()
+	client := *NewKubernetesClient(wbClient, fake.NewClientset())
+	ipam := newKubernetesIPAM("container-id", "eth0", types.IPAMConfig{}, "default", client)
+	poolID := PoolIdentifier{IPRange: "10.0.0.0/24", NetworkName: UnnamedNetwork}
+
+	_, err := ipam.GetIPPool(context.Background(), poolID)
+	if !errors.Is(err, ErrPoolInitialized) {
+		t.Fatalf("expected pool initialization error, got %v", err)
+	}
+
+	pools, err := wbClient.WhereaboutsV1alpha1().IPPools("default").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list IPPools: %v", err)
+	}
+	if len(pools.Items) != 1 {
+		t.Fatalf("expected one initialized IPPool, got %d", len(pools.Items))
+	}
+	if pools.Items[0].Spec.Range != poolID.IPRange {
+		t.Fatalf("expected initialized pool range %q, got %q", poolID.IPRange, pools.Items[0].Spec.Range)
+	}
+}
+
+func TestDeallocateMissingIPPoolDoesNotCreatePool(t *testing.T) {
+	ipamConf := types.IPAMConfig{
+		IPRanges: []types.RangeConfiguration{{Range: "10.0.0.0/24"}},
+	}
+	wbClient := wbfake.NewClientset()
+	client := *NewKubernetesClient(wbClient, fake.NewClientset())
+	ipam := newKubernetesIPAM("container-id", "eth0", ipamConf, "default", client)
+
+	ips, err := IPManagementKubernetesUpdate(context.Background(), types.Deallocate, ipam, ipamConf)
+	if err != nil {
+		t.Fatalf("deallocate missing IPPool: %v", err)
+	}
+	if len(ips) != 0 {
+		t.Fatalf("expected no returned IPs for deallocation, got %d", len(ips))
+	}
+
+	pools, err := wbClient.WhereaboutsV1alpha1().IPPools("default").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list IPPools: %v", err)
+	}
+	if len(pools.Items) != 0 {
+		t.Fatalf("expected deallocation to leave missing pool absent, got %d IPPools", len(pools.Items))
+	}
+}
+
 func TestIPPoolName(t *testing.T) {
 	cases := []struct {
 		name           string

@@ -1590,7 +1590,92 @@ var _ = Describe("Whereabouts operations", func() {
 			err := runCmdCheck(client, args, prevResult)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("192.168.1.99"))
-			Expect(err.Error()).To(ContainSubstring("not allocated in any pool"))
+			Expect(err.Error()).To(ContainSubstring("not expected"))
+		})
+
+		It("succeeds when prevResult contains configured static addresses", func() {
+			checkIPAMConf.Addresses = []whereaboutstypes.Address{{
+				Address: mustCIDR("10.10.0.5/24"),
+				Gateway: net.ParseIP("10.10.0.1"),
+			}}
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(checkAllocatedIP + "/24")},
+					{Address: mustCIDR("10.10.0.5/24"), Gateway: net.ParseIP("10.10.0.1")},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("succeeds for static-only configs without prevResult pool allocations", func() {
+			staticOnlyConf := *checkIPAMConf
+			staticOnlyConf.IPRanges = nil
+			staticOnlyConf.Range = ""
+			staticOnlyConf.Addresses = []whereaboutstypes.Address{{
+				Address: mustCIDR("10.10.0.5/24"),
+				Gateway: net.ParseIP("10.10.0.1"),
+			}}
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, &staticOnlyConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset())
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR("10.10.0.5/24"), Gateway: net.ParseIP("10.10.0.1")},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("fails when cmdCheck receives malformed prevResult", func() {
+			conf := fmt.Sprintf(`{
+					"cniVersion": "1.0.0",
+					"name": "mynet",
+					"type": "ipvlan",
+					"master": "foo0",
+					"ipam": {
+						"type": "whereabouts",
+						"kubernetes": {"kubeconfig": "%s"},
+						"range": "%s"
+					},
+					"prevResult": {
+						"ips": "not-a-list"
+					}
+				}`, kubeConfigPath, checkIPAMConf.IPRanges[0].Range)
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				Netns:       nspath,
+				IfName:      checkIfName,
+				StdinData:   []byte(conf),
+				Args:        cniArgs(podNamespace, podName),
+			}
+
+			err := testutils.CmdCheckWithArgs(args, func() error {
+				return cmdCheck(args)
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not parse prevResult"))
 		})
 
 		It("fails when pool has an IP for the container not in prevResult", func() {

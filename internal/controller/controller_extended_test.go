@@ -289,7 +289,7 @@ var _ = Describe("isPodUsingIP", func() {
 		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
 	})
 
-	It("returns false when IP is not in any non-default network", func() {
+	It("returns true when IP matches a default network", func() {
 		statuses := []nadv1.NetworkStatus{
 			{Name: "default/eth0", Default: true, IPs: []string{"10.0.0.1"}},
 			{Name: "default/net1", Default: false, IPs: []string{"10.0.0.2"}},
@@ -300,12 +300,26 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeFalse())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
 	})
 
-	It("returns false when IP is only on the default network", func() {
+	It("returns true when IP is only on the default network", func() {
 		statuses := []nadv1.NetworkStatus{
 			{Name: "default/eth0", Default: true, IPs: []string{"10.0.0.1"}},
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+	})
+
+	It("returns false when IP is not in any network-status entry", func() {
+		statuses := []nadv1.NetworkStatus{
+			{Name: "default/eth0", Default: true, IPs: []string{"10.0.0.2"}},
+			{Name: "default/net1", Default: false, IPs: []string{"10.0.0.3"}},
 		}
 		pod := &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -496,6 +510,53 @@ var _ = Describe("IPPoolReconciler extended", func() {
 				var updated whereaboutsv1alpha1.IPPool
 				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 				Expect(updated.Spec.Allocations).To(BeEmpty())
+			})
+
+			It("should keep the allocation when the IP is on a default Multus network", func() {
+				statuses := []nadv1.NetworkStatus{
+					{Name: "default/eth0", Default: true, IPs: []string{"10.0.0.1"}},
+				}
+				statusJSON, _ := json.Marshal(statuses)
+
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "default-network-pod",
+						Namespace: "default",
+						Annotations: map[string]string{
+							nadv1.NetworkStatusAnnot: string(statusJSON),
+						},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       poolName,
+						Namespace:  poolNamespace,
+						Finalizers: []string{ippoolFinalizer},
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: poolRange,
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							"1": {
+								ContainerID: "abc123",
+								PodRef:      "default/default-network-pod",
+								IfName:      "eth0",
+							},
+						},
+					},
+				}
+				buildReconcilerWithFlags(false, false, true, pool, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(HaveLen(1))
+				Expect(updated.Spec.Allocations).To(HaveKey("1"))
 			})
 		})
 

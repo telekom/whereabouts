@@ -959,3 +959,77 @@ func TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict(t *testing.T
 		t.Error("expected OverlappingRangeIPReservation to exist after successful retry")
 	}
 }
+
+// TestIPManagementKubernetesUpdateRollsBackPoolOnPermanentORIPFailure verifies
+// that a non-retryable ORIP create failure does not leave IPPool.spec.allocations
+// ahead of OverlappingRangeIPReservation state.
+func TestIPManagementKubernetesUpdateRollsBackPoolOnPermanentORIPFailure(t *testing.T) {
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool)
+	k8sClient := fake.NewClientset()
+
+	var createCalls int
+	wbClient.PrependReactor("create", "overlappingrangeipreservations",
+		func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			createCalls++
+			return true, nil, fmt.Errorf("simulated permanent ORIP create failure")
+		},
+	)
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected allocation to fail when ORIP creation fails permanently")
+	}
+	if len(newips) != 0 {
+		t.Fatalf("expected no committed IPs on failure, got %d", len(newips))
+	}
+	if createCalls != 1 {
+		t.Fatalf("expected one non-retryable ORIP create attempt, got %d", createCalls)
+	}
+
+	updatedPool, getErr := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(
+		context.Background(), "10.0.0.0-24", metav1.GetOptions{})
+	if getErr != nil {
+		t.Fatalf("failed to get updated IPPool: %v", getErr)
+	}
+	if len(updatedPool.Spec.Allocations) != 0 {
+		t.Fatalf("expected pool allocation rollback after ORIP failure, got %d allocation(s)", len(updatedPool.Spec.Allocations))
+	}
+
+	reservations, listErr := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").List(
+		context.Background(), metav1.ListOptions{})
+	if listErr != nil {
+		t.Fatalf("failed to list ORIP objects: %v", listErr)
+	}
+	if len(reservations.Items) != 0 {
+		t.Fatalf("expected no ORIP objects after failed create, got %d", len(reservations.Items))
+	}
+}

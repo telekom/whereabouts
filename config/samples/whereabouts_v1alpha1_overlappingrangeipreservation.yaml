@@ -5,6 +5,6 @@ metadata:
   name: example-reservation
   namespace: kube-system
 spec:
-  podRef: "default/my-pod"
-  containerID: "abc123"
-  ifName: "eth0"
+  podref: "default/my-pod"
+  containerid: "abc123"
+  ifname: "eth0"

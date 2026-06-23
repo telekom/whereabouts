@@ -87,6 +87,10 @@ verify-codegen: ## Verify generated code is up to date.
 verify-helm-webhook-failurepolicy: ## Verify Helm webhooks render fail-open by default.
 	hack/verify-helm-webhook-failurepolicy.sh
 
+.PHONY: verify-helm-webhook-bypass-serviceaccount
+verify-helm-webhook-bypass-serviceaccount: ## Verify Helm webhooks bypass the rendered CNI ServiceAccount.
+	hack/verify-helm-webhook-bypass-serviceaccount.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...

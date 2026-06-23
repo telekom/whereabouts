@@ -102,3 +102,29 @@ func ValidateSliceSize(s string) (int, error) {
 	}
 	return size, nil
 }
+
+// ValidateSliceSizeForRange validates that sliceSize is a prefix length inside
+// the address family and no broader than the containing CIDR range.
+func ValidateSliceSizeForRange(sliceSize, cidr string) (int, error) {
+	size, err := ValidateSliceSize(sliceSize)
+	if err != nil {
+		return 0, err
+	}
+
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+	}
+	rangePrefix, addressBits := ipNet.Mask.Size()
+	if addressBits == 0 {
+		return 0, fmt.Errorf("invalid CIDR %q: could not determine address family", cidr)
+	}
+	if size > addressBits {
+		return 0, fmt.Errorf("invalid sliceSize %q: prefix length must be between %d and %d for range %q", sliceSize, rangePrefix, addressBits, cidr)
+	}
+	if size < rangePrefix {
+		return 0, fmt.Errorf("invalid sliceSize %q: prefix length must not be broader than range prefix /%d for range %q", sliceSize, rangePrefix, cidr)
+	}
+
+	return size, nil
+}

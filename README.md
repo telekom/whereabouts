@@ -263,8 +263,8 @@ spec:
     "mode": "bridge",
     "ipam": {
       "type": "whereabouts",
-      "range": "192.168.2.0/24",
-      "node_slice_size": "/22"
+      "range": "192.168.0.0/16",
+      "node_slice_size": "/24"
     }
   }'
 ```

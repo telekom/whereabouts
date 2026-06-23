@@ -399,6 +399,58 @@ func TestWriteNodeNameFile_UnwritableDir(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// atomicWriteFile
+// ---------------------------------------------------------------------------
+
+func TestAtomicWriteFile_ReplacesExisting(t *testing.T) {
+	tmp := t.TempDir()
+	dst := filepath.Join(tmp, "whereabouts.conf")
+
+	must(t, os.WriteFile(dst, []byte("old"), 0o644))
+	must(t, atomicWriteFile(dst, []byte("new"), 0o600))
+
+	data, err := os.ReadFile(dst)
+	must(t, err)
+	assertEqual(t, "content", string(data), "new")
+
+	info, err := os.Stat(dst)
+	must(t, err)
+	if info.Mode().Perm() != 0o600 {
+		t.Errorf("mode = %o, want 600", info.Mode().Perm())
+	}
+
+	entries, err := os.ReadDir(tmp)
+	must(t, err)
+	for _, e := range entries {
+		if e.Name() != "whereabouts.conf" {
+			t.Errorf("unexpected temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestAtomicWriteFile_NoTempFileLeftOnRenameError(t *testing.T) {
+	tmp := t.TempDir()
+	dstIsDir := filepath.Join(tmp, "whereabouts.conf")
+	must(t, os.MkdirAll(dstIsDir, 0o755))
+
+	err := atomicWriteFile(dstIsDir, []byte("new"), 0o600)
+	if err == nil {
+		t.Fatal("expected error when dst is an existing directory")
+	}
+	assertContains(t, err.Error(), "renaming")
+
+	entries, readErr := os.ReadDir(tmp)
+	if readErr != nil {
+		t.Fatalf("reading tmp dir: %v", readErr)
+	}
+	for _, e := range entries {
+		if e.Name() != "whereabouts.conf" {
+			t.Errorf("unexpected temp file left behind after failed rename: %s", e.Name())
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // copyFile
 // ---------------------------------------------------------------------------
 

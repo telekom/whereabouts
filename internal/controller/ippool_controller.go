@@ -37,6 +37,7 @@ type IPPoolReconciler struct {
 	client            client.Client
 	recorder          events.EventRecorder
 	reconcileInterval time.Duration
+	serviceCIDRs      []string
 
 	// cleanupTerminating controls whether pods with a DeletionTimestamp
 	// (i.e. terminating pods) are treated as orphaned. When false (default),
@@ -147,17 +148,22 @@ const (
 	pendingPodRequeueInterval = 5 * time.Second
 )
 
-// SetupIPPoolReconciler creates and registers the IPPoolReconciler with the
-// manager. The reconcileInterval controls the periodic re-queue interval.
-func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, opts ReconcilerOptions) error {
-	r := &IPPoolReconciler{
-		client:              mgr.GetClient(),
-		recorder:            mgr.GetEventRecorder("ippool-controller"),
+func newIPPoolReconciler(k8sClient client.Client, recorder events.EventRecorder, reconcileInterval time.Duration, opts ReconcilerOptions) *IPPoolReconciler {
+	return &IPPoolReconciler{
+		client:              k8sClient,
+		recorder:            recorder,
 		reconcileInterval:   reconcileInterval,
+		serviceCIDRs:        append([]string(nil), opts.ServiceCIDRs...),
 		cleanupTerminating:  opts.CleanupTerminating,
 		cleanupDisrupted:    opts.CleanupDisrupted,
 		verifyNetworkStatus: opts.VerifyNetworkStatus,
 	}
+}
+
+// SetupIPPoolReconciler creates and registers the IPPoolReconciler with the
+// manager. The reconcileInterval controls the periodic re-queue interval.
+func SetupIPPoolReconciler(mgr ctrl.Manager, reconcileInterval time.Duration, opts ReconcilerOptions) error {
+	r := newIPPoolReconciler(mgr.GetClient(), mgr.GetEventRecorder("ippool-controller"), reconcileInterval, opts)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&whereaboutsv1alpha1.IPPool{}).
@@ -221,6 +227,8 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		return ctrl.Result{}, nil
 	}
+
+	r.recordServiceCIDROverlap(ctx, &pool)
 
 	// Ensure finalizer is present on active pools.
 	if !controllerutil.ContainsFinalizer(&pool, ippoolFinalizer) {
@@ -389,6 +397,27 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
+}
+
+func (r *IPPoolReconciler) recordServiceCIDROverlap(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) {
+	if len(r.serviceCIDRs) == 0 || strings.TrimSpace(pool.Spec.Range) == "" {
+		return
+	}
+
+	overlapping, found, err := iphelpers.CIDROverlapsAny(pool.Spec.Range, r.serviceCIDRs)
+	if err != nil {
+		log.FromContext(ctx).V(1).Info("failed to check service CIDR overlap",
+			"pool", pool.Name, "range", pool.Spec.Range, "error", err)
+		return
+	}
+	if !found {
+		return
+	}
+
+	log.FromContext(ctx).Info("IPPool range overlaps Kubernetes service CIDR",
+		"pool", pool.Name, "range", pool.Spec.Range, "serviceCIDR", overlapping)
+	r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "ServiceCIDROverlap", "Reconcile",
+		"IPPool range %s overlaps Kubernetes service CIDR %s", pool.Spec.Range, overlapping)
 }
 
 // removeAllocations removes the specified allocation keys from the IPPool

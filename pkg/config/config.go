@@ -290,15 +290,9 @@ func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPa
 			continue
 		}
 
-		jsonFile, err := os.Open(confpath)
+		jsonBytes, err := readFlatConfigFile(confpath)
 		if err != nil {
-			return flatipam, foundflatfile, fmt.Errorf("error opening flat configuration file @ %s with: %w", confpath, err)
-		}
-
-		jsonBytes, err := io.ReadAll(jsonFile)
-		jsonFile.Close()
-		if err != nil {
-			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %w", confpath, err)
+			return flatipam, foundflatfile, err
 		}
 
 		if err := json.Unmarshal(jsonBytes, &flatipam.IPAM); err != nil {
@@ -310,6 +304,35 @@ func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPa
 	}
 
 	return flatipam, foundflatfile, NewFileNotFoundError()
+}
+
+func readFlatConfigFile(confpath string) ([]byte, error) {
+	info, err := os.Stat(confpath)
+	if err != nil {
+		return nil, fmt.Errorf("error stating flat configuration file @ %s with: %w", confpath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("flat configuration file @ %s is not a regular file", confpath)
+	}
+	if info.Size() > maxConfigBytes {
+		return nil, fmt.Errorf("flat configuration file @ %s too large (%d bytes, max %d)", confpath, info.Size(), maxConfigBytes)
+	}
+
+	jsonFile, err := os.Open(confpath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening flat configuration file @ %s with: %w", confpath, err)
+	}
+	defer jsonFile.Close()
+
+	jsonBytes, err := io.ReadAll(io.LimitReader(jsonFile, maxConfigBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - io.ReadAll error: %w", confpath, err)
+	}
+	if len(jsonBytes) > maxConfigBytes {
+		return nil, fmt.Errorf("flat configuration file @ %s too large (%d bytes, max %d)", confpath, len(jsonBytes), maxConfigBytes)
+	}
+
+	return jsonBytes, nil
 }
 
 func handleEnvArgs(n *types.Net, numV6 int, numV4 int, args types.IPAMEnvArgs) (v6Count, v4Count int, err error) {

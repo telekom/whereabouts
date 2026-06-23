@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	fluxmeta "github.com/fluxcd/pkg/apis/meta"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -349,6 +350,77 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(updated.Status.TotalSlices).To(Equal(int32(3)))
 			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
 			Expect(updated.Status.FreeSlices).To(Equal(int32(2)))
+		})
+
+		It("should clear a previous PoolFull stalled condition after a slice becomes free", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "10.0.0.0-16",
+					Namespace: nadNamespace,
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: nad.APIVersion,
+							Kind:       nad.Kind,
+							Name:       nad.Name,
+							UID:        nad.UID,
+						},
+					},
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/24",
+				},
+				Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+					Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{
+						{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+						{SliceRange: "10.0.1.0/24", NodeName: "node-removed"},
+					},
+					Conditions: []metav1.Condition{
+						{
+							Type:    fluxmeta.StalledCondition,
+							Status:  metav1.ConditionTrue,
+							Reason:  ReasonPoolFull,
+							Message: "no available IP slice for node node-b",
+						},
+						{
+							Type:    fluxmeta.ReadyCondition,
+							Status:  metav1.ConditionFalse,
+							Reason:  ReasonPoolFull,
+							Message: "no available IP slice for node node-b",
+						},
+					},
+				},
+			}
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			buildReconciler(nad, pool, node1)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(1)))
+			conditions := map[string]metav1.Condition{}
+			for _, condition := range updated.Status.Conditions {
+				conditions[condition.Type] = condition
+			}
+			Expect(conditions[fluxmeta.StalledCondition].Status).To(Equal(metav1.ConditionFalse))
+			Expect(conditions[fluxmeta.StalledCondition].Reason).To(Equal(ReasonReconciled))
+			Expect(conditions[fluxmeta.ReadyCondition].Status).To(Equal(metav1.ConditionTrue))
+			Expect(conditions[fluxmeta.ReadyCondition].Reason).To(Equal(ReasonReconciled))
 		})
 	})
 

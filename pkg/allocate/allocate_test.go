@@ -140,6 +140,15 @@ var _ = Describe("Allocation operations", func() {
 		Expect(err).To(MatchError(HavePrefix("could not parse exclude range")))
 	})
 
+	It("returns exhausted when the reserved range ends at max IPv4", func() {
+		_, ipnet, err := net.ParseCIDR("255.255.255.255/32")
+		Expect(err).NotTo(HaveOccurred())
+
+		ipres := []types.IPReservation{{IP: net.ParseIP("255.255.255.255"), PodRef: "default/pod1"}}
+		_, _, err = IterateForAssignment(*ipnet, nil, nil, ipres, nil, "0xdeadbeef", "default/pod2", "eth0", true)
+		Expect(err).To(MatchError(HavePrefix("Could not allocate IP in range")))
+	})
+
 	It("can IterateForAssignment on an IPv6 address excluding a range", func() {
 
 		firstip, ipnet, err := net.ParseCIDR("100::2:1/125")
@@ -179,6 +188,15 @@ var _ = Describe("Allocation operations", func() {
 		exrange := []string{"100::2::1"}
 		_, _, err = IterateForAssignment(*ipnet, calculatedrangestart, nil, ipres, exrange, "0xdeadbeef", "", "", false)
 		Expect(err).To(MatchError(HavePrefix("could not parse exclude range")))
+	})
+
+	It("returns exhausted when the reserved range ends at max IPv6", func() {
+		_, ipnet, err := net.ParseCIDR("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128")
+		Expect(err).NotTo(HaveOccurred())
+
+		ipres := []types.IPReservation{{IP: net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), PodRef: "default/pod1"}}
+		_, _, err = IterateForAssignment(*ipnet, nil, nil, ipres, nil, "0xdeadbeef", "default/pod2", "eth0", true)
+		Expect(err).To(MatchError(HavePrefix("Could not allocate IP in range")))
 	})
 
 	It("can IterateForAssignment on an IPv6 address excluding a very large range", func() {
@@ -772,6 +790,16 @@ var _ = Describe("Allocation operations", func() {
 			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IP.Equal(net.ParseIP("192.168.1.1"))).To(BeTrue())
+		})
+
+		It("rejects malformed exclude ranges before assigning preferred IP", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:       "192.168.1.0/24",
+				OmitRanges:  []string{"192.168.1.1/123"},
+				PreferredIP: net.ParseIP("192.168.1.100"),
+			}
+			_, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).To(MatchError(HavePrefix("could not parse exclude range")))
 		})
 
 		It("falls back when preferred IP is outside the CIDR range", func() {

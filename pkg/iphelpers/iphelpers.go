@@ -338,13 +338,30 @@ func IPGetOffset(ip1, ip2 net.IP) (*big.Int, error) {
 // IPAddOffset returns ip + offset. Uses k8s.io/utils/net for IP arithmetic.
 // The offset must be non-negative.
 func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
-	if ip == nil {
+	if ip == nil || offset == nil || offset.Sign() < 0 {
 		return nil
 	}
 
-	base := netutils.BigForIP(ip)
+	baseIP := ip.To4()
+	isIPv6 := false
+	if baseIP == nil {
+		if ip.To16() == nil {
+			return nil
+		}
+		baseIP = ip.To16()
+		isIPv6 = true
+	}
+
+	base := new(big.Int).SetBytes(baseIP)
 	resultInt := new(big.Int).Add(base, offset)
-	return bigIntToIP(resultInt, len(ip) != net.IPv4len)
+	ipLimit := new(big.Int).Lsh(big.NewInt(1), 32)
+	if isIPv6 {
+		ipLimit.Lsh(big.NewInt(1), 128)
+	}
+	if resultInt.Sign() < 0 || resultInt.Cmp(ipLimit) >= 0 {
+		return nil
+	}
+	return bigIntToIP(resultInt, isIPv6)
 }
 
 // IsIPv4 checks if an IP is v4.

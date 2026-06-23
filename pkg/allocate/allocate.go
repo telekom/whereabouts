@@ -36,6 +36,11 @@ func AssignIP(ipamConf types.RangeConfiguration, reservelist []types.IPReservati
 	if err != nil {
 		return net.IPNet{}, nil, fmt.Errorf("invalid CIDR %q in IPAM config: %w", ipamConf.Range, err)
 	}
+	if ipamConf.PreferredIP != nil {
+		if _, err := parseExcludedRanges(ipamConf.OmitRanges); err != nil {
+			return net.IPNet{}, nil, err
+		}
+	}
 
 	// Verify if podRef and ifName have already an allocation.
 	for i, r := range reservelist {
@@ -203,15 +208,24 @@ func IterateForAssignment(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, r
 
 	// Iterate over every IP address in the range, accounting for reserved IPs and exclude ranges. Make sure that ip is
 	// within ipnet, and make sure that ip is smaller than lastIP.
-	for ip := firstIP; ipnet.Contains(ip) && iphelpers.CompareIPs(ip, lastIP) <= 0; ip = iphelpers.IncIP(ip) {
+	for ip := firstIP; ipnet.Contains(ip) && iphelpers.CompareIPs(ip, lastIP) <= 0; {
 		// If already reserved, skip it.
 		if reserved[ip.String()] {
+			next, ok := nextIP(ip)
+			if !ok {
+				break
+			}
+			ip = next
 			continue
 		}
 		// If this IP is within the range of one of the excluded subnets, jump to the exluded subnet's broadcast address
 		// and skip.
 		if skipTo := skipExcludedSubnets(ip, excluded); skipTo != nil {
-			ip = skipTo
+			next, ok := nextIP(skipTo)
+			if !ok {
+				break
+			}
+			ip = next
 			continue
 		}
 		// Assign and reserve the IP and return.
@@ -222,6 +236,14 @@ func IterateForAssignment(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, r
 
 	// No IP address for assignment found, return an error.
 	return net.IP{}, reserveList, AssignmentError{firstIP, lastIP, ipnet, excludeRanges}
+}
+
+func nextIP(ip net.IP) (net.IP, bool) {
+	next := iphelpers.IncIP(ip)
+	if next == nil || next.Equal(ip) {
+		return nil, false
+	}
+	return next, true
 }
 
 // pickForAssignment allocates from a configured candidate list in order. Each

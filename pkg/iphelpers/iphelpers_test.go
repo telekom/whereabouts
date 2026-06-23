@@ -899,6 +899,22 @@ var _ = Describe("IPAddOffset operations", func() {
 		Expect(newIP.Equal(net.ParseIP("::1:0:0:0:0"))).To(BeTrue(),
 			"expected ::1:0:0:0:0 but got %s", newIP)
 	})
+
+	It("returns nil instead of wrapping past the IPv4 maximum", func() {
+		Expect(IPAddOffset(net.ParseIP("255.255.255.255"), big.NewInt(1))).To(BeNil())
+
+		offset, ok := new(big.Int).SetString("4294967296", 10)
+		Expect(ok).To(BeTrue())
+		Expect(IPAddOffset(net.ParseIP("10.0.0.0"), offset)).To(BeNil())
+	})
+
+	It("returns nil instead of accepting negative offsets", func() {
+		Expect(IPAddOffset(net.ParseIP("10.0.0.1"), big.NewInt(-1))).To(BeNil())
+	})
+
+	It("returns nil instead of wrapping past the IPv6 maximum", func() {
+		Expect(IPAddOffset(net.ParseIP("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"), big.NewInt(1))).To(BeNil())
+	})
 })
 
 func TestDivideRangeBySize(t *testing.T) {

@@ -317,7 +317,7 @@ In the example, we exclude IP addresses in the range `192.168.2.229/30` from bei
 *Note 1*: It's up to you to properly set exclusion ranges that are within your subnet, there's no double checking for you (other than that the CIDR notation parses).
 *Note 2*: In case of wide IPv6 CIDRs (`range`≤/64) only the first /65 range is addressable (e.g. from `x:x:x:x::0` to `x:x:x:x:7fff:ffff:ffff:ffff`).
 
-Additionally -- you can set the route, gateway and DNS using anything from the configurations for the [static IPAM plugin](https://github.com/containernetworking/plugins/tree/master/plugins/ipam/static) (as well as additional static IP addresses).
+Additionally -- you can set the route, gateway and DNS using anything from the configurations for the [static IPAM plugin](https://github.com/containernetworking/plugins/tree/master/plugins/ipam/static) (as well as additional static IP addresses). Static addresses must be outside the managed Whereabouts ranges.
 
 ### Overlapping Ranges
 

@@ -566,6 +566,62 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("rejects static addresses inside managed ranges without allocating", func() {
+		backend := fmt.Sprintf(`"kubernetes": {"kubeconfig": "%s"}`, kubeConfigPath)
+		conf := fmt.Sprintf(`{
+      "cniVersion": "0.3.1",
+      "name": "mynet",
+      "type": "ipvlan",
+      "master": "foo0",
+      "ipam": {
+        "type": "whereabouts",
+        %s,
+        "range": "192.168.1.44/28",
+        "gateway": "192.168.1.1",
+        "addresses": [ {
+            "address": "192.168.1.35/28",
+            "gateway": "192.168.1.1"
+          }]
+      }
+    }`, backend)
+
+		args := &skel.CmdArgs{
+			ContainerID: "static-overlap",
+			Netns:       nspath,
+			IfName:      ifname,
+			StdinData:   []byte(conf),
+			Args:        cniArgs(podNamespace, podName),
+		}
+
+		confPath := filepath.Join(tmpDir, "whereabouts.conf")
+		Expect(os.WriteFile(confPath, []byte(conf), 0755)).To(Succeed())
+		ipamConf, cniVersion, err := config.LoadIPAMConfig([]byte(conf), cniArgs(podNamespace, podName), confPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ipamConf.IPRanges).NotTo(BeEmpty())
+
+		k8sClient = newK8sIPAM(
+			args.ContainerID,
+			ifname,
+			ipamConf,
+			fakek8sclient.NewClientset(),
+			fake.NewClientset(
+				ipPool(ipamConf.IPRanges[0].Range, podNamespace, ipamConf.NetworkName)))
+
+		_, _, err = testutils.CmdAddWithArgs(args, func() error {
+			return cmdAdd(k8sClient, cniVersion)
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("static address 192.168.1.35/28 overlaps managed range 192.168.1.32/28"))
+
+		ctx, cancel := context.WithTimeout(context.Background(), whereaboutstypes.AddTimeLimit)
+		defer cancel()
+
+		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipamConf.IPRanges[0].Range, NetworkName: ipamConf.NetworkName}
+		pool, err := k8sClient.GetIPPool(ctx, poolIdentifier)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pool.Allocations()).To(BeEmpty())
+	})
+
 	It("allocates an address using IPRanges notation", func() {
 		backend := fmt.Sprintf(`"kubernetes": {"kubeconfig": "%s"}`, kubeConfigPath)
 		conf := fmt.Sprintf(`{

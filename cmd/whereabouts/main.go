@@ -212,6 +212,10 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
 	defer cancel()
 
+	if err := validateStaticAddressesOutsideManagedRanges(client.Config.Addresses, client.Config.IPRanges); err != nil {
+		return logging.Errorf("invalid static address configuration: %w", err)
+	}
+
 	var err error
 	if client.Config.OptimisticIPAM {
 		// Optimistic mode: bypass leader election and rely on Kubernetes
@@ -246,6 +250,22 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	}
 
 	return cnitypes.PrintResult(result, cniVersion)
+}
+
+func validateStaticAddressesOutsideManagedRanges(addresses []types.Address, ranges []types.RangeConfiguration) error {
+	for _, address := range addresses {
+		for rangeIndex := range ranges {
+			ipRange := &ranges[rangeIndex]
+			_, ipNet, err := net.ParseCIDR(ipRange.Range)
+			if err != nil {
+				return fmt.Errorf("invalid managed range %q: %w", ipRange.Range, err)
+			}
+			if ipNet.Contains(address.Address.IP) {
+				return fmt.Errorf("static address %s overlaps managed range %s", address.Address.String(), ipRange.Range)
+			}
+		}
+	}
+	return nil
 }
 
 func cmdDel(client *kubernetes.KubernetesIPAM) error {

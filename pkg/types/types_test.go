@@ -72,6 +72,39 @@ var _ = Describe("IPAMConfig", func() {
 			Expect(cfg.RangeStart.Equal(net.ParseIP("fd00::5"))).To(BeTrue())
 		})
 
+		It("parses top-level pick_addresses", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24","pick_addresses":["010.000.000.050","10.0.0.60"]}`
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
+			Expect(cfg.PickAddresses).To(HaveLen(2))
+			Expect(cfg.PickAddresses[0].Equal(net.ParseIP("10.0.0.50"))).To(BeTrue())
+			Expect(cfg.PickAddresses[1].Equal(net.ParseIP("10.0.0.60"))).To(BeTrue())
+		})
+
+		It("parses per-range pick_addresses", func() {
+			var cfg IPAMConfig
+			data := `{
+				"type": "whereabouts",
+				"ipRanges": [
+					{"range": "10.0.0.0/24", "pick_addresses": ["10.0.0.50"]},
+					{"range": "fd00::/120", "pick_addresses": ["fd00::50"]}
+				]
+			}`
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
+			Expect(cfg.IPRanges).To(HaveLen(2))
+			Expect(cfg.IPRanges[0].PickAddresses).To(HaveLen(1))
+			Expect(cfg.IPRanges[0].PickAddresses[0].Equal(net.ParseIP("10.0.0.50"))).To(BeTrue())
+			Expect(cfg.IPRanges[1].PickAddresses).To(HaveLen(1))
+			Expect(cfg.IPRanges[1].PickAddresses[0].Equal(net.ParseIP("fd00::50"))).To(BeTrue())
+		})
+
+		It("rejects invalid pick_addresses", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24","pick_addresses":["not-an-ip"]}`
+			err := json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(MatchError(`invalid IP in pick_addresses: "not-an-ip"`))
+		})
+
 		It("returns error for malformed JSON", func() {
 			var cfg IPAMConfig
 			data := `{invalid json}`

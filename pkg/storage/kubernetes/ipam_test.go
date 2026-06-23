@@ -218,6 +218,75 @@ func TestNodeSliceRangeIsSliced(t *testing.T) {
 	}
 }
 
+func TestNodeSlicePreservesPickAddresses(t *testing.T) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(whereaboutsv1alpha1.AddToScheme(scheme))
+
+	nodeSlice := &whereaboutsv1alpha1.NodeSlicePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nad",
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+			Range:     "10.0.0.0/16",
+			SliceSize: "24",
+		},
+		Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+			Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{{
+				NodeName:   "test-node",
+				SliceRange: "10.0.1.0/24",
+			}},
+		},
+	}
+
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-node-10.0.1.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.1.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(nodeSlice, pool)
+	k8sClient := fake.NewClientset()
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config: types.IPAMConfig{
+			Name:          "test-nad",
+			NodeSliceSize: "24",
+		},
+	}
+
+	t.Setenv("NODENAME", "test-node")
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, types.IPAMConfig{
+		Name:          "test-nad",
+		PodName:       "pod1",
+		PodNamespace:  "default",
+		NodeSliceSize: "24",
+		IPRanges: []types.RangeConfiguration{{
+			Range:         "10.0.0.0/16",
+			PickAddresses: []net.IP{net.ParseIP("10.0.1.50")},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("IPManagementKubernetesUpdate() error: %v", err)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 IP, got %d", len(newips))
+	}
+	if got := newips[0].String(); got != "10.0.1.50/24" {
+		t.Fatalf("expected picked node-slice allocation 10.0.1.50/24, got %s", got)
+	}
+}
+
 func TestIPPoolName(t *testing.T) {
 	cases := []struct {
 		name           string

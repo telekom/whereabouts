@@ -127,7 +127,8 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 
 	allocatedIPs := make(map[string]bool)
 
-	for _, ipRange := range ipam.Config.IPRanges {
+	for idx := range ipam.Config.IPRanges {
+		ipRange := &ipam.Config.IPRanges[idx]
 		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipam.Config.NetworkName}
 		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
 		if err != nil {

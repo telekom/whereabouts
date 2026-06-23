@@ -96,10 +96,11 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 
 	if n.IPAM.Range != "" {
 		oldRange := types.RangeConfiguration{
-			OmitRanges: n.IPAM.OmitRanges,
-			Range:      n.IPAM.Range,
-			RangeStart: n.IPAM.RangeStart,
-			RangeEnd:   n.IPAM.RangeEnd,
+			OmitRanges:    n.IPAM.OmitRanges,
+			Range:         n.IPAM.Range,
+			RangeStart:    n.IPAM.RangeStart,
+			RangeEnd:      n.IPAM.RangeEnd,
+			PickAddresses: n.IPAM.PickAddresses,
 		}
 
 		n.IPAM.IPRanges = append([]types.RangeConfiguration{oldRange}, n.IPAM.IPRanges...)
@@ -156,6 +157,7 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	n.IPAM.Range = ""
 	n.IPAM.RangeStart = nil
 	n.IPAM.RangeEnd = nil
+	n.IPAM.PickAddresses = nil
 
 	// Propagate enable_l3 from the top-level IPAM config to every IP range.
 	// Individual ranges may also set enable_l3 directly for mixed L2/L3 setups.

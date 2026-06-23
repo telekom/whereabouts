@@ -727,7 +727,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 	}
 
-	for _, ipRange := range ipamConf.IPRanges {
+	for idx := range ipamConf.IPRanges {
+		ipRange := ipamConf.IPRanges[idx]
 		configuredRange := ipRange.Range // capture before potential node-slice reassignment
 		var err error
 		var attempts int
@@ -786,10 +787,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					return newips, err
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
-					OmitRanges: ipRange.OmitRanges,
-					Range:      nodeSliceRange,
-					RangeStart: rangeStart,
-					RangeEnd:   rangeEnd,
+					OmitRanges:    ipRange.OmitRanges,
+					Range:         nodeSliceRange,
+					RangeStart:    rangeStart,
+					RangeEnd:      rangeEnd,
+					PickAddresses: ipRange.PickAddresses,
+					L3:            ipRange.L3,
 				}
 			}
 			logging.Debugf("using pool identifier: %v", poolIdentifier)

@@ -145,7 +145,7 @@ func TestNodeSliceRangeIsSliced(t *testing.T) {
 
 	nodeSlice := &whereaboutsv1alpha1.NodeSlicePool{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-nad",
+			Name:      "10.0.0.0-16",
 			Namespace: "default",
 		},
 		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
@@ -182,6 +182,9 @@ func TestNodeSliceRangeIsSliced(t *testing.T) {
 		Config: types.IPAMConfig{
 			Name:          "test-nad",
 			NodeSliceSize: "24",
+			IPRanges: []types.RangeConfiguration{{
+				Range: "10.0.0.0/16",
+			}},
 		},
 	}
 
@@ -650,7 +653,7 @@ func TestNodeSliceRangeUsesSlicedRange(t *testing.T) {
 
 	nodeSlice := &whereaboutsv1alpha1.NodeSlicePool{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-nad",
+			Name:      "10.0.0.0-16",
 			Namespace: "default",
 		},
 		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
@@ -684,6 +687,9 @@ func TestNodeSliceRangeUsesSlicedRange(t *testing.T) {
 		Config: types.IPAMConfig{
 			Name:          "test-nad",
 			NodeSliceSize: "24",
+			IPRanges: []types.RangeConfiguration{{
+				Range: "10.0.0.0/16",
+			}},
 		},
 	}
 	t.Setenv("NODENAME", "test-node")

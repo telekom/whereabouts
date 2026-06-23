@@ -16,6 +16,20 @@ import (
 	netutils "k8s.io/utils/net"
 )
 
+// NormalizeRangeForResourceName converts an IP range CIDR into a string
+// suitable for Kubernetes resource names.
+func NormalizeRangeForResourceName(ipRange string) string {
+	if ipRange == "" {
+		return ""
+	}
+	if ipRange[len(ipRange)-1] == ':' {
+		ipRange += "0"
+	}
+	normalized := strings.ReplaceAll(ipRange, ":", "-")
+	normalized = strings.ReplaceAll(normalized, "/", "-")
+	return normalized
+}
+
 // toAddr converts a net.IP to netip.Addr.
 func toAddr(ip net.IP) (netip.Addr, bool) {
 	if ip == nil {

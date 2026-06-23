@@ -682,14 +682,25 @@ func TestGetNodeSliceName(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "unnamed network uses Name",
-			config:   types.IPAMConfig{Name: "my-nad", NetworkName: ""},
-			expected: "my-nad",
+			name: "unnamed network uses range",
+			config: types.IPAMConfig{
+				Name:        "my-nad",
+				NetworkName: "",
+				IPRanges: []types.RangeConfiguration{{
+					Range: "10.0.0.0/24",
+				}},
+			},
+			expected: "10.0.0.0-24",
 		},
 		{
 			name:     "named network uses NetworkName",
 			config:   types.IPAMConfig{Name: "my-nad", NetworkName: "custom-net"},
 			expected: "custom-net",
+		},
+		{
+			name:     "unnamed network with no range falls back to Name",
+			config:   types.IPAMConfig{Name: "my-nad", NetworkName: ""},
+			expected: "my-nad",
 		},
 	}
 

@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -23,8 +24,12 @@ import (
 )
 
 func makeNADConfig(networkName, ipRange, sliceSize string) string {
+	return makeNADConfigWithName("testnet", networkName, ipRange, sliceSize)
+}
+
+func makeNADConfigWithName(name, networkName, ipRange, sliceSize string) string {
 	conf := map[string]interface{}{
-		"name": "testnet",
+		"name": name,
 		"ipam": map[string]interface{}{
 			"type":            "whereabouts",
 			"range":           ipRange,
@@ -139,9 +144,9 @@ var _ = Describe("NodeSliceReconciler", func() {
 			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify a NodeSlicePool was created. Pool name is the NAD name when network_name is empty.
+			// Verify a NodeSlicePool was created. Unnamed Fast IPAM networks use the range as pool name.
 			var pool whereaboutsv1alpha1.NodeSlicePool
-			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &pool)
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &pool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pool.Spec.Range).To(Equal("10.0.0.0/16"))
 			Expect(pool.Spec.SliceSize).To(Equal("/24"))
@@ -152,6 +157,48 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(pool.Status.TotalSlices).To(BeNumerically(">", 0))
 			Expect(pool.Status.AssignedSlices).To(BeNumerically("<=", pool.Status.TotalSlices))
 			Expect(pool.Status.FreeSlices).To(Equal(pool.Status.TotalSlices - pool.Status.AssignedSlices))
+		})
+	})
+
+	Context("when separate NADs share the embedded CNI name", func() {
+		It("should key unnamed NodeSlicePools by range instead of failing mismatch checks", func() {
+			nad1 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "range1",
+					Namespace: nadNamespace,
+					UID:       "nad-uid-range1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfigWithName("macvlan", "", "2.2.2.0/24", "/26"),
+				},
+			}
+			nad2 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "range2",
+					Namespace: nadNamespace,
+					UID:       "nad-uid-range2",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfigWithName("macvlan", "", "3.3.3.0/24", "/26"),
+				},
+			}
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			buildReconciler(nad1, nad2, node)
+
+			_, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nadNamespace, Name: "range1"}})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Namespace: nadNamespace, Name: "range2"}})
+			Expect(err).NotTo(HaveOccurred())
+
+			var pool1 whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "2.2.2.0-24"}, &pool1)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pool1.Spec.Range).To(Equal("2.2.2.0/24"))
+
+			var pool2 whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "3.3.3.0-24"}, &pool2)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pool2.Spec.Range).To(Equal("3.3.3.0/24"))
 		})
 	})
 
@@ -169,7 +216,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			pool := &whereaboutsv1alpha1.NodeSlicePool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testnet",
+					Name:      "10.0.0.0-16",
 					Namespace: nadNamespace,
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -201,7 +248,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 
 			// Verify node-b was assigned.
 			var updated whereaboutsv1alpha1.NodeSlicePool
-			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
 			Expect(err).NotTo(HaveOccurred())
 
 			nodeNames := map[string]bool{}
@@ -234,7 +281,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			pool := &whereaboutsv1alpha1.NodeSlicePool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testnet",
+					Name:      "10.0.0.0-16",
 					Namespace: nadNamespace,
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -265,7 +312,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var updated whereaboutsv1alpha1.NodeSlicePool
-			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Verify node-removed is cleared.
@@ -295,7 +342,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 			pool := &whereaboutsv1alpha1.NodeSlicePool{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "testnet",
+					Name:      "10.0.0.0-16",
 					Namespace: nadNamespace,
 					OwnerReferences: []metav1.OwnerReference{
 						{
@@ -323,9 +370,13 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var updated whereaboutsv1alpha1.NodeSlicePool
-			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &updated)
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-20"}, &updated)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(updated.Spec.Range).To(Equal("10.0.0.0/20"))
+
+			var stale whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &stale)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
 
 			// Verify slice stats after spec update.
 			Expect(updated.Status.TotalSlices).To(BeNumerically(">", 0))
@@ -353,7 +404,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var pool whereaboutsv1alpha1.NodeSlicePool
-			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &pool)
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &pool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pool.Spec.Range).To(Equal("10.0.0.0/16"))
 		})

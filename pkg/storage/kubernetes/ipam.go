@@ -691,10 +691,16 @@ func firstConfiguredRange(config whereaboutstypes.IPAMConfig) string {
 
 // committedAlloc tracks a successfully committed pool allocation for rollback.
 type committedAlloc struct {
-	pool   storage.IPPool
-	poolID PoolIdentifier
-	ip     net.IP
-	ipam   *KubernetesIPAM
+	pool        storage.IPPool
+	poolID      PoolIdentifier
+	ip          net.IP
+	ipam        *KubernetesIPAM
+	overlap     storage.OverlappingRangeStore
+	overlapIP   net.IP
+	podRef      string
+	ifName      string
+	networkName string
+	podUID      string
 }
 
 // IPManagementKubernetesUpdate manages k8s updates.
@@ -997,7 +1003,21 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		// Only append to newips in Allocate mode — during Deallocate, newip is
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
-			committed = append(committed, committedAlloc{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam})
+			commit := committedAlloc{
+				pool:   pool,
+				poolID: poolIdentifier,
+				ip:     append(net.IP(nil), newip.IP...),
+				ipam:   ipam,
+			}
+			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
+				commit.overlap = overlappingrangestore
+				commit.overlapIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
+				commit.podRef = ipamConf.GetPodRef()
+				commit.ifName = ipam.IfName
+				commit.networkName = ipamConf.NetworkName
+				commit.podUID = ipamConf.PodUID
+			}
+			committed = append(committed, commit)
 			newips = append(newips, newip)
 		}
 	}
@@ -1080,12 +1100,43 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 				break
 			}
 			logging.Debugf("Rolled back allocation for IP %s", c.ip)
+			rollbackOverlappingReservation(ctx, c)
 			lastErr = nil
 			break
 		}
 		if lastErr != nil {
 			logging.Errorf("Multi-range rollback failed for IP %s after %d attempt(s): %v", c.ip, attempts, lastErr)
 		}
+	}
+}
+
+func rollbackOverlappingReservation(ctx context.Context, c committedAlloc) {
+	if c.overlap == nil || c.overlapIP == nil {
+		return
+	}
+	var lastErr error
+	var attempts int
+	for attempt := range rollbackRetries {
+		attempts = attempt + 1
+		rbCtx, rbCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+		err := c.overlap.UpdateOverlappingRangeAllocation(
+			rbCtx, whereaboutstypes.Deallocate, c.overlapIP, c.podRef, c.ifName, c.networkName, c.podUID)
+		rbCancel()
+		if err != nil {
+			if isRetryableRollbackError(err) {
+				logging.Debugf("ORIP rollback transient error for IP %s (attempt %d), retrying", c.overlapIP, attempt+1)
+				lastErr = err
+				continue
+			}
+			lastErr = err
+			break
+		}
+		logging.Debugf("Rolled back overlapping reservation for IP %s", c.overlapIP)
+		lastErr = nil
+		break
+	}
+	if lastErr != nil {
+		logging.Errorf("ORIP rollback failed for IP %s after %d attempt(s): %v", c.overlapIP, attempts, lastErr)
 	}
 }
 

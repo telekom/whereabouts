@@ -805,6 +805,78 @@ func TestMultiRangeRollbackOnFailure(t *testing.T) {
 	}
 }
 
+func TestMultiRangeRollbackOnFailureRemovesOverlappingReservation(t *testing.T) {
+	pool1 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.2.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.2.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+	pool2 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.3.0.0-30",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.3.0.0/30",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "ns/existing1", ContainerID: "x1", IfName: "eth0"},
+				"2": {PodRef: "ns/existing2", ContainerID: "x2", IfName: "eth0"},
+			},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool1, pool2)
+	k8sClient := fake.NewClientset()
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "c1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		PodUID:            "pod-uid-1",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.2.0.0/24"},
+			{Range: "10.3.0.0/30"},
+		},
+	}
+
+	_, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected error from second range exhaustion")
+	}
+
+	updatedPool, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(
+		context.Background(), "10.2.0.0-24", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get pool1: %v", err)
+	}
+	if len(updatedPool.Spec.Allocations) != 0 {
+		t.Fatalf("expected pool1 allocations to be rolled back, got %d allocations", len(updatedPool.Spec.Allocations))
+	}
+
+	reservations, err := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").List(
+		context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("failed to list overlapping reservations: %v", err)
+	}
+	if len(reservations.Items) != 0 {
+		t.Fatalf("expected overlapping reservations to be rolled back, got %d", len(reservations.Items))
+	}
+}
+
 // Idempotent ADD (upstream requirement).
 
 // TestIdempotentAllocation verifies that re-running ADD for the same

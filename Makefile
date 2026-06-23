@@ -33,7 +33,7 @@ GIT_TREE_STATE := $(shell test -n "$$(git status --porcelain --untracked-files=n
 GIT_TAG := $(shell git describe --tags --abbrev=0 --exact-match 2>/dev/null)
 GIT_TAG_LAST := $(shell git describe --tags --abbrev=0 2>/dev/null)
 VERSION ?= $(GIT_TAG_LAST)
-RELEASE_STATUS := $(if $(strip $(VERSION)$(GIT_TAG)),released,unreleased)
+RELEASE_STATUS := $(if $(strip $(GIT_TAG)),released,unreleased)
 VERSION_PKG := github.com/telekom/whereabouts/pkg/version
 LDFLAGS := -X $(VERSION_PKG).Version=$(VERSION) \
            -X $(VERSION_PKG).GitSHA=$(GIT_SHA) \

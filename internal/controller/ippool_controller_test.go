@@ -76,6 +76,19 @@ var _ = Describe("IPPoolReconciler", func() {
 		}
 	}
 
+	buildReconcilerWithServiceCIDRs := func(serviceCIDRs []string, objs ...client.Object) <-chan string {
+		fakeClient := fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
+			WithObjects(objs...).
+			Build()
+		fakeRecorder := events.NewFakeRecorder(10)
+		reconciler = newIPPoolReconciler(fakeClient, fakeRecorder, interval, ReconcilerOptions{
+			ServiceCIDRs: serviceCIDRs,
+		})
+		return fakeRecorder.Events
+	}
+
 	// buildReconcilerWithFlags creates the reconciler with specified feature flags.
 	buildReconcilerWithFlags := func(cleanupTerminating, cleanupDisrupted, verifyNetworkStatus bool, objs ...client.Object) {
 		fakeClient := fake.NewClientBuilder().
@@ -136,6 +149,55 @@ var _ = Describe("IPPoolReconciler", func() {
 			Expect(updated.Status.OrphanedIPs).To(Equal(int32(0)))
 			Expect(updated.Status.PendingPods).To(Equal(int32(0)))
 			Expect(updated.Status.AllocatedIPs).To(BeEmpty())
+		})
+	})
+
+	Context("when service CIDRs are configured", func() {
+		It("should emit a warning event when the pool range overlaps a service CIDR", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "10.96.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			var event string
+			Eventually(eventCh).Should(Receive(&event))
+			Expect(event).To(ContainSubstring("Warning ServiceCIDROverlap"))
+			Expect(event).To(ContainSubstring("10.96.1.0/24"))
+			Expect(event).To(ContainSubstring("10.96.0.0/12"))
+		})
+
+		It("should not emit a warning event when the pool range does not overlap a service CIDR", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "10.244.0.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+
+			Consistently(eventCh).ShouldNot(Receive())
+		})
+
+		It("should not fail reconciliation or emit an event when the pool range is malformed", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "not-a-cidr", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(interval))
+
+			Consistently(eventCh).ShouldNot(Receive())
+		})
+
+		It("should copy service CIDRs from reconciler options", func() {
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+			serviceCIDRs := []string{"10.96.0.0/12"}
+
+			r := newIPPoolReconciler(fakeClient, events.NewFakeRecorder(1), interval, ReconcilerOptions{
+				ServiceCIDRs: serviceCIDRs,
+			})
+			serviceCIDRs[0] = "172.20.0.0/16"
+
+			Expect(r.serviceCIDRs).To(Equal([]string{"10.96.0.0/12"}))
 		})
 	})
 

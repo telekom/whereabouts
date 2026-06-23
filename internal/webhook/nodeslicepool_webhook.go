@@ -83,8 +83,8 @@ func validateNodeSlicePool(pool *whereaboutsv1alpha1.NodeSlicePool) error {
 		return fmt.Errorf("invalid spec.range: %w", err)
 	}
 
-	// Validate SliceSize is parseable.
-	_, err := validation.ValidateSliceSize(pool.Spec.SliceSize)
+	// Validate SliceSize is parseable and fits inside Range.
+	_, err := validation.ValidateSliceSizeForRange(pool.Spec.SliceSize, pool.Spec.Range)
 	if err != nil {
 		return fmt.Errorf("invalid spec.sliceSize: %w", err)
 	}

@@ -136,6 +136,86 @@ var _ = Describe("NodeSlicePoolValidator", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(warnings).To(BeNil())
 		})
+
+		It("should accept an IPv4 NodeSlicePool with sliceSize equal to range prefix", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/24",
+					SliceSize: "/24",
+				},
+			}
+			warnings, err := validator.ValidateCreate(ctx, pool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should accept an IPv6 NodeSlicePool with a matching IPv6 sliceSize", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "fd00::/64",
+					SliceSize: "/80",
+				},
+			}
+			warnings, err := validator.ValidateCreate(ctx, pool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(warnings).To(BeNil())
+		})
+
+		It("should reject an IPv4 NodeSlicePool with a sliceSize larger than IPv4 allows", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/16",
+					SliceSize: "/33",
+				},
+			}
+			_, err := validator.ValidateCreate(ctx, pool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("prefix length must be between 16 and 32"))
+		})
+
+		It("should reject an IPv6 NodeSlicePool with a sliceSize larger than IPv6 allows", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "fd00::/64",
+					SliceSize: "/129",
+				},
+			}
+			_, err := validator.ValidateCreate(ctx, pool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("prefix length must be between 1 and 128"))
+		})
+
+		It("should reject a NodeSlicePool with a sliceSize broader than the range", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pool",
+					Namespace: "default",
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/24",
+					SliceSize: "/16",
+				},
+			}
+			_, err := validator.ValidateCreate(ctx, pool)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("prefix length must not be broader than range prefix /24"))
+		})
 	})
 
 	Context("ValidateUpdate", func() {

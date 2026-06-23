@@ -88,6 +88,43 @@ func TestValidateSliceSize(t *testing.T) {
 	}
 }
 
+func TestValidateSliceSizeForRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		sliceSize string
+		cidr      string
+		want      int
+		wantErr   bool
+		errMsg    string
+	}{
+		{name: "valid IPv4 child prefix", sliceSize: "/24", cidr: "10.0.0.0/16", want: 24},
+		{name: "valid IPv4 equal prefix", sliceSize: "/24", cidr: "10.0.0.0/24", want: 24},
+		{name: "valid IPv6 child prefix", sliceSize: "/80", cidr: "fd00::/64", want: 80},
+		{name: "valid IPv6 equal prefix", sliceSize: "/128", cidr: "fd00::1/128", want: 128},
+		{name: "missing sliceSize", sliceSize: "", cidr: "10.0.0.0/16", wantErr: true, errMsg: "sliceSize is required"},
+		{name: "invalid sliceSize text", sliceSize: "abc", cidr: "10.0.0.0/16", wantErr: true, errMsg: "must be a CIDR prefix length"},
+		{name: "invalid CIDR", sliceSize: "/24", cidr: "not-a-cidr", wantErr: true, errMsg: "invalid CIDR"},
+		{name: "IPv4 prefix too large", sliceSize: "/33", cidr: "10.0.0.0/16", wantErr: true, errMsg: "between 16 and 32"},
+		{name: "IPv6 prefix too large", sliceSize: "/129", cidr: "fd00::/64", wantErr: true, errMsg: "between 1 and 128"},
+		{name: "slice broader than IPv4 range", sliceSize: "/16", cidr: "10.0.0.0/24", wantErr: true, errMsg: "must not be broader than range prefix /24"},
+		{name: "slice broader than IPv6 range", sliceSize: "/48", cidr: "fd00::/64", wantErr: true, errMsg: "must not be broader than range prefix /64"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidateSliceSizeForRange(tt.sliceSize, tt.cidr)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ValidateSliceSizeForRange(%q, %q) error = %v, wantErr %v", tt.sliceSize, tt.cidr, err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("ValidateSliceSizeForRange(%q, %q) = %d, want %d", tt.sliceSize, tt.cidr, got, tt.want)
+			}
+			if tt.errMsg != "" && err != nil && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("ValidateSliceSizeForRange(%q, %q) error = %q, want substring %q", tt.sliceSize, tt.cidr, err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
 func TestValidateOmitRanges(t *testing.T) {
 	tests := []struct {
 		name       string

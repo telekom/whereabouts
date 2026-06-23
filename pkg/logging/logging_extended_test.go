@@ -184,6 +184,12 @@ var _ = Describe("GetLoggingLevel", func() {
 	})
 })
 
+var _ = Describe("default logging level", func() {
+	It("defaults to error-only output unless configured otherwise", func() {
+		Expect(defaultLoggingLevel).To(Equal(ErrorLevel))
+	})
+})
+
 var _ = Describe("SetLogFile", func() {
 	It("closes previously opened file when called again", func() {
 		tmpFile1, err := os.CreateTemp("", "wb-log-1-*.log")

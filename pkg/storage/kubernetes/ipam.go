@@ -1055,7 +1055,8 @@ func isRetryableRollbackError(err error) bool {
 // already-fetched pool; subsequent retry attempts re-read the pool from
 // Kubernetes to avoid operating on a stale resourceVersion.
 func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
-	for _, c := range committed {
+	for i := range committed {
+		c := &committed[i]
 		var lastErr error
 		var attempts int
 		for attempt := range rollbackRetries {
@@ -1110,7 +1111,7 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 	}
 }
 
-func rollbackOverlappingReservation(ctx context.Context, c committedAlloc) {
+func rollbackOverlappingReservation(ctx context.Context, c *committedAlloc) {
 	if c.overlap == nil || c.overlapIP == nil {
 		return
 	}

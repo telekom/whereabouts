@@ -54,7 +54,7 @@ func TestMakefileReleaseTargetsDoNotInlineTagValues(t *testing.T) {
 	text := string(makefile)
 
 	for _, want := range []string{
-		`GITHUB_TAG="$${GITHUB_TAG}" GITHUB_TOKEN="$${GITHUB_TOKEN}" GITHUB_REPO_OWNER="$${GITHUB_REPO_OWNER}" hack/release/chart-update.sh`,
+		`GITHUB_TAG="$${GITHUB_TAG}" GITHUB_REPO_OWNER="$${GITHUB_REPO_OWNER}" hack/release/chart-update.sh`,
 		`GITHUB_TAG="$${GITHUB_TAG}" GITHUB_TOKEN="$${GITHUB_TOKEN}" GITHUB_REPO_OWNER="$${GITHUB_REPO_OWNER}" hack/release/chart-push.sh`,
 	} {
 		if !strings.Contains(text, want) {

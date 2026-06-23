@@ -354,11 +354,11 @@ func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
 
 	base := new(big.Int).SetBytes(baseIP)
 	resultInt := new(big.Int).Add(base, offset)
-	max := new(big.Int).Lsh(big.NewInt(1), 32)
+	ipLimit := new(big.Int).Lsh(big.NewInt(1), 32)
 	if isIPv6 {
-		max.Lsh(big.NewInt(1), 128)
+		ipLimit.Lsh(big.NewInt(1), 128)
 	}
-	if resultInt.Sign() < 0 || resultInt.Cmp(max) >= 0 {
+	if resultInt.Sign() < 0 || resultInt.Cmp(ipLimit) >= 0 {
 		return nil
 	}
 	return bigIntToIP(resultInt, isIPv6)

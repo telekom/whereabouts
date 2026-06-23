@@ -205,7 +205,7 @@ $(YQ): | $(BIN_DIR); $(info installing yq)
 
 .PHONY: chart-prepare-release
 chart-prepare-release: | $(YQ) ; ## Prepare chart for release.
-	@GITHUB_TAG=$(GITHUB_TAG) GITHUB_TOKEN=$(GITHUB_TOKEN) GITHUB_REPO_OWNER=$(GITHUB_REPO_OWNER) hack/release/chart-update.sh
+	@GITHUB_TAG=$(GITHUB_TAG) GITHUB_REPO_OWNER=$(GITHUB_REPO_OWNER) hack/release/chart-update.sh
 
 .PHONY: chart-push-release
 chart-push-release: ## Push release chart.

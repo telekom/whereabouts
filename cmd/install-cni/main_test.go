@@ -52,6 +52,7 @@ func newTestConfig(t *testing.T, withCA bool) *config {
 		KubeHost:           "10.96.0.1",
 		KubePort:           "443",
 		Namespace:          "kube-system",
+		NodeName:           "worker.example.com",
 	}
 }
 
@@ -89,6 +90,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	t.Setenv("SKIP_TLS_VERIFY", "")
 	t.Setenv("WHEREABOUTS_RECONCILER_CRON", "")
 	t.Setenv("WHEREABOUTS_NAMESPACE", "")
+	t.Setenv("NODENAME", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -114,6 +116,7 @@ func TestLoadConfig_CustomValues(t *testing.T) {
 	t.Setenv("KUBERNETES_SERVICE_PROTOCOL", "http")
 	t.Setenv("SERVICE_ACCOUNT_PATH", "/custom/sa")
 	t.Setenv("KUBE_CA_FILE", "/custom/ca.pem")
+	t.Setenv("NODENAME", "worker-1.example.com")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -126,6 +129,7 @@ func TestLoadConfig_CustomValues(t *testing.T) {
 	assertEqual(t, "Namespace", cfg.Namespace, "my-ns")
 	assertEqual(t, "ServiceAccountPath", cfg.ServiceAccountPath, "/custom/sa")
 	assertEqual(t, "KubeCAFile", cfg.KubeCAFile, "/custom/ca.pem")
+	assertEqual(t, "NodeName", cfg.NodeName, "worker-1.example.com")
 	if !cfg.SkipTLSVerify {
 		t.Error("SkipTLSVerify should be true")
 	}
@@ -160,7 +164,9 @@ func TestConfigPaths(t *testing.T) {
 	assertEqual(t, "confDir", c.confDir(), "/host/etc/cni/net.d/whereabouts.d")
 	assertEqual(t, "kubeconfigPath", c.kubeconfigPath(), "/host/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig")
 	assertEqual(t, "kubeconfigLiteral", c.kubeconfigLiteral(), "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig")
+	assertEqual(t, "configurationPathLiteral", c.configurationPathLiteral(), "/etc/cni/net.d/whereabouts.d")
 	assertEqual(t, "whereaboutsConfPath", c.whereaboutsConfPath(), "/host/etc/cni/net.d/whereabouts.d/whereabouts.conf")
+	assertEqual(t, "nodeNamePath", c.nodeNamePath(), "/host/etc/cni/net.d/whereabouts.d/nodename")
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +338,7 @@ func TestWriteWhereaboutsConf(t *testing.T) {
 		t.Fatalf("generated conf is not valid JSON: %v", err)
 	}
 	assertEqual(t, "datastore", parsed.Datastore, "kubernetes")
+	assertEqual(t, "configuration_path", parsed.ConfigurationPath, cfg.configurationPathLiteral())
 	assertEqual(t, "kubeconfig", parsed.Kubernetes.Kubeconfig, cfg.kubeconfigLiteral())
 	assertEqual(t, "cron", parsed.ReconcilerCronExpression, "0 */6 * * *")
 }
@@ -345,6 +352,50 @@ func TestWriteWhereaboutsConf_UnwritableDir(t *testing.T) {
 		t.Fatal("expected error when conf path is unwritable")
 	}
 	assertContains(t, err.Error(), "writing whereabouts.conf")
+}
+
+// ---------------------------------------------------------------------------
+// writeNodeNameFile
+// ---------------------------------------------------------------------------
+
+func TestWriteNodeNameFile(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	cfg.NodeName = "worker-1.example.com"
+
+	must(t, writeNodeNameFile(cfg))
+
+	data, err := os.ReadFile(cfg.nodeNamePath())
+	must(t, err)
+	assertEqual(t, "nodename", string(data), "worker-1.example.com")
+
+	info, err := os.Stat(cfg.nodeNamePath())
+	must(t, err)
+	if info.Mode().Perm() != defaultKubeConfigMode {
+		t.Errorf("nodename mode = %o, want %o", info.Mode().Perm(), defaultKubeConfigMode)
+	}
+}
+
+func TestWriteNodeNameFile_SkipsMissingNodeName(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	cfg.NodeName = ""
+
+	must(t, writeNodeNameFile(cfg))
+
+	if _, err := os.Stat(cfg.nodeNamePath()); !os.IsNotExist(err) {
+		t.Fatalf("nodename file should not exist when NODENAME is unset, stat err: %v", err)
+	}
+}
+
+func TestWriteNodeNameFile_UnwritableDir(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	cfg.NodeName = "worker-1.example.com"
+	cfg.CNIConfDir = "/proc/nonexistent"
+
+	err := writeNodeNameFile(cfg)
+	if err == nil {
+		t.Fatal("expected error when nodename path is unwritable")
+	}
+	assertContains(t, err.Error(), "writing nodename")
 }
 
 // ---------------------------------------------------------------------------
@@ -772,6 +823,7 @@ func TestRun_MissingSourceBinary(t *testing.T) {
 	t.Setenv("SERVICE_ACCOUNT_PATH", cfg.ServiceAccountPath)
 	t.Setenv("SKIP_TLS_VERIFY", "true")
 	t.Setenv("WHEREABOUTS_NAMESPACE", cfg.Namespace)
+	t.Setenv("NODENAME", cfg.NodeName)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -797,6 +849,7 @@ func TestRun_WhereaboutsConfFails(t *testing.T) {
 	t.Setenv("SERVICE_ACCOUNT_PATH", cfg.ServiceAccountPath)
 	t.Setenv("SKIP_TLS_VERIFY", "true")
 	t.Setenv("WHEREABOUTS_NAMESPACE", cfg.Namespace)
+	t.Setenv("NODENAME", cfg.NodeName)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -823,6 +876,7 @@ func TestRun_FullSuccess(t *testing.T) {
 	t.Setenv("SERVICE_ACCOUNT_PATH", cfg.ServiceAccountPath)
 	t.Setenv("SKIP_TLS_VERIFY", "true")
 	t.Setenv("WHEREABOUTS_NAMESPACE", cfg.Namespace)
+	t.Setenv("NODENAME", cfg.NodeName)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -852,10 +906,16 @@ func TestRun_FullSuccess(t *testing.T) {
 	if _, err := os.Stat(cfg.whereaboutsConfPath()); err != nil {
 		t.Errorf("whereabouts.conf not created: %v", err)
 	}
+	if _, err := os.Stat(cfg.nodeNamePath()); err != nil {
+		t.Errorf("nodename not created: %v", err)
+	}
 	dstBin := filepath.Join(cfg.CNIBinDir, "whereabouts")
 	if _, err := os.Stat(dstBin); err != nil {
 		t.Errorf("binary not copied: %v", err)
 	}
+	nodeName, err := os.ReadFile(cfg.nodeNamePath())
+	must(t, err)
+	assertEqual(t, "nodename", string(nodeName), cfg.NodeName)
 
 	// Validate kubeconfig is parseable.
 	data, err := os.ReadFile(cfg.kubeconfigPath())

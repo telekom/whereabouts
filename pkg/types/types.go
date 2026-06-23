@@ -185,12 +185,20 @@ func (rc *RangeConfiguration) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	rangeStart, err := parseOptionalIP(rangeConfigAlias.RangeStart, "range_start")
+	if err != nil {
+		return err
+	}
+	rangeEnd, err := parseOptionalIP(rangeConfigAlias.RangeEnd, "range_end")
+	if err != nil {
+		return err
+	}
 
 	*rc = RangeConfiguration{
 		OmitRanges:    rangeConfigAlias.OmitRanges,
 		Range:         rangeConfigAlias.Range,
-		RangeStart:    backwardsCompatibleIPAddress(rangeConfigAlias.RangeStart),
-		RangeEnd:      backwardsCompatibleIPAddress(rangeConfigAlias.RangeEnd),
+		RangeStart:    rangeStart,
+		RangeEnd:      rangeEnd,
 		PickAddresses: pickAddresses,
 		L3:            rangeConfigAlias.L3,
 	}
@@ -249,6 +257,14 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	rangeStart, err := parseOptionalIP(ipamConfigAlias.RangeStart, "range_start")
+	if err != nil {
+		return err
+	}
+	rangeEnd, err := parseOptionalIP(ipamConfigAlias.RangeEnd, "range_end")
+	if err != nil {
+		return err
+	}
 
 	*ic = IPAMConfig{
 		Name:                     ipamConfigAlias.Name,
@@ -259,8 +275,8 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		OmitRanges:               ipamConfigAlias.OmitRanges,
 		DNS:                      ipamConfigAlias.DNS,
 		Range:                    ipamConfigAlias.Range,
-		RangeStart:               backwardsCompatibleIPAddress(ipamConfigAlias.RangeStart),
-		RangeEnd:                 backwardsCompatibleIPAddress(ipamConfigAlias.RangeEnd),
+		RangeStart:               rangeStart,
+		RangeEnd:                 rangeEnd,
 		PickAddresses:            pickAddresses,
 		NodeSliceSize:            ipamConfigAlias.NodeSliceSize,
 		GatewayStr:               ipamConfigAlias.GatewayStr,
@@ -301,6 +317,17 @@ func parseIPList(rawIPs []string, fieldName string) ([]net.IP, error) {
 		ips = append(ips, ip)
 	}
 	return ips, nil
+}
+
+func parseOptionalIP(rawIP, fieldName string) (net.IP, error) {
+	if rawIP == "" {
+		return nil, nil
+	}
+	ip := backwardsCompatibleIPAddress(rawIP)
+	if ip == nil {
+		return nil, fmt.Errorf("invalid IP in %s: %q", fieldName, rawIP)
+	}
+	return ip, nil
 }
 
 func (ic *IPAMConfig) GetPodRef() string {

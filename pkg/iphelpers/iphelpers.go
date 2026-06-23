@@ -30,6 +30,12 @@ func NormalizeRangeForResourceName(ipRange string) string {
 	return normalized
 }
 
+// MaxNodeSliceSubnets caps the number of slice CIDRs materialized for a single
+// NodeSlicePool. The cap is above Kubernetes' official 5,000-node scale target
+// while keeping NodeSlicePool status comfortably below Kubernetes object-size
+// limits.
+const MaxNodeSliceSubnets int64 = 16_384
+
 // toAddr converts a net.IP to netip.Addr.
 func toAddr(ip net.IP) (netip.Addr, bool) {
 	if ip == nil {
@@ -97,6 +103,16 @@ func CompareIPs(ipX net.IP, ipY net.IP) int {
 // and returns a list of CIDRs that divide the input range into the given prefix lengths.
 // Works with both IPv4 and IPv6.
 func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, error) {
+	return divideRangeBySize(inputNetwork, sliceSizeString, 0)
+}
+
+// DivideRangeBySizeWithLimit behaves like DivideRangeBySize, but returns an
+// error before materializing subnets if the requested split exceeds maxSubnets.
+func DivideRangeBySizeWithLimit(inputNetwork string, sliceSizeString string, maxSubnets int64) ([]string, error) {
+	return divideRangeBySize(inputNetwork, sliceSizeString, maxSubnets)
+}
+
+func divideRangeBySize(inputNetwork string, sliceSizeString string, maxSubnets int64) ([]string, error) {
 	sliceSizeString = strings.TrimPrefix(sliceSizeString, "/")
 	sliceSize, err := strconv.Atoi(sliceSizeString)
 	if err != nil {
@@ -125,10 +141,16 @@ func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, e
 	}
 
 	numSubnets := new(big.Int).Lsh(big.NewInt(1), uint(sliceSize-netBits))
+	if maxSubnets > 0 && numSubnets.Cmp(big.NewInt(maxSubnets)) > 0 {
+		return nil, fmt.Errorf("node slice range %s with slice size /%d creates %s slices, max supported %d", inputNetwork, sliceSize, numSubnets.String(), maxSubnets)
+	}
 	subnetSize := new(big.Int).Lsh(big.NewInt(1), uint(addrLen-sliceSize))
 
 	baseInt := netutils.BigForIP(prefix.Addr().AsSlice())
 	var result []string
+	if maxSubnets > 0 {
+		result = make([]string, 0, int(numSubnets.Int64()))
+	}
 
 	for i := big.NewInt(0); i.Cmp(numSubnets) < 0; i.Add(i, big.NewInt(1)) {
 		offset := new(big.Int).Mul(i, subnetSize)

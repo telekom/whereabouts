@@ -317,6 +317,19 @@ var _ = Describe("DivideRangeBySize edge cases", func() {
 		Expect(subnets).To(HaveLen(4))
 	})
 
+	It("allows the maximum supported NodeSlice subnet count", func() {
+		subnets, err := DivideRangeBySizeWithLimit("10.0.0.0/16", "/30", MaxNodeSliceSubnets)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(subnets).To(HaveLen(int(MaxNodeSliceSubnets)))
+	})
+
+	It("returns error before materializing too many NodeSlice subnets", func() {
+		_, err := DivideRangeBySizeWithLimit("10.0.0.0/8", "/27", MaxNodeSliceSubnets)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("creates 524288 slices"))
+		Expect(err.Error()).To(ContainSubstring("max supported 16384"))
+	})
+
 	It("returns error for slice size exceeding address length", func() {
 		_, err := DivideRangeBySize("10.0.0.0/24", "/33")
 		Expect(err).To(HaveOccurred())

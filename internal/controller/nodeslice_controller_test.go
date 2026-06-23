@@ -125,6 +125,31 @@ var _ = Describe("NodeSliceReconciler", func() {
 		})
 	})
 
+	Context("when the NAD would create too many node slices", func() {
+		It("should fail before creating a NodeSlicePool", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-too-large",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/8", "/27"),
+				},
+			}
+			buildReconciler(nad)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("creates 524288 slices"))
+			Expect(err.Error()).To(ContainSubstring("max supported 16384"))
+
+			var pool whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "testnet"}, &pool)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+	})
+
 	Context("when the NAD has valid config and no existing pool", func() {
 		It("should create a NodeSlicePool", func() {
 			nad := &nadv1.NetworkAttachmentDefinition{

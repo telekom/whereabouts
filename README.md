@@ -280,6 +280,11 @@ same NodeSlicePool. When it is not set, the NodeSlicePool name is derived from
 the configured range so different NADs can use the same embedded CNI `name`
 without colliding.
 
+A single NodeSlicePool supports up to 16,384 slices. Configurations that would
+produce more slices are rejected before the controller creates or updates the
+pool, because very large allocation lists can exceed Kubernetes object-size
+limits.
+
 
 ## Core Parameters
 

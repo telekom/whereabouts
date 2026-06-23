@@ -407,7 +407,7 @@ func TestAtomicWriteFile_ReplacesExisting(t *testing.T) {
 	dst := filepath.Join(tmp, "whereabouts.conf")
 
 	must(t, os.WriteFile(dst, []byte("old"), 0o644))
-	must(t, atomicWriteFile(dst, []byte("new"), 0o600))
+	must(t, atomicWriteFile(dst, []byte("new")))
 
 	data, err := os.ReadFile(dst)
 	must(t, err)
@@ -433,7 +433,7 @@ func TestAtomicWriteFile_NoTempFileLeftOnRenameError(t *testing.T) {
 	dstIsDir := filepath.Join(tmp, "whereabouts.conf")
 	must(t, os.MkdirAll(dstIsDir, 0o755))
 
-	err := atomicWriteFile(dstIsDir, []byte("new"), 0o600)
+	err := atomicWriteFile(dstIsDir, []byte("new"))
 	if err == nil {
 		t.Fatal("expected error when dst is an existing directory")
 	}

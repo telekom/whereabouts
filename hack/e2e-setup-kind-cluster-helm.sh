@@ -53,7 +53,7 @@ HELM_NAMESPACE="kube-system"
 CHART_DIR="$ROOT/deployment/whereabouts-chart"
 
 create_cluster() {
-  workers="$(for i in $(seq $NUMBER_OF_COMPUTE_NODES); do echo "  - role: worker"; done)"
+  workers="$(for _ in $(seq "$NUMBER_OF_COMPUTE_NODES"); do echo "  - role: worker"; done)"
   # deploy cluster with kind
   cat <<EOF | kind create cluster --name $KIND_CLUSTER_NAME --config=-
 kind: Cluster
@@ -88,17 +88,19 @@ retry() {
   local retries=${RETRY_MAX:-5}
   local delay=${INTERVAL:-5}
   local to=${TIMEOUT:-20}
-  cmd="$*"
 
-  while [ $retries -gt 0 ]
+  while [ "$retries" -gt 0 ]
   do
     status=0
-    $TIMEOUT_CMD $to bash -c "echo $cmd && $cmd" || status=$?
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+    "$TIMEOUT_CMD" "$to" "$@" || status=$?
     if [ $status -eq 0 ]; then
       break;
     fi
     echo "Exit code: '$status'. Sleeping '$delay' seconds before retrying"
-    sleep $delay
+    sleep "$delay"
     retries=$((retries - 1))
   done
   return $status

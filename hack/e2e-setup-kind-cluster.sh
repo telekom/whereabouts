@@ -1,17 +1,32 @@
 #!/bin/bash
 set -eo pipefail
 
-while true; do
+NUMBER_OF_COMPUTE_NODES=""
+
+while [ $# -gt 0 ]; do
   case "$1" in
     -n|--number-of-compute)
+      if [ -z "${2:-}" ]; then
+        echo "option '$1' requires an argument: -n <number-of-compute-nodes>" >&2
+        exit 1
+      fi
       NUMBER_OF_COMPUTE_NODES=$2
+      shift 2
+      ;;
+    --)
+      shift
       break
       ;;
     *)
-      echo "define argument -n (number of compute nodes)"
+      echo "Usage: $0 -n <number-of-compute-nodes>" >&2
       exit 1
   esac
 done
+
+if [ -z "${NUMBER_OF_COMPUTE_NODES:-}" ]; then
+  echo "Missing required argument: -n <number-of-compute-nodes>" >&2
+  exit 1
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
@@ -29,7 +44,7 @@ IMG_TAG="latest"
 IMG_NAME="$IMG_REGISTRY/$IMG_PROJECT:$IMG_TAG"
 
 create_cluster() {
-workers="$(for i in $(seq $NUMBER_OF_COMPUTE_NODES); do echo "  - role: worker"; done)"
+workers="$(for _ in $(seq "$NUMBER_OF_COMPUTE_NODES"); do echo "  - role: worker"; done)"
   # deploy cluster with kind
   cat <<EOF | kind create cluster --name $KIND_CLUSTER_NAME --config=-
 kind: Cluster
@@ -64,18 +79,20 @@ retry() {
   local retries=${RETRY_MAX:-5}
   local delay=${INTERVAL:-5}
   local to=${TIMEOUT:-20}
-  cmd="$*"
 
-  while [ $retries -gt 0 ]
+  while [ "$retries" -gt 0 ]
   do
     status=0
-    $TIMEOUT_CMD $to bash -c "echo $cmd && $cmd" || status=$?
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+    "$TIMEOUT_CMD" "$to" "$@" || status=$?
     if [ $status -eq 0 ]; then
       break;
     fi
     echo "Exit code: '$status'. Sleeping '$delay' seconds before retrying"
-    sleep $delay
-    let retries--
+    sleep "$delay"
+    retries=$((retries - 1))
   done
   return $status
 }
@@ -114,10 +131,13 @@ echo "## install whereabouts"
 # Build kustomize output, substitute the locally built image, and add imagePullPolicy: Never
 pushd "$ROOT"
 make kustomize
+rendered_manifest="$(mktemp -t whereabouts-manifest.XXXXXX)"
+trap 'rm -f /tmp/whereabouts-img.tar "$rendered_manifest"' EXIT
 bin/kustomize build config/default | \
   sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|$IMG_NAME|g" | \
-  awk '/^[[:space:]]*image:/{print; indent=substr($0,1,match($0,/image:/)-1); print indent "imagePullPolicy: Never"; next}1' | \
-  retry kubectl apply -f -
+  awk '/^[[:space:]]*image:/{print; indent=substr($0,1,match($0,/image:/)-1); print indent "imagePullPolicy: Never"; next}1' \
+  > "$rendered_manifest"
+retry kubectl apply -f "$rendered_manifest"
 popd
 retry kubectl wait -n kube-system --for=condition=ready -l name=whereabouts pod --timeout=$TIMEOUT_K8
 retry kubectl wait -n kube-system --for=condition=ready -l control-plane=controller-manager pod --timeout=$TIMEOUT_K8

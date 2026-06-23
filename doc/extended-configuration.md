@@ -159,6 +159,11 @@ Example dual-stack configuration:
 |-----------|------|---------|-------------|
 | `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `make deploy`). Valid range: 1–128. |
 
+With Fast IPAM, `network_name` explicitly shares one NodeSlicePool across
+matching NetworkAttachmentDefinitions. If `network_name` is not set, the
+NodeSlicePool name is derived from the configured range, so independent NADs do
+not collide merely because their embedded CNI `name` fields match.
+
 ### Leader Election
 
 These parameters configure the leader election used during IP allocation. All values

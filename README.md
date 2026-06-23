@@ -275,6 +275,11 @@ You must run your whereabouts daemonset and whereabouts operator in the same nam
 The field in the example `node_slice_size` determines how large of a CIDR to allocate per node and the existence of the field is what triggers
 `Fast IPAM` mode.
 
+When `network_name` is set, all matching NetworkAttachmentDefinitions share the
+same NodeSlicePool. When it is not set, the NodeSlicePool name is derived from
+the configured range so different NADs can use the same embedded CNI `name`
+without colliding.
+
 
 ## Core Parameters
 

@@ -96,10 +96,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Compute pool name and slices.
-	poolName := ipamConf.NetworkName
-	if poolName == "" {
-		poolName = ipamConf.Name
-	}
+	poolName := nodeSlicePoolName(ipamConf)
 
 	subnets, err := iphelpers.DivideRangeBySize(ipamConf.Range, ipamConf.NodeSliceSize)
 	if err != nil {
@@ -126,6 +123,10 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, fmt.Errorf("getting NodeSlicePool: %w", err)
 		}
 		exists = false
+	}
+
+	if err := r.cleanupStaleOwnedPools(ctx, &nad, poolName); err != nil {
+		return ctrl.Result{}, fmt.Errorf("cleaning stale NodeSlicePools: %w", err)
 	}
 
 	if !exists {
@@ -378,15 +379,9 @@ func (r *NodeSliceReconciler) checkMultiNADMismatch(ctx context.Context, nad *na
 			continue
 		}
 
-		// Only compare NADs that share the same network name.
-		thisName := conf.NetworkName
-		if thisName == "" {
-			thisName = conf.Name
-		}
-		otherName := otherConf.NetworkName
-		if otherName == "" {
-			otherName = otherConf.Name
-		}
+		// Only compare NADs that resolve to the same NodeSlicePool.
+		thisName := nodeSlicePoolName(conf)
+		otherName := nodeSlicePoolName(otherConf)
 		if thisName != otherName {
 			continue
 		}
@@ -398,6 +393,59 @@ func (r *NodeSliceReconciler) checkMultiNADMismatch(ctx context.Context, nad *na
 	}
 
 	return nil
+}
+
+func (r *NodeSliceReconciler) cleanupStaleOwnedPools(ctx context.Context, nad *nadv1.NetworkAttachmentDefinition, desiredName string) error {
+	var pools whereaboutsv1alpha1.NodeSlicePoolList
+	if err := r.client.List(ctx, &pools, client.InNamespace(nad.Namespace)); err != nil {
+		return err
+	}
+
+	for i := range pools.Items {
+		pool := &pools.Items[i]
+		if pool.Name == desiredName {
+			continue
+		}
+
+		ownerIdx := ownerRefIndex(pool.OwnerReferences, nad.UID)
+		if ownerIdx < 0 {
+			continue
+		}
+
+		remainingOwners := append([]metav1.OwnerReference{}, pool.OwnerReferences[:ownerIdx]...)
+		remainingOwners = append(remainingOwners, pool.OwnerReferences[ownerIdx+1:]...)
+		if len(remainingOwners) == 0 {
+			if err := client.IgnoreNotFound(r.client.Delete(ctx, pool)); err != nil {
+				return err
+			}
+			continue
+		}
+
+		pool.OwnerReferences = remainingOwners
+		if err := r.client.Update(ctx, pool); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ownerRefIndex(refs []metav1.OwnerReference, uid types.UID) int {
+	for i := range refs {
+		if refs[i].UID == uid {
+			return i
+		}
+	}
+	return -1
+}
+
+func nodeSlicePoolName(conf *nadIPAMConfig) string {
+	if conf.NetworkName != "" {
+		return conf.NetworkName
+	}
+	if conf.Range != "" {
+		return iphelpers.NormalizeRangeForResourceName(conf.Range)
+	}
+	return conf.Name
 }
 
 // makeAllocations creates allocation entries from subnets and assigns nodes.

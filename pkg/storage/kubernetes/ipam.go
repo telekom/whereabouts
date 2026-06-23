@@ -154,17 +154,7 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 // Kubernetes resource name. Colons (IPv6) and slashes (CIDR notation) are
 // replaced with dashes because metadata.name must match RFC 1123 DNS subdomain.
 func normalizeRange(ipRange string) string {
-	if ipRange == "" {
-		return ""
-	}
-	// Trailing colon in abbreviated IPv6 (e.g. "2001::") needs a zero appended
-	// so the replacement below produces a valid name segment.
-	if ipRange[len(ipRange)-1] == ':' {
-		ipRange += "0"
-	}
-	normalized := strings.ReplaceAll(ipRange, ":", "-")
-	normalized = strings.ReplaceAll(normalized, "/", "-")
-	return normalized
+	return iphelpers.NormalizeRangeForResourceName(ipRange)
 }
 
 func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange string) (*whereaboutsv1alpha1.IPPool, error) {
@@ -651,10 +641,23 @@ func GetNodeSlicePoolRange(ctx context.Context, ipam *KubernetesIPAM, nodeName s
 }
 
 func getNodeSliceName(ipam *KubernetesIPAM) string {
-	if ipam.Config.NetworkName == UnnamedNetwork {
-		return ipam.Config.Name
+	if ipam.Config.NetworkName != UnnamedNetwork {
+		return ipam.Config.NetworkName
 	}
-	return ipam.Config.NetworkName
+	if ipRange := firstConfiguredRange(ipam.Config); ipRange != "" {
+		return normalizeRange(ipRange)
+	}
+	return ipam.Config.Name
+}
+
+func firstConfiguredRange(config whereaboutstypes.IPAMConfig) string {
+	if config.Range != "" {
+		return config.Range
+	}
+	if len(config.IPRanges) > 0 {
+		return config.IPRanges[0].Range
+	}
+	return ""
 }
 
 // committedAlloc tracks a successfully committed pool allocation for rollback.

@@ -45,6 +45,9 @@ jobs:
     - name: Verify Helm webhook failurePolicy
       run: make verify-helm-webhook-failurepolicy
 
+    - name: Verify Helm webhook ServiceAccount bypass
+      run: make verify-helm-webhook-bypass-serviceaccount
+
     - name: Verify go fmt
       run: |
         go fmt ./...

@@ -724,7 +724,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 	}
 
-	for _, ipRange := range ipamConf.IPRanges {
+	for idx := range ipamConf.IPRanges {
+		ipRange := ipamConf.IPRanges[idx]
 		configuredRange := ipRange.Range // capture before potential node-slice reassignment
 		var err error
 		var attempts int

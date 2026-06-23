@@ -262,13 +262,13 @@ func pickForAssignment(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, pick
 	return net.IP{}, reserveList, AssignmentError{firstIP, lastIP, ipnet, excludeRanges}
 }
 
-func effectiveIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, l3 bool) (net.IP, net.IP, error) {
+func effectiveIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP, l3 bool) (firstIP net.IP, lastIP net.IP, err error) {
 	if !l3 {
 		return iphelpers.GetIPRange(ipnet, rangeStart, rangeEnd)
 	}
 
-	firstIP := iphelpers.NetworkIP(ipnet)
-	lastIP := iphelpers.SubnetBroadcastIP(ipnet)
+	firstIP = iphelpers.NetworkIP(ipnet)
+	lastIP = iphelpers.SubnetBroadcastIP(ipnet)
 	if rangeStart != nil && ipnet.Contains(rangeStart) && iphelpers.CompareIPs(rangeStart, firstIP) >= 0 {
 		firstIP = rangeStart
 	}

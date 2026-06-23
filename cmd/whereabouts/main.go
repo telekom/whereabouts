@@ -130,7 +130,7 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 	for idx := range ipam.Config.IPRanges {
 		ipRange := &ipam.Config.IPRanges[idx]
 		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipam.Config.NetworkName}
-		pool, err := ipam.GetIPPool(ctx, poolIdentifier)
+		pool, err := ipam.GetExistingIPPool(ctx, poolIdentifier)
 		if err != nil {
 			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
 				return logging.Errorf("CHECK: transient error reading pool %s: %w", ipRange.Range, err)

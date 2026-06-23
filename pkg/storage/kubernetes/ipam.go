@@ -134,6 +134,24 @@ func (i *KubernetesIPAM) GetIPPool(ctx context.Context, poolIdentifier PoolIdent
 	return &KubernetesIPPool{i.client, firstIP, pool}, nil
 }
 
+// GetExistingIPPool returns an existing storage.IPPool for read or cleanup
+// paths. Unlike GetIPPool, it never creates a missing IPPool.
+func (i *KubernetesIPAM) GetExistingIPPool(ctx context.Context, poolIdentifier PoolIdentifier) (storage.IPPool, error) {
+	name := IPPoolName(poolIdentifier)
+
+	pool, err := i.getExistingPool(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	firstIP, _, err := pool.ParseCIDR()
+	if err != nil {
+		return nil, err
+	}
+
+	return &KubernetesIPPool{i.client, firstIP, pool}, nil
+}
+
 func IPPoolName(poolIdentifier PoolIdentifier) string {
 	if poolIdentifier.NodeName != "" {
 		// fast node range naming convention
@@ -155,6 +173,17 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 // replaced with dashes because metadata.name must match RFC 1123 DNS subdomain.
 func normalizeRange(ipRange string) string {
 	return iphelpers.NormalizeRangeForResourceName(ipRange)
+}
+
+func (i *KubernetesIPAM) getExistingPool(ctx context.Context, name string) (*whereaboutsv1alpha1.IPPool, error) {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, storage.RequestTimeout)
+	defer cancel()
+
+	pool, err := i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).Get(ctxWithTimeout, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("k8s get error: %w", err)
+	}
+	return pool, nil
 }
 
 func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange string) (*whereaboutsv1alpha1.IPPool, error) {
@@ -796,7 +825,17 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				}
 			}
 			logging.Debugf("using pool identifier: %v", poolIdentifier)
-			pool, err = ipam.GetIPPool(requestCtx, poolIdentifier)
+			if mode == whereaboutstypes.Deallocate {
+				pool, err = ipam.GetExistingIPPool(requestCtx, poolIdentifier)
+				if apierrors.IsNotFound(err) {
+					logging.Debugf("IPPool %s not found for deallocation, treating as already released", IPPoolName(poolIdentifier))
+					err = nil
+					requestCancel()
+					break RETRYLOOP
+				}
+			} else {
+				pool, err = ipam.GetIPPool(requestCtx, poolIdentifier)
+			}
 			if err != nil {
 				logging.Errorf("IPAM error reading pool allocations (attempt: %d): %w", j, err)
 				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
@@ -1006,8 +1045,13 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 				logging.Debugf("Rollback retry for IP %s skipping pool re-read: no IPAM reference available", c.ip)
 			}
 			if attempt > 0 && c.ipam != nil {
-				freshPool, err := c.ipam.GetIPPool(ctx, c.poolID)
+				freshPool, err := c.ipam.GetExistingIPPool(ctx, c.poolID)
 				if err != nil {
+					if apierrors.IsNotFound(err) {
+						logging.Debugf("Rollback pool for IP %s no longer exists", c.ip)
+						lastErr = nil
+						break
+					}
 					logging.Errorf("Rollback re-read failed for IP %s (attempt %d): %v", c.ip, attempt+1, err)
 					lastErr = err
 					continue

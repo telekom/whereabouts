@@ -64,6 +64,14 @@ jobs:
         bin/kustomize build config/default | \
           sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|ghcr.io/telekom/whereabouts:${TAG}|g" \
           > ./manifests/install.yaml
+        if grep -R 'ghcr.io/telekom/whereabouts:latest' ./manifests; then
+          echo "release manifests must not reference :latest" >&2
+          exit 1
+        fi
+        if ! grep -R "ghcr.io/telekom/whereabouts:${TAG}" ./manifests; then
+          echo "release manifests did not reference ${TAG}" >&2
+          exit 1
+        fi
     - name: Upload install manifests
       uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
       with:

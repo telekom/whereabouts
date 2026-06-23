@@ -115,7 +115,7 @@ func cmdCheck(args *skel.CmdArgs) error {
 
 	prevResult, err := config.ParsePrevResult(args.StdinData)
 	if err != nil {
-		logging.Debugf("CHECK: could not parse prevResult (non-fatal): %s", err)
+		return logging.Errorf("CHECK: could not parse prevResult: %w", err)
 	}
 
 	return runCmdCheck(ipam, args, prevResult)
@@ -152,10 +152,13 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 		logging.Debugf("CHECK: allocation verified for containerID %q ifName %q in range %s",
 			args.ContainerID, args.IfName, ipRange.Range)
 	}
+	for _, address := range ipam.Config.Addresses {
+		allocatedIPs[address.Address.IP.String()] = true
+	}
 
 	// If prevResult was provided, cross-check bidirectionally:
-	// (a) every prevResult IP must be in the pool (prevResult→pool), and
-	// (b) every pool-allocated IP for this container must be in prevResult (pool→prevResult).
+	// (a) every prevResult IP must be expected by IPAM (prevResult→IPAM), and
+	// (b) every expected IP for this container must be in prevResult (IPAM→prevResult).
 	// Either mismatch indicates state drift between the runtime and the IPAM store.
 	if prevResult != nil {
 		prevResultIPs := make(map[string]bool, len(prevResult.IPs))
@@ -166,10 +169,10 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 		for ip := range prevResultIPs {
 			if !allocatedIPs[ip] {
 				return logging.Errorf(
-					"CHECK: IP %s from prevResult is not allocated in any pool for containerID %q ifName %q",
+					"CHECK: IP %s from prevResult is not expected for containerID %q ifName %q",
 					ip, args.ContainerID, args.IfName)
 			}
-			logging.Debugf("CHECK: prevResult IP %s matches pool allocation", ip)
+			logging.Debugf("CHECK: prevResult IP %s matches expected IPAM result", ip)
 		}
 
 		for ip := range allocatedIPs {
@@ -178,7 +181,7 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 					"CHECK: pool-allocated IP %s for containerID %q ifName %q is missing from prevResult",
 					ip, args.ContainerID, args.IfName)
 			}
-			logging.Debugf("CHECK: pool IP %s confirmed in prevResult", ip)
+			logging.Debugf("CHECK: expected IP %s confirmed in prevResult", ip)
 		}
 	}
 

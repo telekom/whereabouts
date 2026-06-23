@@ -207,7 +207,8 @@ func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, 
 		if err != nil {
 			return err
 		}
-		newReplicas := *statefulSet.Spec.Replicas + int32(deltaInstance)
+		replicas := statefulSetReplicasOrDefault(statefulSet)
+		newReplicas := replicas + int32(deltaInstance)
 		statefulSet.Spec.Replicas = &newReplicas
 
 		_, err = c.Client.AppsV1().StatefulSets(namespace).Update(ctx, statefulSet, metav1.UpdateOptions{})
@@ -221,6 +222,13 @@ func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, 
 		time.Sleep(200 * time.Millisecond)
 	}
 	return lastErr
+}
+
+func statefulSetReplicasOrDefault(statefulSet *appsv1.StatefulSet) int32 {
+	if statefulSet.Spec.Replicas == nil {
+		return 1
+	}
+	return *statefulSet.Spec.Replicas
 }
 
 func deleteRightNowAndBlockUntilAssociatedPodsAreGone() metav1.DeleteOptions {

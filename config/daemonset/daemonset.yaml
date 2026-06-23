@@ -56,8 +56,6 @@ spec:
           mountPath: /host/opt/cni/bin
         - name: cni-net-dir
           mountPath: /host/etc/cni/net.d
-        - name: cni-args
-          mountPath: /cni-args
       volumes:
       - name: cnibin
         hostPath:
@@ -65,9 +63,3 @@ spec:
       - name: cni-net-dir
         hostPath:
           path: /etc/cni/net.d
-      - name: cni-args
-        hostPath:
-          # Shared host directory used by the install-cni binary
-          # to exchange CNI argument material with the running DaemonSet.
-          # Kept for compatibility with existing deployment workflows.
-          path: /var/run/whereabouts/cni-args

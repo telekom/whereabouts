@@ -36,9 +36,7 @@ func SetupIPPoolWebhook(mgr manager.Manager) error {
 // ValidateCreate validates an IPPool on creation.
 func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	w, err := validateIPPool(pool)
-	if err != nil {
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
-	}
+	logValidationRejection(ippoolLog, "create", err)
 	recordValidation("ippool", "create", err)
 	return w, err
 }
@@ -47,14 +45,12 @@ func (v *IPPoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1a
 func (v *IPPoolValidator) ValidateUpdate(_ context.Context, oldPool, pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error) {
 	if oldPool != nil && oldPool.Spec.Range != pool.Spec.Range {
 		err := fmt.Errorf("spec.range is immutable and cannot be changed (was %q, now %q)", oldPool.Spec.Range, pool.Spec.Range)
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(ippoolLog, "update", err)
 		recordValidation("ippool", "update", err)
 		return nil, err
 	}
 	w, err := validateIPPool(pool)
-	if err != nil {
-		ippoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-	}
+	logValidationRejection(ippoolLog, "update", err)
 	recordValidation("ippool", "update", err)
 	return w, err
 }

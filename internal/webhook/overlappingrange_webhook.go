@@ -36,9 +36,7 @@ func SetupOverlappingRangeWebhook(mgr manager.Manager) error {
 // ValidateCreate validates an OverlappingRangeIPReservation on creation.
 func (v *OverlappingRangeValidator) ValidateCreate(_ context.Context, res *whereaboutsv1alpha1.OverlappingRangeIPReservation) (admission.Warnings, error) {
 	err := validateOverlappingRange(res)
-	if err != nil {
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "create", "reason", err.Error())
-	}
+	logValidationRejection(overlappingrangeLog, "create", err)
 	recordValidation("overlappingrange", "create", err)
 	return nil, err
 }
@@ -51,39 +49,37 @@ func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, re
 		// Treat a nil old object as a validation error rather than silently skipping
 		// immutability checks.
 		err := fmt.Errorf("old object is nil in update operation")
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(overlappingrangeLog, "update", err)
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 
 	if oldRes.Spec.PodRef != res.Spec.PodRef {
 		err := fmt.Errorf("spec.podRef is immutable (was %q, requested %q)", oldRes.Spec.PodRef, res.Spec.PodRef)
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(overlappingrangeLog, "update", err)
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	if oldRes.Spec.IfName != res.Spec.IfName {
 		err := fmt.Errorf("spec.ifName is immutable (was %q, requested %q)", oldRes.Spec.IfName, res.Spec.IfName)
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(overlappingrangeLog, "update", err)
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	if oldRes.Spec.ContainerID != res.Spec.ContainerID {
 		err := fmt.Errorf("spec.containerID is immutable (was %q, requested %q)", oldRes.Spec.ContainerID, res.Spec.ContainerID)
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(overlappingrangeLog, "update", err)
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	if oldRes.Spec.PodUID != res.Spec.PodUID {
 		err := fmt.Errorf("spec.podUID is immutable (was %q, requested %q)", oldRes.Spec.PodUID, res.Spec.PodUID)
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		logValidationRejection(overlappingrangeLog, "update", err)
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
 	err := validateOverlappingRange(res)
-	if err != nil {
-		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
-	}
+	logValidationRejection(overlappingrangeLog, "update", err)
 	recordValidation("overlappingrange", "update", err)
 	return nil, err
 }

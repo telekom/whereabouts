@@ -37,9 +37,7 @@ func SetupNodeSlicePoolWebhook(mgr manager.Manager) error {
 // ValidateCreate validates a NodeSlicePool on creation.
 func (v *NodeSlicePoolValidator) ValidateCreate(_ context.Context, pool *whereaboutsv1alpha1.NodeSlicePool) (admission.Warnings, error) {
 	err := validateNodeSlicePool(pool)
-	if err != nil {
-		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "create", "reason", err.Error())
-	}
+	logValidationRejection(nodeslicepoolLog, "create", err)
 	recordValidation("nodeslicepool", "create", err)
 	return nil, err
 }
@@ -58,15 +56,13 @@ func (v *NodeSlicePoolValidator) ValidateUpdate(_ context.Context, oldPool, pool
 	if len(errs) > 0 {
 		if agg := kerrors.NewAggregate(errs); agg != nil {
 			err := fmt.Errorf("immutable field(s) changed: %s", agg)
-			nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
+			logValidationRejection(nodeslicepoolLog, "update", err)
 			recordValidation("nodeslicepool", "update", err)
 			return nil, err
 		}
 	}
 	err := validateNodeSlicePool(pool)
-	if err != nil {
-		nodeslicepoolLog.Info("rejected", "name", pool.Name, "operation", "update", "reason", err.Error())
-	}
+	logValidationRejection(nodeslicepoolLog, "update", err)
 	recordValidation("nodeslicepool", "update", err)
 	return nil, err
 }

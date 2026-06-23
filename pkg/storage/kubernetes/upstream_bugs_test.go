@@ -586,6 +586,92 @@ func TestOverlappingRangesAllocateAndTrack(t *testing.T) {
 	}
 }
 
+func TestOverlappingRangesDoNotReuseSamePodDifferentInterface(t *testing.T) {
+	firstIP := net.ParseIP("10.0.0.1")
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+	existingORIP := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      NormalizeIP(firstIP, ""),
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/pod1",
+			IfName: "eth0",
+			PodUID: "uid-1",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool, existingORIP)
+	k8sClient := fake.NewClientset()
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "c-net1",
+		IfName:      "net1",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		PodUID:            "uid-1",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("allocation with same pod different interface error: %v", err)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 IP, got %d", len(newips))
+	}
+	if newips[0].IP.Equal(firstIP) {
+		t.Fatalf("same pod on a different interface reused %s", firstIP)
+	}
+	if got := newips[0].IP.String(); got != "10.0.0.2" {
+		t.Fatalf("expected allocator to skip reserved IP and return 10.0.0.2, got %s", got)
+	}
+
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+	original, err := store.GetOverlappingRangeIPReservation(context.Background(), firstIP, "default/pod1", "")
+	if err != nil {
+		t.Fatalf("GetOverlappingRangeIPReservation original error: %v", err)
+	}
+	if original == nil {
+		t.Fatal("expected original reservation to remain")
+	}
+	if original.Spec.IfName != "eth0" {
+		t.Fatalf("original reservation ifName changed: got %q", original.Spec.IfName)
+	}
+
+	newReservation, err := store.GetOverlappingRangeIPReservation(context.Background(), newips[0].IP, "default/pod1", "")
+	if err != nil {
+		t.Fatalf("GetOverlappingRangeIPReservation new IP error: %v", err)
+	}
+	if newReservation == nil {
+		t.Fatal("expected new reservation to be created")
+	}
+	if newReservation.Spec.IfName != "net1" {
+		t.Fatalf("new reservation ifName = %q, want net1", newReservation.Spec.IfName)
+	}
+}
+
 // TestOverlappingRangesDisabledNoReservation verifies that when
 // OverlappingRanges=false, no ORIP reservations are created.
 func TestOverlappingRangesDisabledNoReservation(t *testing.T) {

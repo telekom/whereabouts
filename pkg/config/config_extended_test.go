@@ -415,6 +415,42 @@ var _ = Describe("LoadIPAMConfiguration", func() {
 		Expect(cfg.IPRanges).To(HaveLen(1))
 	})
 
+	It("rejects a conflist with no plugins", func() {
+		data := []byte(`{
+			"name":"my-net",
+			"cniVersion":"1.0.0",
+			"plugins":[]
+		}`)
+		_, err := LoadIPAMConfiguration(data, "")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("must contain at least one plugin"))
+	})
+
+	It("rejects a conflist with a null first plugin", func() {
+		data := []byte(`{
+			"name":"my-net",
+			"cniVersion":"1.0.0",
+			"plugins":[null]
+		}`)
+		_, err := LoadIPAMConfiguration(data, "")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("first plugin must not be null"))
+	})
+
+	It("returns an error for a conflist first plugin without IPAM", func() {
+		data := []byte(`{
+			"name":"my-net",
+			"cniVersion":"1.0.0",
+			"plugins":[{
+				"type":"bridge",
+				"bridge":"mybridge"
+			}]
+		}`)
+		_, err := LoadIPAMConfiguration(data, "")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("IPAM config missing 'ipam' key"))
+	})
+
 	It("parses single plugin format", func() {
 		data := []byte(`{
 			"name":"my-net",

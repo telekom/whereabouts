@@ -366,6 +366,12 @@ func LoadIPAMConfiguration(bytes []byte, envArgs string, extraConfigPaths ...str
 		if err != nil {
 			return nil, err
 		}
+		if len(pluginConfigList.Plugins) == 0 {
+			return nil, fmt.Errorf("CNI config list must contain at least one plugin")
+		}
+		if pluginConfigList.Plugins[0] == nil {
+			return nil, fmt.Errorf("CNI config list first plugin must not be null")
+		}
 
 		pluginConfigList.Plugins[0].CNIVersion = pluginConfig.CNIVersion
 		firstPluginBytes, err := json.Marshal(pluginConfigList.Plugins[0])

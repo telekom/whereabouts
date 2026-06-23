@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/fluxcd/pkg/runtime/conditions"
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -277,6 +276,7 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 			assignedNodes[a.NodeName] = struct{}{}
 		}
 	}
+	poolFull := false
 	for _, nodeName := range nodes {
 		if _, assigned := assignedNodes[nodeName]; !assigned {
 			slotFound := false
@@ -296,14 +296,14 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 					"no available IP slice for node %s — pool is full", nodeName)
 				markStalled(pool, ReasonPoolFull,
 					fmt.Sprintf("no available IP slice for node %s", nodeName))
+				poolFull = true
 			}
 		}
 	}
 
 	pool.Status.Allocations = allocations
 	computeSliceStats(pool)
-	// If not stalled (no pool-full warning), mark as ready.
-	if !conditions.IsStalled(pool) {
+	if !poolFull {
 		markReady(pool, ReasonReconciled, "all nodes assigned to slices")
 	}
 

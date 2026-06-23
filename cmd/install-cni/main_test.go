@@ -169,6 +169,25 @@ func TestConfigPaths(t *testing.T) {
 	assertEqual(t, "nodeNamePath", c.nodeNamePath(), "/host/etc/cni/net.d/whereabouts.d/nodename")
 }
 
+func TestHostLiteralPath_StripsOnlyAnchoredHostMount(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "host root", path: "/host", want: "/"},
+		{name: "host mount", path: "/host/etc/cni/net.d", want: "/etc/cni/net.d"},
+		{name: "hostile prefix", path: "/hostile/etc/cni/net.d", want: "/hostile/etc/cni/net.d"},
+		{name: "embedded host", path: "/var/lib/host/etc/cni/net.d", want: "/var/lib/host/etc/cni/net.d"},
+		{name: "plain path", path: "/etc/cni/net.d", want: "/etc/cni/net.d"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertEqual(t, "host literal path", hostLiteralPath(tt.path), tt.want)
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // wrappedHost
 // ---------------------------------------------------------------------------
@@ -285,6 +304,17 @@ func TestWriteKubeConfig_MissingToken(t *testing.T) {
 	assertContains(t, err.Error(), "reading service account token")
 }
 
+func TestWriteKubeConfig_EmptyToken(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	must(t, os.WriteFile(cfg.tokenPath(), []byte("\n\t "), 0o600))
+
+	err := writeKubeConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error when token file is empty")
+	}
+	assertContains(t, err.Error(), "token is empty")
+}
+
 func TestWriteKubeConfig_MissingCA(t *testing.T) {
 	cfg := newTestConfig(t, false)
 	cfg.SkipTLSVerify = false
@@ -295,6 +325,17 @@ func TestWriteKubeConfig_MissingCA(t *testing.T) {
 		t.Fatal("expected error when CA file is missing and SkipTLS=false")
 	}
 	assertContains(t, err.Error(), "reading CA file")
+}
+
+func TestWriteKubeConfig_EmptyCA(t *testing.T) {
+	cfg := newTestConfig(t, true)
+	must(t, os.WriteFile(cfg.KubeCAFile, []byte("\n"), 0o600))
+
+	err := writeKubeConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error when CA file is empty")
+	}
+	assertContains(t, err.Error(), "CA data is empty")
 }
 
 func TestWriteKubeConfig_UnwritableDir(t *testing.T) {
@@ -497,6 +538,36 @@ func TestCopyFile_MissingSrc(t *testing.T) {
 	assertContains(t, err.Error(), "opening")
 }
 
+func TestCopyFile_RejectsNonRegularSource(t *testing.T) {
+	tmp := t.TempDir()
+	dst := filepath.Join(tmp, "dst")
+
+	err := copyFile(os.DevNull, dst)
+	if err == nil {
+		t.Fatal("expected error for non-regular source")
+	}
+	assertContains(t, err.Error(), "regular file")
+	if _, statErr := os.Stat(dst); !os.IsNotExist(statErr) {
+		t.Fatalf("destination should not exist after failed copy, statErr=%v", statErr)
+	}
+}
+
+func TestCopyFile_RejectsEmptySource(t *testing.T) {
+	tmp := t.TempDir()
+	src := filepath.Join(tmp, "src")
+	dst := filepath.Join(tmp, "dst")
+	must(t, os.WriteFile(src, nil, 0o755))
+
+	err := copyFile(src, dst)
+	if err == nil {
+		t.Fatal("expected error for empty source")
+	}
+	assertContains(t, err.Error(), "source file is empty")
+	if _, statErr := os.Stat(dst); !os.IsNotExist(statErr) {
+		t.Fatalf("destination should not exist after failed copy, statErr=%v", statErr)
+	}
+}
+
 func TestCopyFile_UnwritableDst(t *testing.T) {
 	tmp := t.TempDir()
 	src := filepath.Join(tmp, "src")
@@ -658,6 +729,27 @@ func TestMaybeRegenerate_TokenChange(t *testing.T) {
 	assertEqual(t, "rotated token", parsed.AuthInfos["whereabouts"].Token, "rotated-token")
 }
 
+func TestMaybeRegenerate_EmptyTokenRetainsOldKubeconfigAndHashes(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	must(t, writeKubeConfig(cfg))
+	before, err := os.ReadFile(cfg.kubeconfigPath())
+	must(t, err)
+
+	tokenH := fileHash(cfg.tokenPath())
+	caH := fileHash(cfg.KubeCAFile)
+
+	must(t, os.WriteFile(cfg.tokenPath(), []byte("\n"), 0o600))
+	retT, retC := maybeRegenerate(cfg, tokenH, caH)
+	assertEqual(t, "tokenHash on failure", retT, tokenH)
+	assertEqual(t, "caHash on failure", retC, caH)
+
+	after, err := os.ReadFile(cfg.kubeconfigPath())
+	must(t, err)
+	if string(before) != string(after) {
+		t.Error("kubeconfig should not change when rotated token is empty")
+	}
+}
+
 func TestMaybeRegenerate_CAChange(t *testing.T) {
 	cfg := newTestConfig(t, true) // withCA → SkipTLSVerify=false
 	must(t, writeKubeConfig(cfg))
@@ -670,6 +762,27 @@ func TestMaybeRegenerate_CAChange(t *testing.T) {
 	_, newC := maybeRegenerate(cfg, tokenH, caH)
 	if newC == caH {
 		t.Error("CA hash should have changed")
+	}
+}
+
+func TestMaybeRegenerate_EmptyCARetainsOldKubeconfigAndHashes(t *testing.T) {
+	cfg := newTestConfig(t, true)
+	must(t, writeKubeConfig(cfg))
+	before, err := os.ReadFile(cfg.kubeconfigPath())
+	must(t, err)
+
+	tokenH := fileHash(cfg.tokenPath())
+	caH := fileHash(cfg.KubeCAFile)
+
+	must(t, os.WriteFile(cfg.KubeCAFile, []byte(" \n"), 0o600))
+	retT, retC := maybeRegenerate(cfg, tokenH, caH)
+	assertEqual(t, "tokenHash on failure", retT, tokenH)
+	assertEqual(t, "caHash on failure", retC, caH)
+
+	after, err := os.ReadFile(cfg.kubeconfigPath())
+	must(t, err)
+	if string(before) != string(after) {
+		t.Error("kubeconfig should not change when rotated CA is empty")
 	}
 }
 

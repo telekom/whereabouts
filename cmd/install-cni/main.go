@@ -111,12 +111,22 @@ func (c *config) kubeconfigPath() string {
 // kubeconfigLiteral returns the kubeconfig path as seen from the host
 // (stripping the /host mount prefix).
 func (c *config) kubeconfigLiteral() string {
-	return strings.Replace(c.kubeconfigPath(), "/host", "", 1)
+	return hostLiteralPath(c.kubeconfigPath())
 }
 
 // configurationPathLiteral returns the host-visible whereabouts.d directory.
 func (c *config) configurationPathLiteral() string {
-	return strings.Replace(c.confDir(), "/host", "", 1)
+	return hostLiteralPath(c.confDir())
+}
+
+func hostLiteralPath(path string) string {
+	if path == "/host" {
+		return "/"
+	}
+	if strings.HasPrefix(path, "/host/") {
+		return strings.TrimPrefix(path, "/host")
+	}
+	return path
 }
 
 // whereaboutsConfPath returns the full path for the whereabouts.conf file.
@@ -201,6 +211,9 @@ func writeKubeConfig(cfg *config) error {
 		return fmt.Errorf("reading service account token: %w", err)
 	}
 	token := strings.TrimSpace(string(tokenBytes))
+	if token == "" {
+		return fmt.Errorf("reading service account token: token is empty")
+	}
 
 	cluster := clientcmdapi.Cluster{
 		Server: fmt.Sprintf("%s://%s:%s", cfg.KubeProtocol, cfg.wrappedHost(), cfg.KubePort),
@@ -211,6 +224,9 @@ func writeKubeConfig(cfg *config) error {
 		caBytes, err := os.ReadFile(cfg.KubeCAFile)
 		if err != nil {
 			return fmt.Errorf("reading CA file %s: %w", cfg.KubeCAFile, err)
+		}
+		if strings.TrimSpace(string(caBytes)) == "" {
+			return fmt.Errorf("reading CA file %s: CA data is empty", cfg.KubeCAFile)
 		}
 		cluster.CertificateAuthorityData = caBytes
 	}
@@ -335,6 +351,17 @@ func atomicWriteFile(path string, data []byte) error {
 // renames it into place, ensuring that dst is never left in a
 // partial/corrupt state if the process is interrupted mid-write.
 func copyFile(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", src, err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("opening %s: source must be a regular file", src)
+	}
+	if info.Size() == 0 {
+		return fmt.Errorf("opening %s: source file is empty", src)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("opening %s: %w", src, err)

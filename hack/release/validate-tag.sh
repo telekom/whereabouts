@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright 2026 Deutsche Telekom AG
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 tag="${1:-}"

@@ -51,11 +51,10 @@ var _ = Describe("IPAMConfig", func() {
 			Expect(cfg.RangeEnd).To(Equal(net.ParseIP("10.0.0.200")))
 		})
 
-		It("handles invalid range_start gracefully (nil)", func() {
+		It("rejects invalid range_start", func() {
 			var cfg IPAMConfig
 			data := `{"type":"whereabouts","range":"10.0.0.0/24","range_start":"not-an-ip"}`
-			Expect(json.Unmarshal([]byte(data), &cfg)).To(Succeed())
-			Expect(cfg.RangeStart).To(BeNil())
+			Expect(json.Unmarshal([]byte(data), &cfg)).To(MatchError(`invalid IP in range_start: "not-an-ip"`))
 		})
 
 		It("handles empty range_start gracefully (nil)", func() {
@@ -103,6 +102,27 @@ var _ = Describe("IPAMConfig", func() {
 			data := `{"type":"whereabouts","range":"10.0.0.0/24","pick_addresses":["not-an-ip"]}`
 			err := json.Unmarshal([]byte(data), &cfg)
 			Expect(err).To(MatchError(`invalid IP in pick_addresses: "not-an-ip"`))
+		})
+
+		It("rejects invalid range_end", func() {
+			var cfg IPAMConfig
+			data := `{"type":"whereabouts","range":"10.0.0.0/24","range_end":"not-an-ip"}`
+			err := json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(MatchError(`invalid IP in range_end: "not-an-ip"`))
+		})
+
+		It("rejects invalid per-range bounds", func() {
+			var cfg IPAMConfig
+			data := `{
+				"type": "whereabouts",
+				"ipRanges": [{
+					"range": "10.0.0.0/24",
+					"range_start": "10.0.0.10",
+					"range_end": "not-an-ip"
+				}]
+			}`
+			err := json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(MatchError(`invalid IP in range_end: "not-an-ip"`))
 		})
 
 		It("returns error for malformed JSON", func() {

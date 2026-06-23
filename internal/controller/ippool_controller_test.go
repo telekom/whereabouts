@@ -519,6 +519,41 @@ var _ = Describe("IPPoolReconciler", func() {
 		})
 	})
 
+	Context("when the allocation belongs to a completed pod", func() {
+		DescribeTable("should remove the allocation",
+			func(phase corev1.PodPhase) {
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "completed-pod",
+						Namespace: "default",
+					},
+					Status: corev1.PodStatus{
+						Phase: phase,
+					},
+				}
+				pool := poolWithFinalizer(poolName, poolNamespace, poolRange, map[string]whereaboutsv1alpha1.IPAllocation{
+					"1": {
+						ContainerID: "abc123",
+						PodRef:      "default/completed-pod",
+						IfName:      "eth0",
+					},
+				})
+				buildReconciler(pool, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(BeEmpty())
+				Expect(updated.Status.OrphanedIPs).To(Equal(int32(1)))
+			},
+			Entry("succeeded pod", corev1.PodSucceeded),
+			Entry("failed pod", corev1.PodFailed),
+		)
+	})
+
 	// ── Graceful node shutdown / pod termination tests (#550) ────────────────
 	Context("when the pool has an allocation for a terminating pod (DeletionTimestamp set)", func() {
 		Context("with cleanupTerminating enabled", func() {

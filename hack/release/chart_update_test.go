@@ -109,6 +109,13 @@ func prepareChartUpdateWorkspace(t *testing.T, includeFakeYQ bool) string {
 	if err := os.MkdirAll(filepath.Join(tempRoot, "deployment", "whereabouts-chart"), 0755); err != nil {
 		t.Fatalf("creating chart dir: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(tempRoot, "hack", "release"), 0755); err != nil {
+		t.Fatalf("creating release helper dir: %v", err)
+	}
+	fakeValidateTag := "#!/bin/sh\ncase \"$1\" in v*) exit 0 ;; *) exit 1 ;; esac\n"
+	if err := os.WriteFile(filepath.Join(tempRoot, "hack", "release", "validate-tag.sh"), []byte(fakeValidateTag), 0755); err != nil {
+		t.Fatalf("writing fake validate-tag.sh: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(tempRoot, "deployment", "whereabouts-chart", "values.yaml"), []byte("image: {}\n"), 0644); err != nil {
 		t.Fatalf("writing values.yaml: %v", err)
 	}

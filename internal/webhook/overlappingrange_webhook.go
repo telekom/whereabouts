@@ -74,6 +74,12 @@ func (v *OverlappingRangeValidator) ValidateUpdate(_ context.Context, oldRes, re
 		recordValidation("overlappingrange", "update", err)
 		return nil, err
 	}
+	if oldRes.Spec.PodUID != res.Spec.PodUID {
+		err := fmt.Errorf("spec.podUID is immutable (was %q, requested %q)", oldRes.Spec.PodUID, res.Spec.PodUID)
+		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())
+		recordValidation("overlappingrange", "update", err)
+		return nil, err
+	}
 	err := validateOverlappingRange(res)
 	if err != nil {
 		overlappingrangeLog.Info("rejected", "name", res.Name, "operation", "update", "reason", err.Error())

@@ -55,9 +55,11 @@ jobs:
       with:
         go-version-file: go.mod
     - name: Prepare manifests
+      env:
+        TAG: ${{ github.event.release.tag_name }}
       run: |
+        bash hack/release/validate-tag.sh "${TAG}"
         mkdir -p ./manifests
-        TAG="${{ github.event.release.tag_name }}"
         make kustomize
         bin/kustomize build config/default | \
           sed "s|ghcr.io/telekom/whereabouts:[^ \"]*|ghcr.io/telekom/whereabouts:${TAG}|g" \

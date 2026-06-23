@@ -29,6 +29,8 @@ if [ -z "$GITHUB_REPO_OWNER" ]; then
     exit 1
 fi
 
+bash "${BASE}/hack/release/validate-tag.sh" "${GITHUB_TAG}"
+
 get_latest_github_tag() {
     local owner="$1"
     local repo="$2"

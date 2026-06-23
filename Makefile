@@ -70,6 +70,15 @@ generate: $(CONTROLLER_GEN) ## Generate deepcopy and clientsets/informers/lister
 .PHONY: generate-api
 generate-api: manifests generate ## Generate all API artifacts (CRDs + deepcopy + clientsets).
 
+.PHONY: verify-generate-api
+verify-generate-api: generate-api ## Verify all generated API artifacts are committed.
+	git diff --exit-code -- \
+		api/whereabouts.cni.cncf.io \
+		config \
+		deployment/whereabouts-chart/crds \
+		hack/openapi-violations.list \
+		pkg/generated
+
 .PHONY: verify-codegen
 verify-codegen: ## Verify generated code is up to date.
 	hack/verify-codegen.sh

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -599,4 +600,52 @@ var _ = Describe("GetFlatIPAM path validation", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).NotTo(ContainSubstring("path traversal"))
 	})
+
+	It("loads a small regular flat-file config", func() {
+		tempDir := GinkgoT().TempDir()
+		confPath := tempDir + "/whereabouts.conf"
+		Expect(os.WriteFile(confPath, []byte(`{"type":"whereabouts","kubernetes":{"kubeconfig":"/etc/kubeconfig"},"range":"10.0.0.0/24"}`), 0600)).To(Succeed())
+
+		flatipam, found, err := GetFlatIPAM(false, &types.IPAMConfig{ConfigurationPath: confPath})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(Equal(confPath))
+		Expect(flatipam.IPAM.Type).To(Equal("whereabouts"))
+		Expect(flatipam.IPAM.Kubernetes.KubeConfigPath).To(Equal("/etc/kubeconfig"))
+	})
+
+	It("loads a flat-file config exactly at the size limit", func() {
+		tempDir := GinkgoT().TempDir()
+		confPath := tempDir + "/whereabouts.conf"
+		Expect(os.WriteFile(confPath, sizedFlatConfig(maxConfigBytes), 0600)).To(Succeed())
+
+		flatipam, found, err := GetFlatIPAM(false, &types.IPAMConfig{ConfigurationPath: confPath})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(Equal(confPath))
+		Expect(flatipam.IPAM.Type).To(Equal("whereabouts"))
+	})
+
+	It("rejects a flat-file config larger than the size limit", func() {
+		tempDir := GinkgoT().TempDir()
+		confPath := tempDir + "/whereabouts.conf"
+		Expect(os.WriteFile(confPath, sizedFlatConfig(maxConfigBytes+1), 0600)).To(Succeed())
+
+		_, _, err := GetFlatIPAM(false, &types.IPAMConfig{ConfigurationPath: confPath})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("too large"))
+	})
+
+	It("rejects a non-regular flat-file config path", func() {
+		tempDir := GinkgoT().TempDir()
+
+		_, _, err := GetFlatIPAM(false, &types.IPAMConfig{ConfigurationPath: tempDir})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("not a regular file"))
+	})
 })
+
+func sizedFlatConfig(size int) []byte {
+	prefix := `{"type":"whereabouts","kubernetes":{"kubeconfig":"/etc/kubeconfig"},"range":"10.0.0.0/24","padding":"`
+	suffix := `"}`
+	Expect(size).To(BeNumerically(">=", len(prefix)+len(suffix)))
+	return []byte(prefix + strings.Repeat("x", size-len(prefix)-len(suffix)) + suffix)
+}

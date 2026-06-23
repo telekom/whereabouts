@@ -158,7 +158,7 @@ Example dual-stack configuration:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `make deploy`). Valid range: 1–128. |
+| `node_slice_size` | string | `""` | Prefix length for per-node IP slices (e.g., `"28"` or `"/28"`). Enables the experimental Fast IPAM feature, which pre-allocates IP slices per node to reduce allocation contention in large clusters. Requires the operator's NodeSliceReconciler (deployed via `make deploy`). Valid range: 1–128. A single NodeSlicePool supports up to 16,384 slices. |
 
 With Fast IPAM, `network_name` explicitly shares one NodeSlicePool across
 matching NetworkAttachmentDefinitions. If `network_name` is not set, the

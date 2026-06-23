@@ -98,7 +98,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Compute pool name and slices.
 	poolName := nodeSlicePoolName(ipamConf)
 
-	subnets, err := iphelpers.DivideRangeBySize(ipamConf.Range, ipamConf.NodeSliceSize)
+	subnets, err := iphelpers.DivideRangeBySizeWithLimit(ipamConf.Range, ipamConf.NodeSliceSize, iphelpers.MaxNodeSliceSubnets)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("dividing range by size: %w", err)
 	}

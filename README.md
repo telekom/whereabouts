@@ -299,6 +299,7 @@ The following parameters are optional:
 
 * `range_start` : First IP to use when allocating from the `range`. Optional, if unset is inferred from the `range`.
 * `range_end` : Last IP to use when allocating from the `range`. Optional, if unset the last ip within the range is determined.
+* `pick_addresses`: Ordered list of candidate IPs to allocate from within the `range`. Candidates outside the effective range, excluded ranges, or existing reservations are skipped.
 * `exclude`: This is a list of CIDRs to be excluded from being allocated. 
 
 In the example, we exclude IP addresses in the range `192.168.2.229/30` from being allocated (in this case it's 3 addresses, `.229, .230, .231`), as well as `192.168.2.236/32` (just a single address).

@@ -494,6 +494,82 @@ var _ = Describe("Allocation operations", func() {
 		})
 	})
 
+	Context("pick_addresses (#674)", func() {
+		It("assigns candidates in configured order", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "192.168.1.0/24",
+				PickAddresses: []net.IP{net.ParseIP("192.168.1.50"), net.ParseIP("192.168.1.10")},
+			}
+			result, reservelist, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
+			Expect(reservelist).To(HaveLen(1))
+			Expect(reservelist[0].IP.Equal(net.ParseIP("192.168.1.50"))).To(BeTrue())
+		})
+
+		It("skips reserved, excluded, and out-of-bounds candidates", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "192.168.1.0/24",
+				RangeStart:    net.ParseIP("192.168.1.10"),
+				RangeEnd:      net.ParseIP("192.168.1.20"),
+				OmitRanges:    []string{"192.168.1.12/32"},
+				PickAddresses: []net.IP{net.ParseIP("192.168.1.9"), net.ParseIP("192.168.1.12"), net.ParseIP("192.168.1.13"), net.ParseIP("192.168.1.14")},
+			}
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.13"), ContainerID: "c0", PodRef: "default/other", IfName: "eth0"},
+			}
+			result, updatedList, err := AssignIP(ipamConf, reservelist, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.14"))).To(BeTrue())
+			Expect(updatedList).To(HaveLen(2))
+		})
+
+		It("reports exhaustion when every candidate is unavailable", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "192.168.1.0/24",
+				OmitRanges:    []string{"192.168.1.11"},
+				PickAddresses: []net.IP{net.ParseIP("192.168.1.0"), net.ParseIP("192.168.1.10"), net.ParseIP("192.168.1.11"), net.ParseIP("192.168.1.255")},
+			}
+			reservelist := []types.IPReservation{
+				{IP: net.ParseIP("192.168.1.10"), ContainerID: "c0", PodRef: "default/other", IfName: "eth0"},
+			}
+			_, _, err := AssignIP(ipamConf, reservelist, "c1", "default/pod1", "eth0")
+			Expect(err).To(MatchError(HavePrefix("Could not allocate IP in range")))
+		})
+
+		It("does not let preferred IP bypass pick_addresses", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "192.168.1.0/24",
+				PickAddresses: []net.IP{net.ParseIP("192.168.1.20")},
+				PreferredIP:   net.ParseIP("192.168.1.100"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.20"))).To(BeTrue())
+		})
+
+		It("uses preferred IP when it is present in pick_addresses", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "192.168.1.0/24",
+				PickAddresses: []net.IP{net.ParseIP("192.168.1.20"), net.ParseIP("192.168.1.100")},
+				PreferredIP:   net.ParseIP("192.168.1.100"),
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("192.168.1.100"))).To(BeTrue())
+		})
+
+		It("supports IPv6 candidates", func() {
+			ipamConf := types.RangeConfiguration{
+				Range:         "fd00::/120",
+				PickAddresses: []net.IP{net.ParseIP("fd00::50")},
+			}
+			result, _, err := AssignIP(ipamConf, nil, "c1", "default/pod1", "eth0")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IP.Equal(net.ParseIP("fd00::50"))).To(BeTrue())
+		})
+	})
+
 	Describe("AssignmentError", func() {
 		It("returns a descriptive error message", func() {
 			_, ipnet, _ := net.ParseCIDR("10.0.0.0/24")

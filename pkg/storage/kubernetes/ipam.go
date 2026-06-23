@@ -783,10 +783,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					return newips, err
 				}
 				ipRange = whereaboutstypes.RangeConfiguration{
-					OmitRanges: ipRange.OmitRanges,
-					Range:      nodeSliceRange,
-					RangeStart: rangeStart,
-					RangeEnd:   rangeEnd,
+					OmitRanges:    ipRange.OmitRanges,
+					Range:         nodeSliceRange,
+					RangeStart:    rangeStart,
+					RangeEnd:      rangeEnd,
+					PickAddresses: ipRange.PickAddresses,
+					L3:            ipRange.L3,
 				}
 			}
 			logging.Debugf("using pool identifier: %v", poolIdentifier)

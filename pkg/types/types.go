@@ -56,6 +56,8 @@ type RangeConfiguration struct {
 	RangeStart net.IP `json:"range_start,omitempty"`
 	// RangeEnd optionally restricts allocation to end at this IP.
 	RangeEnd net.IP `json:"range_end,omitempty"`
+	// PickAddresses restricts allocation to the listed candidate IPs, in order.
+	PickAddresses []net.IP `json:"pick_addresses,omitempty"`
 	// PreferredIP is an optional preferred IP address to assign. When set and
 	// available, this IP is assigned instead of the lowest free IP. Used for
 	// sticky IP assignment across pod restarts. See upstream #621.
@@ -93,6 +95,8 @@ type IPAMConfig struct {
 	RangeStart net.IP `json:"range_start,omitempty"`
 	// RangeEnd optionally restricts allocation to end at this IP within the Range.
 	RangeEnd net.IP `json:"range_end,omitempty"`
+	// PickAddresses restricts allocation in the primary Range to these candidate IPs, in order.
+	PickAddresses []net.IP `json:"pick_addresses,omitempty"`
 	// GatewayStr is the gateway IP as a string, parsed from the "gateway" JSON key.
 	GatewayStr string `json:"gateway"`
 	// LeaderLeaseDuration is the leader election lease duration in milliseconds.
@@ -159,6 +163,40 @@ type IPAMConfig struct {
 	ServiceCIDRs []string `json:"service_cidrs,omitempty"`
 }
 
+// UnmarshalJSON implements custom JSON unmarshaling for RangeConfiguration so
+// range_start, range_end, and pick_addresses accept the same backward-compatible
+// IP formats as top-level IPAM configuration.
+func (rc *RangeConfiguration) UnmarshalJSON(data []byte) error {
+	type RangeConfigurationAlias struct {
+		OmitRanges    []string `json:"exclude,omitempty"`
+		Range         string   `json:"range"`
+		RangeStart    string   `json:"range_start,omitempty"`
+		RangeEnd      string   `json:"range_end,omitempty"`
+		PickAddresses []string `json:"pick_addresses,omitempty"`
+		L3            bool     `json:"enable_l3,omitempty"`
+	}
+
+	var rangeConfigAlias RangeConfigurationAlias
+	if err := json.Unmarshal(data, &rangeConfigAlias); err != nil {
+		return err
+	}
+
+	pickAddresses, err := parseIPList(rangeConfigAlias.PickAddresses, "pick_addresses")
+	if err != nil {
+		return err
+	}
+
+	*rc = RangeConfiguration{
+		OmitRanges:    rangeConfigAlias.OmitRanges,
+		Range:         rangeConfigAlias.Range,
+		RangeStart:    backwardsCompatibleIPAddress(rangeConfigAlias.RangeStart),
+		RangeEnd:      backwardsCompatibleIPAddress(rangeConfigAlias.RangeEnd),
+		PickAddresses: pickAddresses,
+		L3:            rangeConfigAlias.L3,
+	}
+	return nil
+}
+
 // UnmarshalJSON implements custom JSON unmarshaling for IPAMConfig.
 // It uses an internal alias type to avoid infinite recursion (the alias has no
 // custom unmarshaler), and converts string IP fields (RangeStart, RangeEnd,
@@ -176,6 +214,7 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		Range                    string               `json:"range"`
 		RangeStart               string               `json:"range_start,omitempty"`
 		RangeEnd                 string               `json:"range_end,omitempty"`
+		PickAddresses            []string             `json:"pick_addresses,omitempty"`
 		GatewayStr               string               `json:"gateway"`
 		LeaderLeaseDuration      int                  `json:"leader_lease_duration,omitempty"`
 		LeaderRenewDeadline      int                  `json:"leader_renew_deadline,omitempty"`
@@ -206,6 +245,11 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	pickAddresses, err := parseIPList(ipamConfigAlias.PickAddresses, "pick_addresses")
+	if err != nil {
+		return err
+	}
+
 	*ic = IPAMConfig{
 		Name:                     ipamConfigAlias.Name,
 		Type:                     ipamConfigAlias.Type,
@@ -217,6 +261,7 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		Range:                    ipamConfigAlias.Range,
 		RangeStart:               backwardsCompatibleIPAddress(ipamConfigAlias.RangeStart),
 		RangeEnd:                 backwardsCompatibleIPAddress(ipamConfigAlias.RangeEnd),
+		PickAddresses:            pickAddresses,
 		NodeSliceSize:            ipamConfigAlias.NodeSliceSize,
 		GatewayStr:               ipamConfigAlias.GatewayStr,
 		LeaderLeaseDuration:      ipamConfigAlias.LeaderLeaseDuration,
@@ -240,6 +285,22 @@ func (ic *IPAMConfig) UnmarshalJSON(data []byte) error {
 		ServiceCIDRs:             ipamConfigAlias.ServiceCIDRs,
 	}
 	return nil
+}
+
+func parseIPList(rawIPs []string, fieldName string) ([]net.IP, error) {
+	if len(rawIPs) == 0 {
+		return nil, nil
+	}
+
+	ips := make([]net.IP, 0, len(rawIPs))
+	for _, rawIP := range rawIPs {
+		ip := backwardsCompatibleIPAddress(rawIP)
+		if ip == nil {
+			return nil, fmt.Errorf("invalid IP in %s: %q", fieldName, rawIP)
+		}
+		ips = append(ips, ip)
+	}
+	return ips, nil
 }
 
 func (ic *IPAMConfig) GetPodRef() string {

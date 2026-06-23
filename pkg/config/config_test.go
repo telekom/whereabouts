@@ -367,6 +367,57 @@ var _ = Describe("Allocation operations", func() {
 					"LoadIPAMConfig - JSON Parsing Error: invalid character 'a' looking for beginning of object key string")))
 	})
 
+	Context("pick_addresses", func() {
+		It("copies top-level candidates into the normalized primary range", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"range": "10.0.0.0/24",
+					"pick_addresses": ["10.0.0.50", "10.0.0.60"]
+				}
+			}`
+			ipamConf, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ipamConf.PickAddresses).To(BeNil())
+			Expect(ipamConf.IPRanges).To(HaveLen(1))
+			Expect(ipamConf.IPRanges[0].PickAddresses).To(HaveLen(2))
+			Expect(ipamConf.IPRanges[0].PickAddresses[0].Equal(net.ParseIP("10.0.0.50"))).To(BeTrue())
+			Expect(ipamConf.IPRanges[0].PickAddresses[1].Equal(net.ParseIP("10.0.0.60"))).To(BeTrue())
+		})
+
+		It("preserves per-range candidates", func() {
+			conf := `{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"type": "whereabouts",
+					"kubernetes": {"kubeconfig": "/etc/cni/net.d/whereabouts.kubeconfig"},
+					"ipRanges": [{
+						"range": "10.0.0.0/24",
+						"pick_addresses": ["10.0.0.50"]
+					}, {
+						"range": "fd00::/120",
+						"pick_addresses": ["fd00::50"]
+					}]
+				}
+			}`
+			ipamConf, _, err := LoadIPAMConfig([]byte(conf), "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ipamConf.IPRanges).To(HaveLen(2))
+			Expect(ipamConf.IPRanges[0].PickAddresses).To(HaveLen(1))
+			Expect(ipamConf.IPRanges[0].PickAddresses[0].Equal(net.ParseIP("10.0.0.50"))).To(BeTrue())
+			Expect(ipamConf.IPRanges[1].PickAddresses).To(HaveLen(1))
+			Expect(ipamConf.IPRanges[1].PickAddresses[0].Equal(net.ParseIP("fd00::50"))).To(BeTrue())
+		})
+	})
+
 	// ── Gateway exclusion tests (#601) ──────────────────────────────────────
 	Context("gateway exclusion (exclude_gateway)", func() {
 		It("adds gateway to exclude ranges when exclude_gateway is true", func() {

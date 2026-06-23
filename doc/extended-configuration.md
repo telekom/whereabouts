@@ -121,6 +121,7 @@ are specified inside the `"ipam"` object in CNI configuration JSON.
 | `range` | string | yes* | CIDR notation for the IP range (e.g., `"192.168.2.0/24"`, `"2001:db8::/64"`) |
 | `range_start` | string | no | First IP to allocate within the range |
 | `range_end` | string | no | Last IP to allocate within the range |
+| `pick_addresses` | string[] | no | Ordered candidate IPs to allocate from within the range. Candidates outside `range_start`/`range_end`, excluded ranges, or existing reservations are skipped. |
 | `exclude` | string[] | no | CIDRs to exclude from allocation |
 | `gateway` | string | no | Gateway IP address for the interface |
 | `exclude_gateway` | bool | no | When `true`, automatically excludes the gateway IP from allocation. Useful for L2 networks. See [Gateway IP Exclusion](#gateway-ip-exclusion-exclude_gateway). |
@@ -133,7 +134,7 @@ are specified inside the `"ipam"` object in CNI configuration JSON.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `ipRanges` | object[] | Array of range objects for multi-IP or dual-stack allocation. Each element supports `range`, `range_start`, `range_end`, and `exclude`. |
+| `ipRanges` | object[] | Array of range objects for multi-IP or dual-stack allocation. Each element supports `range`, `range_start`, `range_end`, `pick_addresses`, and `exclude`. |
 
 Example dual-stack configuration:
 ```json

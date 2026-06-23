@@ -64,6 +64,7 @@ type config struct {
 	KubeHost           string
 	KubePort           string
 	Namespace          string
+	NodeName           string
 }
 
 func loadConfig() (*config, error) {
@@ -81,6 +82,7 @@ func loadConfig() (*config, error) {
 		KubeHost:           os.Getenv("KUBERNETES_SERVICE_HOST"),
 		KubePort:           os.Getenv("KUBERNETES_SERVICE_PORT"),
 		Namespace:          os.Getenv("WHEREABOUTS_NAMESPACE"),
+		NodeName:           os.Getenv("NODENAME"),
 	}
 	if c.KubeHost == "" {
 		return nil, fmt.Errorf("KUBERNETES_SERVICE_HOST not set")
@@ -112,9 +114,19 @@ func (c *config) kubeconfigLiteral() string {
 	return strings.Replace(c.kubeconfigPath(), "/host", "", 1)
 }
 
+// configurationPathLiteral returns the host-visible whereabouts.d directory.
+func (c *config) configurationPathLiteral() string {
+	return strings.Replace(c.confDir(), "/host", "", 1)
+}
+
 // whereaboutsConfPath returns the full path for the whereabouts.conf file.
 func (c *config) whereaboutsConfPath() string {
 	return filepath.Join(c.confDir(), "whereabouts.conf")
+}
+
+// nodeNamePath returns the full path for the persisted Kubernetes node name.
+func (c *config) nodeNamePath() string {
+	return filepath.Join(c.confDir(), "nodename")
 }
 
 // wrappedHost returns the Kubernetes service host, wrapped in brackets
@@ -165,6 +177,9 @@ func run(ctx context.Context) error {
 	}
 	if err := writeWhereaboutsConf(cfg); err != nil {
 		return fmt.Errorf("writing whereabouts.conf: %w", err)
+	}
+	if err := writeNodeNameFile(cfg); err != nil {
+		return fmt.Errorf("writing nodename file: %w", err)
 	}
 
 	// 3. Copy the whereabouts binary to the host CNI bin dir.
@@ -233,6 +248,7 @@ func writeKubeConfig(cfg *config) error {
 // whereaboutsConf is the JSON schema for whereabouts.conf.
 type whereaboutsConf struct {
 	Datastore                string         `json:"datastore"`
+	ConfigurationPath        string         `json:"configuration_path"`
 	Kubernetes               kubernetesConf `json:"kubernetes"`
 	ReconcilerCronExpression string         `json:"reconciler_cron_expression"`
 }
@@ -244,7 +260,8 @@ type kubernetesConf struct {
 // writeWhereaboutsConf writes the whereabouts.conf JSON configuration.
 func writeWhereaboutsConf(cfg *config) error {
 	conf := whereaboutsConf{
-		Datastore: "kubernetes",
+		Datastore:         "kubernetes",
+		ConfigurationPath: cfg.configurationPathLiteral(),
 		Kubernetes: kubernetesConf{
 			Kubeconfig: cfg.kubeconfigLiteral(),
 		},
@@ -262,6 +279,22 @@ func writeWhereaboutsConf(cfg *config) error {
 		return fmt.Errorf("writing whereabouts.conf to %s: %w", path, err)
 	}
 	slog.Info("wrote whereabouts.conf", "path", path)
+	return nil
+}
+
+// writeNodeNameFile persists the Kubernetes Node name for on-host CNI calls.
+func writeNodeNameFile(cfg *config) error {
+	nodeName := strings.TrimSpace(cfg.NodeName)
+	if nodeName == "" {
+		slog.Warn("NODENAME not set; skipping nodename file generation")
+		return nil
+	}
+
+	path := cfg.nodeNamePath()
+	if err := os.WriteFile(path, []byte(nodeName), defaultKubeConfigMode); err != nil {
+		return fmt.Errorf("writing nodename to %s: %w", path, err)
+	}
+	slog.Info("wrote nodename", "path", path)
 	return nil
 }
 

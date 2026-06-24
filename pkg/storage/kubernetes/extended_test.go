@@ -649,6 +649,42 @@ func TestUpdateOverlappingRangeDeallocateLegacyFallback(t *testing.T) {
 	}
 }
 
+func TestUpdateOverlappingRangeDeallocateLegacyFallbackSkipsOnUIDMismatch(t *testing.T) {
+	ip := net.ParseIP("fd00::1")
+	legacyName := LegacyNormalizeIP(ip, UnnamedNetwork)
+
+	orip := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyName,
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/pod1",
+			IfName: "eth0",
+			PodUID: "uid-current",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(orip)
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+
+	err := store.UpdateOverlappingRangeAllocation(context.Background(), types.Deallocate, ip, "default/pod1", "eth0", UnnamedNetwork, "uid-stale")
+	if err != nil {
+		t.Fatalf("UpdateOverlappingRangeAllocation(Deallocate) with legacy UID mismatch error: %v", err)
+	}
+
+	res, err := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").Get(context.Background(), legacyName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Get legacy ORIP after guarded deallocate error: %v", err)
+	}
+	if res.Spec.PodUID != "uid-current" {
+		t.Fatalf("expected legacy reservation to remain with UID %q, got %q", "uid-current", res.Spec.PodUID)
+	}
+}
+
 // TestUpdateOverlappingRangeAllocateUsesNewFormat tests that new allocations use the new expanded format.
 func TestUpdateOverlappingRangeAllocateUsesNewFormat(t *testing.T) {
 	ip := net.ParseIP("fd00::1")

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -41,6 +42,7 @@ func TestOperatorRBACScopesSecretAndWebhookPermissions(t *testing.T) {
 		if manifest.Kind == "ClusterRole" {
 			assertNoClusterSecretAccess(t, manifest)
 			assertWebhookUpdatesAreNamed(t, manifest)
+			assertOperatorCanDeleteIPPools(t, manifest)
 		}
 		if manifest.Kind == "Role" && roleHasSecretRotationRules(manifest) {
 			secretRoleCount++
@@ -50,6 +52,19 @@ func TestOperatorRBACScopesSecretAndWebhookPermissions(t *testing.T) {
 	if secretRoleCount < 2 {
 		t.Fatalf("expected kustomize and Helm to render namespaced Secret rotation Roles, got %d", secretRoleCount)
 	}
+}
+
+func assertOperatorCanDeleteIPPools(t *testing.T, manifest rbacManifest) {
+	t.Helper()
+	if !strings.HasSuffix(manifest.Metadata.Name, "operator") {
+		return
+	}
+	for _, rule := range manifest.Rules {
+		if has(rule.APIGroups, "whereabouts.cni.cncf.io") && has(rule.Resources, "ippools") && has(rule.Verbs, "delete") {
+			return
+		}
+	}
+	t.Fatalf("ClusterRole %s must be able to delete empty stale IPPools", manifest.Metadata.Name)
 }
 
 func assertNoClusterSecretAccess(t *testing.T, manifest rbacManifest) {

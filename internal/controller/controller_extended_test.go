@@ -1370,7 +1370,7 @@ var _ = Describe("NodeSliceReconciler extended", func() {
 
 			// Two nodes but only one slot.
 			nodes := []string{"node-a", "node-b"}
-			result, err := reconciler.ensureNodeAssignments(ctx, pool, nodes)
+			result, err := reconciler.ensureNodeAssignments(ctx, pool, nodes, "")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.RequeueAfter).To(BeZero())
 		})

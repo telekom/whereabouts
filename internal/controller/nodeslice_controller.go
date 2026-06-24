@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	nadv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,8 @@ import (
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	"github.com/telekom/whereabouts/pkg/iphelpers"
 )
+
+const staleIPPoolRequeueInterval = 30 * time.Second
 
 // NodeSliceReconciler reconciles NetworkAttachmentDefinition resources by
 // managing the corresponding NodeSlicePool CRDs. It assigns IP range slices
@@ -58,6 +61,7 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 }
 
 //+kubebuilder:rbac:groups=k8s.cni.cncf.io,resources=network-attachment-definitions,verbs=get;list;watch
+//+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=ippools,verbs=get;delete
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=nodeslicepools,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=whereabouts.cni.cncf.io,resources=nodeslicepools/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
@@ -145,7 +149,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Spec unchanged — just ensure node assignments are current.
-	return r.ensureNodeAssignments(ctx, &pool, nodes)
+	return r.ensureNodeAssignments(ctx, &pool, nodes, ipamConf.NetworkName)
 }
 
 // computeSliceStats populates the NodeSlicePool's status with computed
@@ -244,7 +248,7 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 
 // ensureNodeAssignments checks that all current nodes have slice assignments
 // and removes assignments for deleted nodes.
-func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nodes []string) (ctrl.Result, error) {
+func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, nodes []string, networkName string) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// Snapshot before mutations.
@@ -261,9 +265,18 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 	allocations := pool.Status.Allocations
 
 	// Remove assignments for nodes that no longer exist.
+	staleIPPoolBlocking := false
 	for i := range allocations {
 		if allocations[i].NodeName != "" {
 			if _, ok := nodeSet[allocations[i].NodeName]; !ok {
+				released, err := r.releaseDeletedNodeSlice(ctx, pool.Namespace, networkName, allocations[i])
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				if !released {
+					staleIPPoolBlocking = true
+					continue
+				}
 				allocations[i].NodeName = ""
 			}
 		}
@@ -289,6 +302,11 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 				}
 			}
 			if !slotFound {
+				if staleIPPoolBlocking {
+					logger.Info("no available slot for node while stale per-node IPPool cleanup is pending",
+						"pool", pool.Name, "node", nodeName)
+					continue
+				}
 				// No slot available — pool is full.
 				logger.Info("no available slot for node, pool is full",
 					"pool", pool.Name, "node", nodeName)
@@ -303,7 +321,9 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 
 	pool.Status.Allocations = allocations
 	computeSliceStats(pool)
-	if !poolFull {
+	if staleIPPoolBlocking {
+		markReconciling(pool, "waiting for stale per-node IPPools to be cleaned up")
+	} else if !poolFull {
 		markReady(pool, ReasonReconciled, "all nodes assigned to slices")
 	}
 
@@ -313,7 +333,30 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 	}
 
 	recordNodeSliceMetrics(pool.Name, pool.Status.Allocations)
+	if staleIPPoolBlocking {
+		return ctrl.Result{RequeueAfter: staleIPPoolRequeueInterval}, nil
+	}
 	return ctrl.Result{}, nil
+}
+
+func (r *NodeSliceReconciler) releaseDeletedNodeSlice(ctx context.Context, namespace, networkName string, allocation whereaboutsv1alpha1.NodeSliceAllocation) (bool, error) {
+	poolName := nodeSliceIPPoolName(networkName, allocation.NodeName, allocation.SliceRange)
+	var pool whereaboutsv1alpha1.IPPool
+	if err := r.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: poolName}, &pool); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, fmt.Errorf("getting stale IPPool %s/%s: %w", namespace, poolName, err)
+	}
+
+	if len(pool.Spec.Allocations) > 0 {
+		return false, nil
+	}
+
+	if err := client.IgnoreNotFound(r.client.Delete(ctx, &pool)); err != nil {
+		return false, fmt.Errorf("deleting empty stale IPPool %s/%s: %w", namespace, poolName, err)
+	}
+	return true, nil
 }
 
 // ensureOwnerRef adds a non-controller OwnerReference for multi-NAD scenarios.
@@ -446,6 +489,14 @@ func nodeSlicePoolName(conf *nadIPAMConfig) string {
 		return iphelpers.NormalizeRangeForResourceName(conf.Range)
 	}
 	return conf.Name
+}
+
+func nodeSliceIPPoolName(networkName, nodeName, ipRange string) string {
+	normalizedRange := iphelpers.NormalizeRangeForResourceName(ipRange)
+	if networkName == "" {
+		return fmt.Sprintf("%s-%s", nodeName, normalizedRange)
+	}
+	return fmt.Sprintf("%s-%s-%s", networkName, nodeName, normalizedRange)
 }
 
 // makeAllocations creates allocation entries from subnets and assigns nodes.

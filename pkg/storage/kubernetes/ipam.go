@@ -423,6 +423,17 @@ func (c *KubernetesOverlappingRangeStore) UpdateOverlappingRangeAllocation(ctx c
 			legacyName := LegacyNormalizeIP(ip, networkName)
 			if legacyName != normalizedIP {
 				logging.Debugf("New-format name %q not found on delete, trying legacy name %q", normalizedIP, legacyName)
+				if podUID != "" {
+					existing, getErr := c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Get(ctx, legacyName, metav1.GetOptions{})
+					if getErr != nil && !apierrors.IsNotFound(getErr) {
+						return fmt.Errorf("k8s get legacy OverlappingRangeIPReservation error: %w", getErr)
+					}
+					if getErr == nil && existing.Spec.PodUID != "" && existing.Spec.PodUID != podUID {
+						logging.Debugf("Skipping delete of legacy ORIP %q: stored UID %q differs from caller UID %q (stale reservation of another pod lifecycle)",
+							legacyName, existing.Spec.PodUID, podUID)
+						return nil
+					}
+				}
 				err = c.client.WhereaboutsV1alpha1().OverlappingRangeIPReservations(c.namespace).Delete(ctx, legacyName, metav1.DeleteOptions{})
 				if apierrors.IsNotFound(err) {
 					err = nil

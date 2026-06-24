@@ -11,3 +11,13 @@ resources:
 - ../manager
 - ../webhook
 - ../daemonset
+configurations:
+- kustomizeconfig.yaml
+vars:
+- name: WHEREABOUTS_KUSTOMIZE_NAMESPACE
+  objref:
+    apiVersion: v1
+    kind: Service
+    name: whereabouts-webhook-service
+  fieldref:
+    fieldpath: metadata.namespace

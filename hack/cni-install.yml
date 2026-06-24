@@ -6,6 +6,7 @@ metadata:
   namespace: kube-system
 data:
   install_cni.sh: |
+    set -eu
     cd /tmp
     ARCH=$(uname -m)
     case "$ARCH" in
@@ -13,10 +14,11 @@ data:
       aarch64) ARCH="arm64" ;;
     esac
     CNI_VERSION="v1.9.1"
-    wget "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
+    archive="/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
+    wget -O "${archive}" "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
     cd /host/opt/cni/bin
-    tar xvfzp "/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
-    sleep infinite
+    tar -xzf "${archive}"
+    exec tail -f /dev/null
 ---
 apiVersion: apps/v1
 kind: DaemonSet

@@ -168,6 +168,9 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               freeSlices:
                 description: FreeSlices is the number of slices available for node
                   assignment.

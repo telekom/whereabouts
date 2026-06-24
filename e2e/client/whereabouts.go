@@ -23,6 +23,7 @@ import (
 const (
 	createTimeout          = 10 * time.Second
 	deleteTimeout          = 2 * createTimeout
+	podDeleteTimeout       = 2 * time.Minute
 	rsCreateTimeout        = 600 * time.Second
 	nodeSliceCreateTimeout = 5 * time.Second
 )
@@ -112,7 +113,6 @@ func (c *ClientInfo) DeletePod(pod *corev1.Pod) error {
 		return err
 	}
 
-	const podDeleteTimeout = 20 * time.Second
 	if err := WaitForPodToDisappear(ctx, c.Client, pod.GetNamespace(), pod.GetName(), podDeleteTimeout); err != nil {
 		return err
 	}

@@ -1,8 +1,8 @@
 name: Binaries upload release
 on:
-  release:
-    types:
-      - created
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -39,7 +39,7 @@ jobs:
           ./bin/whereabouts-${{ matrix.arch }}.sha256
           ./bin/whereabouts-operator-${{ matrix.arch }}
           ./bin/whereabouts-operator-${{ matrix.arch }}.sha256
-        tag_name: ${{ github.event.release.tag_name }}
+        tag_name: ${{ github.ref_name }}
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,7 +56,7 @@ jobs:
         go-version-file: go.mod
     - name: Prepare manifests
       env:
-        TAG: ${{ github.event.release.tag_name }}
+        TAG: ${{ github.ref_name }}
       run: |
         bash hack/release/validate-tag.sh "${TAG}"
         mkdir -p ./manifests
@@ -77,6 +77,6 @@ jobs:
       with:
         files: |
           ./manifests/*.yaml
-        tag_name: ${{ github.event.release.tag_name }}
+        tag_name: ${{ github.ref_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

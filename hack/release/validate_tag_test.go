@@ -73,14 +73,20 @@ func TestManifestReleaseWorkflowUsesEnvTag(t *testing.T) {
 	}
 	text := string(workflow)
 
-	if !strings.Contains(text, "TAG: ${{ github.event.release.tag_name }}") {
-		t.Fatalf("workflow does not pass release tag through step env")
+	if !strings.Contains(text, "TAG: ${{ github.ref_name }}") {
+		t.Fatalf("workflow does not pass pushed tag through step env")
 	}
 	if !strings.Contains(text, `bash hack/release/validate-tag.sh "${TAG}"`) {
 		t.Fatalf("workflow does not validate the env release tag before manifest generation")
 	}
 	if strings.Contains(text, `TAG="${{ github.event.release.tag_name }}"`) {
 		t.Fatalf("workflow still inlines the release tag inside shell script text")
+	}
+	if strings.Contains(text, "github.event.release.tag_name") {
+		t.Fatalf("workflow still depends on release event payloads")
+	}
+	if !strings.Contains(text, "push:") || !strings.Contains(text, "tags:") || !strings.Contains(text, `- "v*"`) {
+		t.Fatalf("workflow does not run for release tag pushes")
 	}
 }
 

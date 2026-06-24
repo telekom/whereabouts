@@ -393,6 +393,61 @@ var _ = Describe("LoadIPAMConfig edge cases", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(cfg.Name).To(Equal("my-net"))
 	})
+
+	It("accepts Fast IPAM with a single top-level range", func() {
+		data := []byte(`{
+			"name":"test",
+			"cniVersion":"1.0.0",
+			"ipam":{
+				"type":"whereabouts",
+				"range":"10.0.0.0/24",
+				"node_slice_size":"/28",
+				"kubernetes": {"kubeconfig": "/etc/kubeconfig"}
+			}
+		}`)
+		cfg, _, err := LoadIPAMConfig(data, "")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cfg.NodeSliceSize).To(Equal("/28"))
+		Expect(cfg.IPRanges).To(HaveLen(1))
+		Expect(cfg.IPRanges[0].Range).To(Equal("10.0.0.0/24"))
+	})
+
+	It("rejects Fast IPAM with ipRanges only", func() {
+		data := []byte(`{
+			"name":"test",
+			"cniVersion":"1.0.0",
+			"ipam":{
+				"type":"whereabouts",
+				"node_slice_size":"/28",
+				"ipRanges":[{"range":"10.0.0.0/24"}],
+				"kubernetes": {"kubeconfig": "/etc/kubeconfig"}
+			}
+		}`)
+		_, _, err := LoadIPAMConfig(data, "")
+		Expect(err).To(MatchError(And(
+			ContainSubstring("node_slice_size requires a top-level range"),
+			ContainSubstring("Fast IPAM does not support ipRanges-only configurations"),
+		)))
+	})
+
+	It("rejects Fast IPAM with an extra ipRanges list", func() {
+		data := []byte(`{
+			"name":"test",
+			"cniVersion":"1.0.0",
+			"ipam":{
+				"type":"whereabouts",
+				"range":"10.0.0.0/24",
+				"node_slice_size":"/28",
+				"ipRanges":[{"range":"10.0.1.0/24"}],
+				"kubernetes": {"kubeconfig": "/etc/kubeconfig"}
+			}
+		}`)
+		_, _, err := LoadIPAMConfig(data, "")
+		Expect(err).To(MatchError(And(
+			ContainSubstring("node_slice_size cannot be combined with ipRanges"),
+			ContainSubstring("Fast IPAM supports only a single top-level range"),
+		)))
+	})
 })
 
 var _ = Describe("LoadIPAMConfiguration", func() {

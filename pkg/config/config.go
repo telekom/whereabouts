@@ -94,6 +94,10 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 		logging.Debugf("Used defaults from parsed flat file config @ %s", foundflatfile)
 	}
 
+	if err := validateFastIPAMConfig(n.IPAM); err != nil {
+		return nil, "", err
+	}
+
 	if n.IPAM.Range != "" {
 		oldRange := types.RangeConfiguration{
 			OmitRanges:    n.IPAM.OmitRanges,
@@ -216,6 +220,19 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	n.IPAM.Name = n.Name
 
 	return n.IPAM, n.CNIVersion, nil
+}
+
+func validateFastIPAMConfig(ipam *types.IPAMConfig) error {
+	if ipam.NodeSliceSize == "" {
+		return nil
+	}
+	if ipam.Range == "" {
+		return fmt.Errorf("node_slice_size requires a top-level range; Fast IPAM does not support ipRanges-only configurations")
+	}
+	if len(ipam.IPRanges) > 0 {
+		return fmt.Errorf("node_slice_size cannot be combined with ipRanges; Fast IPAM supports only a single top-level range")
+	}
+	return nil
 }
 
 func pathExists(path string) bool {

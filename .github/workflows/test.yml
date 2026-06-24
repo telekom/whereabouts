@@ -143,47 +143,16 @@ jobs:
 
       - name: Collect cluster diagnostics
         if: failure()
-        run: |
-          echo "=== Node status ==="
-          kubectl get nodes -o wide || true
-          echo ""
-          echo "=== All pods ==="
-          kubectl get pods -A -o wide || true
-          echo ""
-          echo "=== Whereabouts pods ==="
-          kubectl -n kube-system get pods -l name=whereabouts -o wide || true
-          kubectl -n kube-system get pods -l control-plane=controller-manager -o wide || true
-          echo ""
-          echo "=== Whereabouts pod logs ==="
-          for p in $(kubectl -n kube-system get pods -l name=whereabouts -o name 2>/dev/null) $(kubectl -n kube-system get pods -l control-plane=controller-manager -o name 2>/dev/null); do
-            echo "--- $p ---"
-            kubectl -n kube-system logs "$p" --tail=200 || true
-          done
-          echo ""
-          echo "=== IPPool resources ==="
-          kubectl get ippools.whereabouts.cni.cncf.io -A -o yaml || true
-          echo ""
-          echo "=== OverlappingRangeIPReservation resources ==="
-          kubectl get overlappingrangeipreservations.whereabouts.cni.cncf.io -A -o yaml || true
-          echo ""
-          echo "=== NetworkAttachmentDefinitions ==="
-          kubectl get net-attach-def -A -o yaml || true
-          echo ""
-          echo "=== Events (last 100) ==="
-          kubectl get events -A --sort-by='.lastTimestamp' | tail -100 || true
-
-      - name: Export KinD logs
-        if: failure()
-        run: |
-          kind export logs /tmp/kind-logs --name whereabouts || true
+        run: hack/e2e-collect-diagnostics.sh /tmp/e2e-diagnostics
 
       - name: Upload cluster diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-diagnostics-${{ matrix.suite }}
-          path: /tmp/kind-logs/
-          retention-days: 7
+          path: /tmp/e2e-diagnostics/
+          if-no-files-found: warn
+          retention-days: 30
 
   e2e-helm:
     name: "e2e-helm / ${{ matrix.suite }}"
@@ -247,44 +216,13 @@ jobs:
 
       - name: Collect cluster diagnostics
         if: failure()
-        run: |
-          echo "=== Node status ==="
-          kubectl get nodes -o wide || true
-          echo ""
-          echo "=== All pods ==="
-          kubectl get pods -A -o wide || true
-          echo ""
-          echo "=== Whereabouts pods ==="
-          kubectl -n kube-system get pods -l name=whereabouts -o wide || true
-          kubectl -n kube-system get pods -l control-plane=controller-manager -o wide || true
-          echo ""
-          echo "=== Whereabouts pod logs ==="
-          for p in $(kubectl -n kube-system get pods -l name=whereabouts -o name 2>/dev/null) $(kubectl -n kube-system get pods -l control-plane=controller-manager -o name 2>/dev/null); do
-            echo "--- $p ---"
-            kubectl -n kube-system logs "$p" --tail=200 || true
-          done
-          echo ""
-          echo "=== IPPool resources ==="
-          kubectl get ippools.whereabouts.cni.cncf.io -A -o yaml || true
-          echo ""
-          echo "=== OverlappingRangeIPReservation resources ==="
-          kubectl get overlappingrangeipreservations.whereabouts.cni.cncf.io -A -o yaml || true
-          echo ""
-          echo "=== NetworkAttachmentDefinitions ==="
-          kubectl get net-attach-def -A -o yaml || true
-          echo ""
-          echo "=== Events (last 100) ==="
-          kubectl get events -A --sort-by='.lastTimestamp' | tail -100 || true
-
-      - name: Export KinD logs
-        if: failure()
-        run: |
-          kind export logs /tmp/kind-logs --name whereabouts || true
+        run: hack/e2e-collect-diagnostics.sh /tmp/e2e-diagnostics
 
       - name: Upload cluster diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-helm-diagnostics-${{ matrix.suite }}
-          path: /tmp/kind-logs/
-          retention-days: 7
+          path: /tmp/e2e-diagnostics/
+          if-no-files-found: warn
+          retention-days: 30

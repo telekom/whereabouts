@@ -91,6 +91,10 @@ verify-helm-webhook-failurepolicy: ## Verify Helm webhooks render fail-open by d
 verify-helm-webhook-bypass-serviceaccount: ## Verify Helm webhooks bypass the rendered CNI ServiceAccount.
 	hack/verify-helm-webhook-bypass-serviceaccount.sh
 
+.PHONY: verify-helm-service-cidrs
+verify-helm-service-cidrs: ## Verify Helm operator service CIDR collision detection wiring.
+	hack/verify-helm-service-cidrs.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...

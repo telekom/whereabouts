@@ -48,6 +48,9 @@ jobs:
     - name: Verify Helm webhook ServiceAccount bypass
       run: make verify-helm-webhook-bypass-serviceaccount
 
+    - name: Verify Helm service CIDRs
+      run: make verify-helm-service-cidrs
+
     - name: Verify go fmt
       run: |
         go fmt ./...

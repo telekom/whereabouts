@@ -23,9 +23,9 @@ In respect to the old equipment out there that doesn't think that IP addresses t
 
 The original inspiration for Whereabouts comes from when users have tried to use the samples from [Multus CNI](https://github.com/intel/multus-cni) (a CNI plugin that attaches multiple network interfaces to your pods), which includes examples that use the `host-local` plugin, and they find that it's... Almost the right thing. Sometimes people even assume it'll work across nodes -- and then wind up with IP address collisions.
 
-Whereabouts is designed with Kubernetes in mind, but, isn't limited to use in just Kubernetes.
+This fork is designed and tested for Kubernetes clusters.
 
-To track which IP addresses are in use between nodes, Whereabouts uses Kubernetes [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-resources) (CRDs) as its storage backend — no external dependencies like etcd are required.
+To track which IP addresses are in use between nodes, Whereabouts uses Kubernetes [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#custom-resources) (CRDs) as its supported storage backend. No external dependencies like etcd are required.
 
 Issues and PRs are welcome! Some of the known limitations are found at the bottom of the README.
 
@@ -35,6 +35,19 @@ Issues and PRs are welcome! Some of the known limitations are found at the botto
 * [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed on the cluster (Whereabouts is used as a secondary IPAM plugin via Multus `NetworkAttachmentDefinition`s)
 * A secondary CNI plugin (e.g., macvlan, ipvlan, bridge) configured through Multus
 * `kubectl` configured with cluster-admin access
+
+## Support Matrix
+
+| Area | Supported | Not supported / not CI-covered |
+|------|-----------|--------------------------------|
+| Kubernetes | 1.28+ | Older clusters are unsupported. |
+| Node operating system | Linux Kubernetes nodes | Windows nodes and non-Linux CNI installs are not built or tested. |
+| Container images | `linux/amd64`, `linux/arm64` | Other image platforms are not published. |
+| Release binary architectures | `amd64`, `arm64`, `arm` Linux builds | macOS and Windows binaries are not part of the release workflows. |
+| Install methods | Kustomize via `make deploy`; Helm 3 OCI chart | Other package managers are not maintained here. |
+| Storage backend | Kubernetes CRDs | External etcd or flat-file datastores are not supported by this fork. |
+| IPAM modes | IPv4, IPv6, multi-IP, and dual-stack through `range` and `ipRanges` | Fast IPAM with `ipRanges` or dual-stack node slices is not supported. |
+| Fast IPAM | Experimental, top-level `range` plus `node_slice_size` | Multi-range and dual-stack Fast IPAM configurations should use standard IPAM instead. |
 
 ## Installation
 
@@ -70,7 +83,7 @@ only one replica runs reconcilers, while all replicas serve webhooks.
 
 The operator is included in `make deploy`. No separate installation is needed.
 
-The daemonset installation requires Kubernetes Version 1.16 or later.
+The DaemonSet and operator manifests are supported on Kubernetes 1.28+ Linux nodes.
 
 ### Installing with helm 3
 You can also install whereabouts with helm 3:
@@ -275,6 +288,10 @@ You must run your whereabouts daemonset and whereabouts operator in the same nam
 The field in the example `node_slice_size` determines how large of a CIDR to allocate per node and the existence of the field is what triggers
 `Fast IPAM` mode.
 
+Fast IPAM currently supports a single top-level `range` only. Do not combine
+`node_slice_size` with `ipRanges`; use standard IPAM for multi-IP or dual-stack
+allocations.
+
 When `network_name` is set, all matching NetworkAttachmentDefinitions share the
 same NodeSlicePool. When it is not set, the NodeSlicePool name is derived from
 the configured range so different NADs can use the same embedded CNI `name`
@@ -315,7 +332,7 @@ The following parameters are optional:
 In the example, we exclude IP addresses in the range `192.168.2.229/30` from being allocated (in this case it's 3 addresses, `.229, .230, .231`), as well as `192.168.2.236/32` (just a single address).
 
 *Note 1*: It's up to you to properly set exclusion ranges that are within your subnet, there's no double checking for you (other than that the CIDR notation parses).
-*Note 2*: In case of wide IPv6 CIDRs (`range`≤/64) only the first /65 range is addressable (e.g. from `x:x:x:x::0` to `x:x:x:x:7fff:ffff:ffff:ffff`).
+*Note 2*: Wide IPv6 CIDRs are addressable. For operationally large pools, use `range_start`, `range_end`, or `exclude` to keep allocation searches bounded to the addresses you intend to hand out.
 
 Additionally -- you can set the route, gateway and DNS using anything from the configurations for the [static IPAM plugin](https://github.com/containernetworking/plugins/tree/master/plugins/ipam/static) (as well as additional static IP addresses). Static addresses must be outside the managed Whereabouts ranges.
 
@@ -434,7 +451,7 @@ The IPAM configuration format (JSON `ipam` block) is stable and follows semver. 
 |---------|-------------|------------|
 | `could not allocate IP in range` | IP pool exhausted | Expand the CIDR range or check for orphaned allocations: `kubectl get ippools -A -o yaml` |
 | `IPAM type must be 'whereabouts'` | Wrong IPAM type in NAD config | Verify `"type": "whereabouts"` in the `ipam` block of your `NetworkAttachmentDefinition` |
-| `kubernetes.kubeconfig path is required` | Missing kubeconfig | Provide `kubeconfig` in the IPAM config or in `whereabouts.conf` (only needed outside the cluster) |
+| `kubernetes.kubeconfig path is required` | Missing CNI kubeconfig path | Provide `kubeconfig` in the IPAM config or in `whereabouts.conf`; the DaemonSet install generates `/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig` for in-cluster use |
 | Duplicate IPs across pods | CNI binary crash during allocation | The operator's IPPool reconciler automatically cleans up orphaned allocations within its reconcile interval |
 | Webhook rejects valid CRDs | Webhook outage or misconfiguration | Check webhook pod logs; the static manifest uses `failurePolicy: Ignore` to avoid blocking CNI operations |
 | Slow IP allocation in large clusters | Contention on IPPool CRD | Enable Fast IPAM with `node_slice_size` to pre-allocate per-node IP slices (see [extended configuration](doc/extended-configuration.md)) |

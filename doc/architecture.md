@@ -13,6 +13,19 @@ Whereabouts ships three binaries:
 | `whereabouts-operator` | Operator binary — `controller` subcommand runs reconcilers + webhook server |
 | `install-cni` | DaemonSet entry-point — copies CNI binary to host, generates kubeconfig/conf, watches token rotation |
 
+## Supported Runtime Matrix
+
+| Area | Supported |
+|------|-----------|
+| Kubernetes | 1.28+ |
+| Node operating system | Linux Kubernetes nodes |
+| Container images | `linux/amd64`, `linux/arm64` |
+| Release binary GOARCH values | `amd64`, `arm64`, `arm` |
+| Storage backend | Kubernetes CRDs |
+| Install paths | Kustomize (`make deploy`) and Helm 3 |
+| Standard IPAM | IPv4, IPv6, multi-IP, and dual-stack through `range` and `ipRanges` |
+| Fast IPAM | Experimental single top-level `range` plus `node_slice_size` |
+
 ## CNI Plugin (`cmd/whereabouts/main.go`)
 
 Implements the standard CNI interface:
@@ -86,7 +99,7 @@ The CNI plugin supports several allocation modes and features:
 | Small subnets | N/A | /31, /32, /127, /128 subnets supported out of the box |
 | Dual-stack | `ipRanges` | Multi-range allocation for IPv4 + IPv6 |
 | Named networks | `network_name` | Isolate IPPool CRs per logical network |
-| Fast IPAM | `node_slice_size` | Per-node IP slices to reduce contention at scale |
+| Fast IPAM | `node_slice_size` | Per-node IP slices for a single top-level `range` to reduce contention at scale |
 
 See [extended-configuration.md](extended-configuration.md) for full details.
 

@@ -90,6 +90,27 @@ func TestManifestReleaseWorkflowUsesEnvTag(t *testing.T) {
 	}
 }
 
+func TestBinaryReleaseWorkflowUploadsAllBuiltBinaries(t *testing.T) {
+	workflow, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", "binaries-upload-release.yml"))
+	if err != nil {
+		t.Fatalf("reading binaries-upload-release.yml: %v", err)
+	}
+	text := string(workflow)
+
+	for _, binary := range []string{"whereabouts", "whereabouts-operator", "install-cni"} {
+		for _, want := range []string{
+			"mv ./bin/" + binary + " ./bin/" + binary + "-${{ matrix.arch }}",
+			"sha256sum " + binary + "-${{ matrix.arch }} > " + binary + "-${{ matrix.arch }}.sha256",
+			"./bin/" + binary + "-${{ matrix.arch }}",
+			"./bin/" + binary + "-${{ matrix.arch }}.sha256",
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("binary release workflow missing %q", want)
+			}
+		}
+	}
+}
+
 func runValidateTag(t *testing.T, tag string) (string, error) {
 	t.Helper()
 

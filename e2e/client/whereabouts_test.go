@@ -2,9 +2,16 @@ package client
 
 import (
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 )
+
+func TestPodDeleteTimeoutAllowsSlowCNITeardown(t *testing.T) {
+	if podDeleteTimeout < 2*time.Minute {
+		t.Fatalf("podDeleteTimeout = %s, want at least 2m for slow CI CNI teardown", podDeleteTimeout)
+	}
+}
 
 func TestStatefulSetReplicasOrDefault(t *testing.T) {
 	tests := []struct {

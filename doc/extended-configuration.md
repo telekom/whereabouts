@@ -19,11 +19,29 @@ via the `--reconcile-interval` flag on the operator's `controller` subcommand
 
 ## Installation options
 
-The daemonset installation as shown on the README is for use with Kubernetes version 1.16 and later. It may also be useful with previous versions, however you'll need to change the `apiVersion` of the daemonset in the provided yaml, [see the deprecation notice](https://kubernetes.io/blog/2019/07/18/api-deprecations-in-1-16/).
+The DaemonSet and operator installation shown in the README is supported on
+Kubernetes 1.28+ Linux nodes. Older Kubernetes versions and non-Linux CNI
+installs are not supported by this fork.
 
 You can compile from this repo (with `make build`) to produce a CNI binary, or deploy the operator image via `make deploy`.
 
-Note that we're also including a Custom Resource Definition (CRD) to use the `kubernetes` datastore option. This installs the kubernetes CRD specification for the `ippools.whereabouts.cni.cncf.io/v1alpha1` type.
+The supported storage backend is Kubernetes CRDs. This installs the Kubernetes
+CRD specifications for IPPool, OverlappingRangeIPReservation, and NodeSlicePool
+resources. External etcd or flat-file datastores are not supported by this
+fork.
+
+## Supported scope
+
+| Area | Supported |
+|------|-----------|
+| Kubernetes | 1.28+ |
+| Node operating system | Linux nodes |
+| Runtime integration | Secondary IPAM plugin through Multus `NetworkAttachmentDefinition`s |
+| Address families | IPv4, IPv6, and dual-stack through standard `range` and `ipRanges` configuration |
+| Storage backend | Kubernetes CRDs |
+| Images | `linux/amd64` and `linux/arm64` |
+| Release binary GOARCH values | `amd64`, `arm64`, and `arm` |
+| Fast IPAM | Experimental single top-level `range` plus `node_slice_size` |
 
 ### Logging Parameters
 
@@ -164,6 +182,10 @@ With Fast IPAM, `network_name` explicitly shares one NodeSlicePool across
 matching NetworkAttachmentDefinitions. If `network_name` is not set, the
 NodeSlicePool name is derived from the configured range, so independent NADs do
 not collide merely because their embedded CNI `name` fields match.
+
+Fast IPAM is only supported with the top-level `range` field. Do not combine
+`node_slice_size` with `ipRanges`; multi-IP and dual-stack configurations should
+use standard IPAM.
 
 ### Leader Election
 

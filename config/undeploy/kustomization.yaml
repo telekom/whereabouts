@@ -1,0 +1,11 @@
+# Undeploy kustomization intentionally omits CRDs so IPAM state survives
+# `make undeploy`. Use `make uninstall` to remove CRDs explicitly.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+namePrefix: whereabouts-
+resources:
+- ../rbac
+- ../manager
+- ../webhook
+- ../daemonset

@@ -169,7 +169,7 @@ deploy: manifests $(KUSTOMIZE) ## Deploy controller to the cluster.
 
 .PHONY: undeploy
 undeploy: $(KUSTOMIZE) ## Undeploy controller from the cluster.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found -f -
+	$(KUSTOMIZE) build config/undeploy | kubectl delete --ignore-not-found -f -
 
 .PHONY: kind
 kind: ## Create a KinD cluster with whereabouts installed (kustomize).

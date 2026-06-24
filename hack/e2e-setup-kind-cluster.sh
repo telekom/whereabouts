@@ -30,7 +30,8 @@ fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset.yml"
+MULTUS_DAEMONSET_REF="db30741512795c258b3ba383a571a66850e8baac"
+MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_DAEMONSET_REF}/deployments/multus-daemonset.yml"
 CNIS_DAEMONSET_PATH="$ROOT/hack/cni-install.yml"
 RETRY_MAX=10
 INTERVAL=10

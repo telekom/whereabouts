@@ -696,6 +696,7 @@ var _ = Describe("Whereabouts operations", func() {
 			  "log_file" : "/tmp/whereabouts.log",
 			  "log_level" : "debug",
 			  %s,
+			  "gateway": "192.168.10.254",
 			  "ipRanges": [{
 			    "range": "192.168.10.1/24"
 			  }, {
@@ -741,7 +742,9 @@ var _ = Describe("Whereabouts operations", func() {
 
 		Expect(result.IPs).To(HaveLen(2))
 		Expect(result.IPs[0].Address).To(Equal(mustCIDR("192.168.10.1/24")))
+		Expect(result.IPs[0].Gateway).To(Equal(net.ParseIP("192.168.10.254")))
 		Expect(result.IPs[1].Address).To(Equal(mustCIDR("abcd::1/64")))
+		Expect(result.IPs[1].Gateway).To(BeNil())
 
 		// Release the IP
 		err = testutils.CmdDelWithArgs(args, func() error {
@@ -762,6 +765,7 @@ var _ = Describe("Whereabouts operations", func() {
 			  "log_file" : "/tmp/whereabouts.log",
 			  "log_level" : "debug",
 			  %s,
+			  "gateway": "192.168.10.254",
 			  "ipRanges": [{
 			    "range": "192.168.10.1/24"
 			  }],
@@ -806,7 +810,9 @@ var _ = Describe("Whereabouts operations", func() {
 
 		Expect(result.IPs).To(HaveLen(2))
 		Expect(result.IPs[0].Address).To(Equal(mustCIDR("abcd::1/64")))
+		Expect(result.IPs[0].Gateway).To(BeNil())
 		Expect(result.IPs[1].Address).To(Equal(mustCIDR("192.168.10.1/24")))
+		Expect(result.IPs[1].Gateway).To(Equal(net.ParseIP("192.168.10.254")))
 
 		// Release the IP
 		err = testutils.CmdDelWithArgs(args, func() error {

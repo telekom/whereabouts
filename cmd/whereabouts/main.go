@@ -238,7 +238,7 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	for _, newip := range newips {
 		result.IPs = append(result.IPs, &current.IPConfig{
 			Address: newip,
-			Gateway: client.Config.Gateway})
+			Gateway: gatewayForAddress(newip, client.Config.Gateway)})
 	}
 
 	// Assign all the static IP elements.
@@ -253,6 +253,26 @@ func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
 	}
 
 	return cnitypes.PrintResult(result, cniVersion)
+}
+
+func gatewayForAddress(address net.IPNet, gateway net.IP) net.IP {
+	if gateway == nil {
+		return nil
+	}
+	return gatewayWithSameFamily(address.IP, gateway)
+}
+
+func gatewayWithSameFamily(address, gateway net.IP) net.IP {
+	if address.To4() != nil {
+		if gateway.To4() != nil {
+			return gateway
+		}
+		return nil
+	}
+	if gateway.To4() == nil {
+		return gateway
+	}
+	return nil
 }
 
 func validateStaticAddressesOutsideManagedRanges(addresses []types.Address, ranges []types.RangeConfiguration) error {

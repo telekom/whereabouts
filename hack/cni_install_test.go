@@ -22,6 +22,40 @@ type cniInstallConfigMap struct {
 	Data map[string]string `json:"data"`
 }
 
+func TestCNIInstallManifestPinsInstallerImage(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "hack", "cni-install.yml"))
+	if err != nil {
+		t.Fatalf("read cni-install.yml: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "image: docker.io/library/alpine:3.22@sha256:") {
+		t.Fatalf("CNI install DaemonSet must pin the privileged installer image by digest")
+	}
+}
+
+func TestCNIInstallScriptVerifiesArchiveBeforeExtraction(t *testing.T) {
+	script := cniInstallScript(t)
+	for _, checksum := range []string{
+		"b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303",
+		"56171987d3947707c3563db2f4001bccaf50fd63468611b9f3cbecb1375ee7ec",
+	} {
+		if !strings.Contains(script, checksum) {
+			t.Fatalf("CNI install script missing expected archive checksum %s", checksum)
+		}
+	}
+	checksumAt := strings.Index(script, "sha256sum -c -")
+	tarAt := strings.Index(script, "tar -xzf")
+	if checksumAt == -1 {
+		t.Fatalf("CNI install script must verify the downloaded archive with sha256sum")
+	}
+	if tarAt == -1 {
+		t.Fatalf("CNI install script must extract the downloaded archive")
+	}
+	if checksumAt > tarAt {
+		t.Fatalf("CNI install script extracts before checksum verification")
+	}
+}
+
 func TestCNIInstallScriptFailsWhenDownloadFails(t *testing.T) {
 	script := cniInstallScript(t)
 	if !strings.Contains(script, "set -eu") {
@@ -56,6 +90,40 @@ func TestCNIInstallScriptFailsWhenDownloadFails(t *testing.T) {
 	}
 	if strings.Contains(string(output), "tar should not run") || strings.Contains(string(output), "tail should not run") {
 		t.Fatalf("CNI install script continued after failed download:\n%s", output)
+	}
+}
+
+func TestCNIInstallScriptFailsWhenChecksumMismatches(t *testing.T) {
+	script := cniInstallScript(t)
+	hostCNIBin := t.TempDir()
+	script = strings.ReplaceAll(script, "/host/opt/cni/bin", hostCNIBin)
+	scriptPath := filepath.Join(t.TempDir(), "install_cni.sh")
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		t.Fatalf("write rewritten install script: %v", err)
+	}
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "wget"), "#!/bin/sh\nwhile [ \"$1\" != \"-O\" ]; do shift; done\nprintf bad > \"$2\"\n")
+	writeExecutable(t, filepath.Join(binDir, "sha256sum"), "#!/bin/sh\necho checksum mismatch >&2\nexit 1\n")
+	writeExecutable(t, filepath.Join(binDir, "tar"), "#!/bin/sh\necho tar should not run >&2\nexit 8\n")
+	writeExecutable(t, filepath.Join(binDir, "tail"), "#!/bin/sh\necho tail should not run >&2\nexit 9\n")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sh", scriptPath)
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatalf("CNI install script hung after checksum mismatch:\n%s", output)
+	}
+	if err == nil {
+		t.Fatalf("CNI install script succeeded after checksum mismatch:\n%s", output)
+	}
+	if !strings.Contains(string(output), "checksum mismatch") {
+		t.Fatalf("CNI install script did not report checksum mismatch:\n%s", output)
+	}
+	if strings.Contains(string(output), "tar should not run") || strings.Contains(string(output), "tail should not run") {
+		t.Fatalf("CNI install script continued after checksum mismatch:\n%s", output)
 	}
 }
 

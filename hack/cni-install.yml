@@ -10,12 +10,23 @@ data:
     cd /tmp
     ARCH=$(uname -m)
     case "$ARCH" in
-      x86_64)  ARCH="amd64" ;;
-      aarch64) ARCH="arm64" ;;
+      x86_64|amd64)
+        ARCH="amd64"
+        CNI_ARCHIVE_SHA256="b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303"
+        ;;
+      aarch64|arm64)
+        ARCH="arm64"
+        CNI_ARCHIVE_SHA256="56171987d3947707c3563db2f4001bccaf50fd63468611b9f3cbecb1375ee7ec"
+        ;;
+      *)
+        echo "unsupported architecture for CNI plugins: ${ARCH}" >&2
+        exit 1
+        ;;
     esac
     CNI_VERSION="v1.9.1"
     archive="/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
     wget -O "${archive}" "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
+    printf '%s  %s\n' "${CNI_ARCHIVE_SHA256}" "${archive}" | sha256sum -c -
     cd /host/opt/cni/bin
     tar -xzf "${archive}"
     exec tail -f /dev/null
@@ -43,7 +54,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: install-cni-plugins
-        image: alpine
+        image: docker.io/library/alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
         command: ["/bin/sh", "/scripts/install_cni.sh"]
         resources:
           requests:

@@ -9,7 +9,7 @@ rules:
 # IPPool CRUD for reconciliation
 - apiGroups: [whereabouts.cni.cncf.io]
   resources: [ippools]
-  verbs: [get, list, watch, update, patch]
+  verbs: [get, list, watch, update, patch, delete]
 # IPPool status subresource
 - apiGroups: [whereabouts.cni.cncf.io]
   resources: [ippools/status]

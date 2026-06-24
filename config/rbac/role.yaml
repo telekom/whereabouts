@@ -43,6 +43,7 @@ rules:
   resources:
   - ippools
   verbs:
+  - delete
   - get
   - list
   - patch

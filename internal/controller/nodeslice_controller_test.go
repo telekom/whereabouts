@@ -73,6 +73,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			WithScheme(scheme).
 			WithObjects(objs...).
 			WithStatusSubresource(&whereaboutsv1alpha1.NodeSlicePool{}).
+			WithStatusSubresource(&whereaboutsv1alpha1.IPPool{}).
 			Build()
 		reconciler = &NodeSliceReconciler{
 			client:   fakeClient,
@@ -352,6 +353,119 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(updated.Status.FreeSlices).To(Equal(int32(2)))
 		})
 
+		It("should keep a removed node's slice assigned while its per-node IPPool still has allocations", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-16", "10.0.0.0/16", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24", NodeName: "node-removed"},
+			})
+			stalePool := ipPool(nadNamespace, "node-removed-10.0.1.0-24", "10.0.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {ContainerID: "container-1", PodRef: "default/stale-pod", IfName: "net1"},
+			})
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, stalePool, node1, node2)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(staleIPPoolRequeueInterval))
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-removed"}))
+			Expect(updated.Status.Allocations).NotTo(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-b"}))
+
+			var stillStale whereaboutsv1alpha1.IPPool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "node-removed-10.0.1.0-24"}, &stillStale)
+			Expect(err).NotTo(HaveOccurred())
+
+			conditions := map[string]metav1.Condition{}
+			for _, condition := range updated.Status.Conditions {
+				conditions[condition.Type] = condition
+			}
+			Expect(conditions[fluxmeta.ReadyCondition].Status).To(Equal(metav1.ConditionUnknown))
+			Expect(conditions[fluxmeta.ReadyCondition].Reason).To(Equal(ReasonReconciling))
+		})
+
+		It("should delete an empty removed-node IPPool before reassigning the slice", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-16", "10.0.0.0/16", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24", NodeName: "node-removed"},
+			})
+			stalePool := ipPool(nadNamespace, "node-removed-10.0.1.0-24", "10.0.1.0/24", nil)
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, stalePool, node1, node2)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-b"}))
+			Expect(updated.Status.Allocations).NotTo(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-removed"}))
+
+			var deleted whereaboutsv1alpha1.IPPool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "node-removed-10.0.1.0-24"}, &deleted)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should use network_name when deleting empty per-node IPPools", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "shared-net", "10.0.0.0/16", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24", NodeName: "node-removed"},
+			})
+			stalePool := ipPool(nadNamespace, "shared-net-node-removed-10.0.1.0-24", "10.0.1.0/24", nil)
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, stalePool, node1, node2)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "shared-net"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-b"}))
+
+			var deleted whereaboutsv1alpha1.IPPool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "shared-net-node-removed-10.0.1.0-24"}, &deleted)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue())
+		})
+
 		It("should clear a previous PoolFull stalled condition after a slice becomes free", func() {
 			nad := &nadv1.NetworkAttachmentDefinition{
 				ObjectMeta: metav1.ObjectMeta{
@@ -568,3 +682,35 @@ var _ = Describe("NodeSliceReconciler", func() {
 		})
 	})
 })
+
+func nodeSlicePool(namespace, name, cidr, sliceSize string, allocations []whereaboutsv1alpha1.NodeSliceAllocation) *whereaboutsv1alpha1.NodeSlicePool {
+	return &whereaboutsv1alpha1.NodeSlicePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+			Range:     cidr,
+			SliceSize: sliceSize,
+		},
+		Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+			Allocations: allocations,
+		},
+	}
+}
+
+func ipPool(namespace, name, cidr string, allocations map[string]whereaboutsv1alpha1.IPAllocation) *whereaboutsv1alpha1.IPPool {
+	if allocations == nil {
+		allocations = map[string]whereaboutsv1alpha1.IPAllocation{}
+	}
+	return &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       cidr,
+			Allocations: allocations,
+		},
+	}
+}

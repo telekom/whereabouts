@@ -768,11 +768,13 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		var err error
 		var attempts int
 		skipOverlappingRangeUpdate := false
+		var pendingOverlapDeletionIP net.IP
 		backoff := retryInitialBackoff
 		poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
 	RETRYLOOP:
 		for j := range storage.DatastoreRetries {
 			attempts = j + 1
+			skipPoolUpdate := false
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			select {
 			case <-ctx.Done():
@@ -928,12 +930,21 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			case whereaboutstypes.Deallocate:
 				updatedreservelist, ipforoverlappingrangeupdate = allocate.DeallocateIP(reservelist, ipam.ContainerID, ipam.IfName)
 				if ipforoverlappingrangeupdate == nil {
+					if ipamConf.OverlappingRanges && pendingOverlapDeletionIP != nil {
+						ipforoverlappingrangeupdate = append(net.IP(nil), pendingOverlapDeletionIP...)
+						updatedreservelist = reservelist
+						skipPoolUpdate = true
+						logging.Debugf("No pool allocation found for container ID %q in range %s; retrying overlapping reservation cleanup for IP %s",
+							ipam.ContainerID, ipRange.Range, ipforoverlappingrangeupdate)
+						break
+					}
 					// Allocation not found in this range — continue to remaining
 					// ranges so that IPs in other ranges are still released.
 					logging.Debugf("No allocation found for container ID %q in range %s, continuing to next range", ipam.ContainerID, ipRange.Range)
 					requestCancel()
 					break RETRYLOOP
 				}
+				pendingOverlapDeletionIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
 			}
 
 			// Clean out any dummy records from the reservelist...
@@ -954,17 +965,19 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				time.Sleep(time.Duration(sleepSec) * time.Second)
 			}
 
-			err = pool.Update(requestCtx, usereservelist)
-			if err != nil {
-				logging.Errorf("IPAM error updating pool (attempt: %d): %w", j, err)
-				if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+			if !skipPoolUpdate {
+				err = pool.Update(requestCtx, usereservelist)
+				if err != nil {
+					logging.Errorf("IPAM error updating pool (attempt: %d): %w", j, err)
+					if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+						requestCancel()
+						retryBackoff(ctx, backoff)
+						backoff = min(backoff*2, retryMaxBackoff)
+						continue
+					}
 					requestCancel()
-					retryBackoff(ctx, backoff)
-					backoff = min(backoff*2, retryMaxBackoff)
-					continue
+					break RETRYLOOP
 				}
-				requestCancel()
-				break RETRYLOOP
 			}
 			// Update the clusterwide overlapping range reservation inside the retry
 			// loop so that a transient ORIP conflict (AlreadyExists) causes a retry
@@ -981,7 +994,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					if mode == whereaboutstypes.Allocate && pool != nil {
 						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam}})
 					}
-					if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+					if isRetryableRollbackError(err) {
 						requestCancel()
 						retryBackoff(ctx, backoff)
 						backoff = min(backoff*2, retryMaxBackoff)

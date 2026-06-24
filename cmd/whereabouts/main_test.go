@@ -1556,7 +1556,42 @@ var _ = Describe("Whereabouts operations", func() {
 
 			prevResult := &current.Result{
 				IPs: []*current.IPConfig{
-					{Address: mustCIDR(checkAllocatedIP + "/24")},
+					{Address: mustCIDR(checkAllocatedIP + "/24"), Gateway: checkIPAMConf.Gateway},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("succeeds when configured dynamic gateway is from a different address family", func() {
+			ipv6IPAMConf := ipamConfig(podName, podNamespace, checkNetName, "abcd::/64", "192.168.1.254", kubeConfigPath)
+			ipv6Pool := &v1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            kubernetes.IPPoolName(kubernetes.PoolIdentifier{IPRange: ipv6IPAMConf.IPRanges[0].Range, NetworkName: checkNetName}),
+					Namespace:       podNamespace,
+					ResourceVersion: "1",
+				},
+				Spec: v1alpha1.IPPoolSpec{
+					Range: ipv6IPAMConf.IPRanges[0].Range,
+					Allocations: map[string]v1alpha1.IPAllocation{
+						"1": {ContainerID: checkContainerID, PodRef: podNamespace + "/" + podName, IfName: checkIfName},
+					},
+				},
+			}
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, ipv6IPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(ipv6Pool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR("abcd::1/64")},
 				},
 			}
 
@@ -1577,7 +1612,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 			prevResult := &current.Result{
 				IPs: []*current.IPConfig{
-					{Address: mustCIDR(checkAllocatedIP + "/24")},
+					{Address: mustCIDR(checkAllocatedIP + "/24"), Gateway: checkIPAMConf.Gateway},
 					{Address: mustCIDR("192.168.1.99/24")},
 				},
 			}
@@ -1593,6 +1628,29 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(err.Error()).To(ContainSubstring("not expected"))
 		})
 
+		It("fails when prevResult has the right IP with the wrong prefix", func() {
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(checkAllocatedIP + "/32"), Gateway: checkIPAMConf.Gateway},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(checkAllocatedIP + "/32"))
+			Expect(err.Error()).To(ContainSubstring("not expected"))
+		})
+
 		It("succeeds when prevResult contains configured static addresses", func() {
 			checkIPAMConf.Addresses = []whereaboutstypes.Address{{
 				Address: mustCIDR("10.10.0.5/24"),
@@ -1605,7 +1663,7 @@ var _ = Describe("Whereabouts operations", func() {
 
 			prevResult := &current.Result{
 				IPs: []*current.IPConfig{
-					{Address: mustCIDR(checkAllocatedIP + "/24")},
+					{Address: mustCIDR(checkAllocatedIP + "/24"), Gateway: checkIPAMConf.Gateway},
 					{Address: mustCIDR("10.10.0.5/24"), Gateway: net.ParseIP("10.10.0.1")},
 				},
 			}
@@ -1617,6 +1675,35 @@ var _ = Describe("Whereabouts operations", func() {
 
 			err := runCmdCheck(client, args, prevResult)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("fails when prevResult static address has the wrong gateway", func() {
+			checkIPAMConf.Addresses = []whereaboutstypes.Address{{
+				Address: mustCIDR("10.10.0.5/24"),
+				Gateway: net.ParseIP("10.10.0.1"),
+			}}
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, checkIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(checkPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(checkAllocatedIP + "/24"), Gateway: checkIPAMConf.Gateway},
+					{Address: mustCIDR("10.10.0.5/24"), Gateway: net.ParseIP("10.10.0.254")},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("10.10.0.5/24"))
+			Expect(err.Error()).To(ContainSubstring("gateway=10.10.0.254"))
+			Expect(err.Error()).To(ContainSubstring("not expected"))
 		})
 
 		It("succeeds for static-only configs without prevResult pool allocations", func() {
@@ -1759,7 +1846,7 @@ var _ = Describe("Whereabouts operations", func() {
 			// an orphan that the runtime never knew about.
 			prevResult := &current.Result{
 				IPs: []*current.IPConfig{
-					{Address: mustCIDR(dupIP1 + "/24")},
+					{Address: mustCIDR(dupIP1 + "/24"), Gateway: checkIPAMConf.Gateway},
 				},
 			}
 

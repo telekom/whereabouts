@@ -139,10 +139,15 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 		}
 
 		found := false
+		_, ipNet, err := net.ParseCIDR(ipRange.Range)
+		if err != nil {
+			return logging.Errorf("CHECK: invalid configured range %s: %w", ipRange.Range, err)
+		}
 		for _, alloc := range pool.Allocations() {
 			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
 				found = true
-				allocatedIPs[alloc.IP.String()] = true
+				allocationAddress := net.IPNet{IP: alloc.IP, Mask: ipNet.Mask}
+				allocatedIPs[resultKey(allocationAddress, gatewayForExpectedAllocation(allocationAddress, ipam.Config.Gateway))] = true
 			}
 		}
 		if !found {
@@ -153,7 +158,7 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 			args.ContainerID, args.IfName, ipRange.Range)
 	}
 	for _, address := range ipam.Config.Addresses {
-		allocatedIPs[address.Address.IP.String()] = true
+		allocatedIPs[resultKey(address.Address, address.Gateway)] = true
 	}
 
 	// If prevResult was provided, cross-check bidirectionally:
@@ -163,29 +168,47 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 	if prevResult != nil {
 		prevResultIPs := make(map[string]bool, len(prevResult.IPs))
 		for _, ipConf := range prevResult.IPs {
-			prevResultIPs[ipConf.Address.IP.String()] = true
+			prevResultIPs[resultKey(ipConf.Address, ipConf.Gateway)] = true
 		}
 
-		for ip := range prevResultIPs {
-			if !allocatedIPs[ip] {
+		for key := range prevResultIPs {
+			if !allocatedIPs[key] {
 				return logging.Errorf(
-					"CHECK: IP %s from prevResult is not expected for containerID %q ifName %q",
-					ip, args.ContainerID, args.IfName)
+					"CHECK: IP config %s from prevResult is not expected for containerID %q ifName %q",
+					key, args.ContainerID, args.IfName)
 			}
-			logging.Debugf("CHECK: prevResult IP %s matches expected IPAM result", ip)
+			logging.Debugf("CHECK: prevResult IP config %s matches expected IPAM result", key)
 		}
 
-		for ip := range allocatedIPs {
-			if !prevResultIPs[ip] {
+		for key := range allocatedIPs {
+			if !prevResultIPs[key] {
 				return logging.Errorf(
-					"CHECK: pool-allocated IP %s for containerID %q ifName %q is missing from prevResult",
-					ip, args.ContainerID, args.IfName)
+					"CHECK: expected IP config %s for containerID %q ifName %q is missing from prevResult",
+					key, args.ContainerID, args.IfName)
 			}
-			logging.Debugf("CHECK: expected IP %s confirmed in prevResult", ip)
+			logging.Debugf("CHECK: expected IP config %s confirmed in prevResult", key)
 		}
 	}
 
 	return nil
+}
+
+func resultKey(address net.IPNet, gateway net.IP) string {
+	gatewayKey := ""
+	if gateway != nil {
+		gatewayKey = gateway.String()
+	}
+	return fmt.Sprintf("%s gateway=%s", address.String(), gatewayKey)
+}
+
+func gatewayForExpectedAllocation(address net.IPNet, gateway net.IP) net.IP {
+	if gateway == nil {
+		return nil
+	}
+	if (address.IP.To4() != nil) != (gateway.To4() != nil) {
+		return nil
+	}
+	return gateway
 }
 
 func logIPAMConfigLoaded(operation string, ipamConf *types.IPAMConfig) {

@@ -388,6 +388,16 @@ func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolStatus(ref commo
 						},
 					},
 					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "type",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
 							Description: "Conditions holds the conditions for the IPPool.",
 							Type:        []string{"array"},
@@ -605,6 +615,16 @@ func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_NodeSlicePoolStatus(re
 						},
 					},
 					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "type",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
 							Description: "Conditions holds the conditions for the NodeSlicePool.",
 							Type:        []string{"array"},
@@ -772,6 +792,16 @@ func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_OverlappingRangeIPRese
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "type",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
 							Description: "Conditions holds the conditions for the OverlappingRangeIPReservation.",
 							Type:        []string{"array"},

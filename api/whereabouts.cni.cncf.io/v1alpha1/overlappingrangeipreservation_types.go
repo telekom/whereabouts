@@ -27,7 +27,11 @@ type OverlappingRangeIPReservationSpec struct {
 type OverlappingRangeIPReservationStatus struct {
 	// Conditions holds the conditions for the OverlappingRangeIPReservation.
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +genclient

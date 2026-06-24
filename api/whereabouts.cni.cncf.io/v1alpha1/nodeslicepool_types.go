@@ -40,7 +40,11 @@ type NodeSlicePoolStatus struct {
 
 	// Conditions holds the conditions for the NodeSlicePool.
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // NodeSliceAllocation represents a single node-to-slice assignment.

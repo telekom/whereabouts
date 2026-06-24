@@ -971,6 +971,119 @@ func TestIPManagementKubernetesUpdateRetriesOnTransientORIPConflict(t *testing.T
 	}
 }
 
+func TestIPManagementKubernetesUpdateResetsORIPSkipAfterPoolConflict(t *testing.T) {
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.0.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "old-container",
+					PodRef:      "default/pod1",
+					IfName:      "eth0",
+				},
+			},
+		},
+	}
+	orip := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "10.0.0.1",
+			Namespace: "default",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/pod1",
+			IfName: "eth0",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool, orip)
+	k8sClient := fake.NewClientset()
+
+	var patchCalls int
+	wbClient.PrependReactor("patch", "ippools",
+		func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			patchCalls++
+			if patchCalls == 1 {
+				updatedPool := pool.DeepCopy()
+				updatedPool.ResourceVersion = "2"
+				updatedPool.Spec.Allocations = map[string]whereaboutsv1alpha1.IPAllocation{
+					"1": {
+						ContainerID: "other-container",
+						PodRef:      "default/other-pod",
+						IfName:      "eth0",
+					},
+				}
+				if updateErr := wbClient.Tracker().Update(
+					schema.GroupVersionResource{
+						Group:    "whereabouts.cni.cncf.io",
+						Version:  "v1alpha1",
+						Resource: "ippools",
+					},
+					updatedPool,
+					"default",
+				); updateErr != nil {
+					t.Fatalf("failed to update fake IPPool during conflict setup: %v", updateErr)
+				}
+				return true, nil, apierrors.NewConflict(
+					schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "ippools"},
+					"10.0.0.0-24",
+					fmt.Errorf("stale resource"),
+				)
+			}
+			return false, nil, nil
+		},
+	)
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/24"},
+		},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("expected allocation to succeed after pool conflict retry, got error: %v", err)
+	}
+	if patchCalls != 2 {
+		t.Fatalf("expected initial conflict and retry patch, got %d patch calls", patchCalls)
+	}
+	if len(newips) != 1 {
+		t.Fatalf("expected 1 allocated IP, got %d", len(newips))
+	}
+	if got := newips[0].String(); got != "10.0.0.2/24" {
+		t.Fatalf("expected retry to allocate 10.0.0.2/24, got %s", got)
+	}
+
+	store := &KubernetesOverlappingRangeStore{
+		client:    wbClient,
+		namespace: "default",
+	}
+	res, err := store.GetOverlappingRangeIPReservation(context.Background(), newips[0].IP, "default/pod1", "")
+	if err != nil {
+		t.Fatalf("GetOverlappingRangeIPReservation error: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected retry allocation to create its own OverlappingRangeIPReservation")
+	}
+	if res.Spec.PodRef != "default/pod1" || res.Spec.IfName != "eth0" {
+		t.Fatalf("unexpected ORIP owner: %+v", res.Spec)
+	}
+}
+
 // TestIPManagementKubernetesUpdateRollsBackPoolOnPermanentORIPFailure verifies
 // that a non-retryable ORIP create failure does not leave IPPool.spec.allocations
 // ahead of OverlappingRangeIPReservation state.

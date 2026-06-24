@@ -776,6 +776,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			attempts = j + 1
 			skipPoolUpdate := false
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+			skipOverlappingRangeUpdate = false
 			select {
 			case <-ctx.Done():
 				requestCancel()

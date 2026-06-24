@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const testImage = "quay.io/dougbtv/alpine:latest"
+const testImage = "docker.io/library/alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce"
 
 func PodObject(podName string, namespace string, label, annotations map[string]string) *corev1.Pod {
 	return &corev1.Pod{

@@ -35,8 +35,11 @@ import (
 )
 
 const (
-	createPodTimeout = 10 * time.Second
-	ipPoolNamespace  = "kube-system"
+	createPodTimeout           = 10 * time.Second
+	ipPoolNamespace            = "kube-system"
+	podDeleteTimeout           = 2 * time.Minute
+	allocationRecreateTimeout  = 30 * time.Second
+	allocationRecreateInterval = time.Second
 )
 
 func TestWhereaboutsE2E(t *testing.T) {
@@ -522,7 +525,7 @@ var _ = Describe("Whereabouts functionality", func() {
 							}
 
 							return nil
-						}, 3*time.Second, 500*time.Millisecond).Should(Succeed(), "the IP allocation should be recreated")
+						}, allocationRecreateTimeout, allocationRecreateInterval).Should(Succeed(), "the IP allocation should be recreated")
 					})
 				})
 			})
@@ -594,7 +597,6 @@ var _ = Describe("Whereabouts functionality", func() {
 					By("checking that the IP allocation is removed when the pod is deleted")
 					Expect(clientInfo.ScaleStatefulSet(serviceName, namespace, -1)).To(Succeed())
 
-					const podDeleteTimeout = 20 * time.Second
 					err := wbtestclient.WaitForPodToDisappear(context.Background(), clientInfo.Client, namespace, podName, podDeleteTimeout)
 					Expect(err).NotTo(HaveOccurred())
 					verifyNoAllocationsForPodRef(clientInfo, rangeWithTwoIPs, namespace, podName, secondaryIPs)

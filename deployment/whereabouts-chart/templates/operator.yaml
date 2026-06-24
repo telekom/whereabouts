@@ -42,6 +42,9 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
+        {{- with .Values.operator.serviceCIDRs }}
+        - --service-cidr={{ . | join "," }}
+        {{- end }}
         ports:
         - containerPort: 8080
           name: metrics

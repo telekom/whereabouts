@@ -257,15 +257,25 @@ var _ = Describe("Whereabouts coverage", func() {
 			By("verifying existing pods still hold their pre-restart IPs")
 			verifiedCount := 0
 			for _, podName := range replicaPodNames {
-				currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
-					context.Background(), podName, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred(),
-					"pod %s should still exist after operator restart", podName)
-				ips, err := retrievers.SecondaryIfaceIPValue(currentPod, "net1")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(ips).NotTo(BeEmpty())
-				Expect(ips[0]).To(Equal(preRestartIPs[podName]),
-					"pod %s changed IP after operator restart", podName)
+				Eventually(func() error {
+					currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
+						context.Background(), podName, metav1.GetOptions{})
+					if err != nil {
+						return fmt.Errorf("pod %s should still exist after operator restart: %w", podName, err)
+					}
+					ips, err := retrievers.SecondaryIfaceIPValue(currentPod, "net1")
+					if err != nil {
+						return err
+					}
+					if len(ips) == 0 {
+						return fmt.Errorf("pod %q has no secondary IPs", podName)
+					}
+					if ips[0] != preRestartIPs[podName] {
+						return fmt.Errorf("pod %s changed IP after operator restart: got %s, want %s",
+							podName, ips[0], preRestartIPs[podName])
+					}
+					return nil
+				}, 2*time.Minute, 2*time.Second).Should(Succeed())
 				verifiedCount++
 			}
 			Expect(verifiedCount).To(BeNumerically(">", 0),

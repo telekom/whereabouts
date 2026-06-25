@@ -39,7 +39,7 @@ func (w *oripDeleteInterceptClient) Delete(ctx context.Context, obj client.Objec
 	deleteOptions := (&client.DeleteOptions{}).ApplyOptions(opts)
 	if deleteOptions.Preconditions != nil && deleteOptions.Preconditions.UID != nil {
 		var live whereaboutsv1alpha1.OverlappingRangeIPReservation
-		if err := w.Client.Get(ctx, types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}, &live); err == nil &&
+		if err := w.Get(ctx, types.NamespacedName{Namespace: obj.GetNamespace(), Name: obj.GetName()}, &live); err == nil &&
 			live.UID != *deleteOptions.Preconditions.UID {
 			return apierrors.NewConflict(
 				schema.GroupResource{Group: "whereabouts.cni.cncf.io", Resource: "overlappingrangeipreservations"},

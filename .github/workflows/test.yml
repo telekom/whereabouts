@@ -83,6 +83,10 @@ jobs:
             test-dir: e2e
             test-pkg: "."
             focus: "Pod cleanup|Node drain|Reconciler cleanup"
+          - suite: node-loss
+            test-dir: e2e
+            test-pkg: "."
+            focus: "Node loss"
           - suite: v4
             test-dir: e2e
             test-pkg: "."

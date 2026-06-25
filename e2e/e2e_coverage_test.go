@@ -302,14 +302,23 @@ var _ = Describe("Whereabouts coverage", func() {
 			Expect(existingIPs).NotTo(ContainElement(newIPs[0]),
 				"new pod received an already-allocated IP")
 
-			By("deleting all replica pods and verifying IP pool drains")
+			By("scaling the ReplicaSet to zero and verifying IP pool drains")
+			replicaSet, err = clientInfo.Client.AppsV1().ReplicaSets(testNamespace).Get(
+				context.Background(), rsName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			zeroReplicas := int32(0)
+			replicaSet.Spec.Replicas = &zeroReplicas
+			replicaSet, err = clientInfo.UpdateReplicaSet(replicaSet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(wbtestclient.WaitForReplicaSetSteadyState(
+				context.Background(),
+				clientInfo.Client,
+				testNamespace,
+				entities.ReplicaSetQuery(rsName),
+				replicaSet,
+				allocationReleaseTimeout)).To(Succeed())
 			for _, podName := range replicaPodNames {
-				existingPod, getErr := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
-					context.Background(), podName, metav1.GetOptions{})
-				if getErr == nil {
-					Expect(clientInfo.DeletePod(existingPod)).To(Succeed())
-					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, podName, []string{preRestartIPs[podName]})
-				}
+				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, podName, []string{preRestartIPs[podName]})
 			}
 
 			Expect(clientInfo.DeletePod(newPod)).To(Succeed())

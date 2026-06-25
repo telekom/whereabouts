@@ -1,10 +1,17 @@
 package client
 
 import (
+	stderrors "errors"
 	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
 )
 
 func TestPodDeleteTimeoutAllowsSlowCNITeardown(t *testing.T) {
@@ -42,6 +49,49 @@ func TestStatefulSetReplicasOrDefault(t *testing.T) {
 				t.Fatalf("statefulSetReplicasOrDefault() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSetStatefulSetReplicasRetriesConflicts(t *testing.T) {
+	clientset := fake.NewClientset(&appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web",
+			Namespace: "default",
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: ptrTo[int32](1),
+		},
+	})
+
+	updateCalls := 0
+	clientset.PrependReactor("update", "statefulsets", func(clienttesting.Action) (bool, runtime.Object, error) {
+		updateCalls++
+		if updateCalls == 1 {
+			return true, nil, apierrors.NewConflict(
+				schema.GroupResource{Group: "apps", Resource: "statefulsets"},
+				"web",
+				stderrors.New("stale resource version"),
+			)
+		}
+		return false, nil, nil
+	})
+
+	err := updateStatefulSetReplicas(clientset.AppsV1().StatefulSets("default"), "web", func(int32) int32 {
+		return 3
+	})
+	if err != nil {
+		t.Fatalf("updateStatefulSetReplicas returned error: %v", err)
+	}
+	if updateCalls != 2 {
+		t.Fatalf("StatefulSet update calls = %d, want 2", updateCalls)
+	}
+
+	statefulSet, err := clientset.AppsV1().StatefulSets("default").Get(t.Context(), "web", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get statefulset: %v", err)
+	}
+	if got := statefulSetReplicasOrDefault(statefulSet); got != 3 {
+		t.Fatalf("StatefulSet replicas = %d, want 3", got)
 	}
 }
 

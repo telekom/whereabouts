@@ -64,7 +64,7 @@ func TestSetStatefulSetReplicasRetriesConflicts(t *testing.T) {
 	})
 
 	updateCalls := 0
-	clientset.Fake.PrependReactor("update", "statefulsets", func(clienttesting.Action) (bool, runtime.Object, error) {
+	clientset.PrependReactor("update", "statefulsets", func(clienttesting.Action) (bool, runtime.Object, error) {
 		updateCalls++
 		if updateCalls == 1 {
 			return true, nil, apierrors.NewConflict(

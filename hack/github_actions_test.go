@@ -60,3 +60,31 @@ func TestReleaseImageWorkflowPassesVersionBuildArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T) {
+	workflow, err := os.ReadFile(filepath.Join("..", ".github", "workflows", "chart-push-release.yml"))
+	if err != nil {
+		t.Fatalf("read release chart workflow: %v", err)
+	}
+	workflowText := string(workflow)
+
+	for _, want := range []string{
+		"docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5",
+		"run: bash hack/release/wait-for-release-image.sh",
+		"IMAGE_NAME: ${{ env.IMAGE_NAME }}",
+		"GITHUB_TAG: ${{ github.ref_name }}",
+	} {
+		if !strings.Contains(workflowText, want) {
+			t.Fatalf("release chart workflow missing %q", want)
+		}
+	}
+
+	waitIndex := strings.Index(workflowText, "run: bash hack/release/wait-for-release-image.sh")
+	pushIndex := strings.Index(workflowText, "run: make chart-push-release")
+	if waitIndex == -1 || pushIndex == -1 {
+		t.Fatalf("release chart workflow must include wait and push steps")
+	}
+	if waitIndex > pushIndex {
+		t.Fatalf("release chart workflow waits for the release image after pushing the chart")
+	}
+}

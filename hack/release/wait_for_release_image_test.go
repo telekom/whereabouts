@@ -69,6 +69,18 @@ func TestWaitForReleaseImageTimesOut(t *testing.T) {
 	}
 }
 
+func TestWaitForReleaseImageDefaultTimeoutCoversReleaseLatency(t *testing.T) {
+	repoRoot := repoRoot(t)
+	script, err := os.ReadFile(filepath.Join(repoRoot, "hack", "release", "wait-for-release-image.sh"))
+	if err != nil {
+		t.Fatalf("read wait-for-release-image.sh: %v", err)
+	}
+
+	if !strings.Contains(string(script), "WAIT_FOR_RELEASE_IMAGE_TIMEOUT=${WAIT_FOR_RELEASE_IMAGE_TIMEOUT:-1800}") {
+		t.Fatalf("default release image timeout must stay at least 30 minutes")
+	}
+}
+
 func TestWaitForReleaseImageValidatesInputs(t *testing.T) {
 	tests := []struct {
 		name string

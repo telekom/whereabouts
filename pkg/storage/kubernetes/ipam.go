@@ -783,10 +783,12 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		var pendingOverlapDeletionIP net.IP
 		backoff := retryInitialBackoff
 		poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
+		createdPoolAllocation := false
 	RETRYLOOP:
 		for j := range storage.DatastoreRetries {
 			attempts = j + 1
 			skipPoolUpdate := false
+			existingPoolAllocation := false
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			skipOverlappingRangeUpdate = false
 			select {
@@ -878,6 +880,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				if preferredIP != nil {
 					ipRange.PreferredIP = preferredIP
 				}
+				existingPoolAllocation = hasAllocationForPodInterface(pool.Allocations(), ipamConf.GetPodRef(), ipam.IfName)
 				newip, updatedreservelist, err = allocate.AssignIP(ipRange, reservelist, ipam.ContainerID, ipamConf.GetPodRef(), ipam.IfName)
 				if err != nil {
 					logging.Errorf("Error assigning IP: %w", err)
@@ -991,6 +994,9 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					break RETRYLOOP
 				}
+				if mode == whereaboutstypes.Allocate {
+					createdPoolAllocation = !existingPoolAllocation
+				}
 			}
 			// Update the clusterwide overlapping range reservation inside the retry
 			// loop so that a transient ORIP conflict (AlreadyExists) causes a retry
@@ -1004,7 +1010,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)
 					// Roll back the pool update so the IP is not reserved without
 					// overlap protection, then decide whether to retry.
-					if mode == whereaboutstypes.Allocate && pool != nil {
+					if mode == whereaboutstypes.Allocate && pool != nil && createdPoolAllocation {
 						rollbackCommitted(context.Background(), []committedAlloc{{
 							pool:        pool,
 							poolID:      poolIdentifier,
@@ -1033,32 +1039,44 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			return newips, logging.Errorf("IP allocation failed for range %s after %d attempts: %w", configuredRange, attempts, err)
 		}
 
-		// Track this allocation so we can roll it back if a later range fails.
+		// Track newly created allocations so we can roll them back if a later range fails.
+		// Existing idempotent allocations must be returned to the caller but must not be removed.
 		// Only append to newips in Allocate mode — during Deallocate, newip is
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
-			commit := committedAlloc{
-				pool:        pool,
-				poolID:      poolIdentifier,
-				ip:          append(net.IP(nil), newip.IP...),
-				ipam:        ipam,
-				containerID: ipam.ContainerID,
-				podRef:      ipamConf.GetPodRef(),
-				ifName:      ipam.IfName,
+			if createdPoolAllocation {
+				commit := committedAlloc{
+					pool:        pool,
+					poolID:      poolIdentifier,
+					ip:          append(net.IP(nil), newip.IP...),
+					ipam:        ipam,
+					containerID: ipam.ContainerID,
+					podRef:      ipamConf.GetPodRef(),
+					ifName:      ipam.IfName,
+				}
+				if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
+					commit.overlap = overlappingrangestore
+					commit.overlapIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
+					commit.podRef = ipamConf.GetPodRef()
+					commit.ifName = ipam.IfName
+					commit.networkName = ipamConf.NetworkName
+					commit.podUID = ipamConf.PodUID
+				}
+				committed = append(committed, commit)
 			}
-			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
-				commit.overlap = overlappingrangestore
-				commit.overlapIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
-				commit.podRef = ipamConf.GetPodRef()
-				commit.ifName = ipam.IfName
-				commit.networkName = ipamConf.NetworkName
-				commit.podUID = ipamConf.PodUID
-			}
-			committed = append(committed, commit)
 			newips = append(newips, newip)
 		}
 	}
 	return newips, nil
+}
+
+func hasAllocationForPodInterface(reservations []whereaboutstypes.IPReservation, podRef, ifName string) bool {
+	for _, reservation := range reservations {
+		if reservation.PodRef == podRef && reservation.IfName == ifName {
+			return true
+		}
+	}
+	return false
 }
 
 // rollbackRetries limits the number of conflict-retry attempts during

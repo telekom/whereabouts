@@ -805,6 +805,75 @@ func TestMultiRangeRollbackOnFailure(t *testing.T) {
 	}
 }
 
+func TestMultiRangeRollbackPreservesExistingAllocation(t *testing.T) {
+	pool1 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.4.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.4.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "default/pod1", ContainerID: "old-container", IfName: "eth0"},
+			},
+		},
+	}
+	// Second range pool is full — allocation will fail after the first range
+	// idempotently returns the existing allocation.
+	pool2 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.5.0.0-30",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.5.0.0/30",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "ns/existing1", ContainerID: "x1", IfName: "eth0"},
+				"2": {PodRef: "ns/existing2", ContainerID: "x2", IfName: "eth0"},
+			},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool1, pool2)
+	k8sClient := fake.NewClientset()
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "new-container",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:      "pod1",
+		PodNamespace: "default",
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.4.0.0/24"},
+			{Range: "10.5.0.0/30"}, // full — will fail
+		},
+	}
+
+	_, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected error from second range exhaustion")
+	}
+
+	updatedPool, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(
+		context.Background(), "10.4.0.0-24", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get pool1: %v", err)
+	}
+	allocation, ok := updatedPool.Spec.Allocations["1"]
+	if !ok {
+		t.Fatalf("expected existing allocation to survive rollback, got allocations: %#v", updatedPool.Spec.Allocations)
+	}
+	if allocation.PodRef != "default/pod1" || allocation.IfName != "eth0" {
+		t.Fatalf("expected original pod/interface allocation to survive, got %#v", allocation)
+	}
+}
+
 func TestMultiRangeRollbackOnFailureRemovesOverlappingReservation(t *testing.T) {
 	pool1 := &whereaboutsv1alpha1.IPPool{
 		ObjectMeta: metav1.ObjectMeta{

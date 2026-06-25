@@ -3004,8 +3004,9 @@ var _ = Describe("Whereabouts functionality", func() {
 				By("deleting first pod")
 				Expect(clientInfo.DeletePod(p1)).To(Succeed())
 
-				By("waiting for v4 deallocation")
+				By("waiting for v4 and v6 deallocation")
 				verifyNoAllocationsForPodRef(clientInfo, v4Range, testNamespace, "wb-realloc-ds-1", []string{firstV4})
+				verifyNoAllocationsForPodRef(clientInfo, v6Range, testNamespace, "wb-realloc-ds-1", []string{firstV6})
 
 				By("creating second pod — should reclaim both IPs")
 				p2, err := clientInfo.ProvisionPod(
@@ -3911,6 +3912,7 @@ var _ = Describe("Whereabouts functionality", func() {
 
 				By("verifying both v4 and v6 IPs released")
 				verifyNoAllocationsForPodRef(clientInfo, v4Range, testNamespace, "wb-ds-cordon", []string{ips[0]})
+				verifyNoAllocationsForPodRef(clientInfo, v6Range, testNamespace, "wb-ds-cordon", []string{ips[1]})
 			})
 		})
 
@@ -4020,7 +4022,9 @@ var _ = Describe("Whereabouts functionality", func() {
 
 				By("verifying all 4 IPs are released (v4+v6 × 2 interfaces)")
 				verifyNoAllocationsForPodRef(clientInfo, v4RangeA, testNamespace, "wb-ds-mif-cleanup", []string{ips1[0]})
+				verifyNoAllocationsForPodRef(clientInfo, v6RangeA, testNamespace, "wb-ds-mif-cleanup", []string{ips1[1]})
 				verifyNoAllocationsForPodRef(clientInfo, v4RangeB, testNamespace, "wb-ds-mif-cleanup", []string{ips2[0]})
+				verifyNoAllocationsForPodRef(clientInfo, v6RangeB, testNamespace, "wb-ds-mif-cleanup", []string{ips2[1]})
 			})
 		})
 

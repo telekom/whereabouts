@@ -1055,6 +1055,11 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				commit.podUID = ipamConf.PodUID
 			}
 			committed = append(committed, commit)
+			if ipamConf.OverlappingRanges {
+				// Reserve successful allocations locally so later ipRanges in the
+				// same ADD cannot reuse the same overlapping IP.
+				overlappingrangeallocations = append(overlappingrangeallocations, whereaboutstypes.IPReservation{IP: newip.IP, IsAllocated: true})
+			}
 			newips = append(newips, newip)
 		}
 	}

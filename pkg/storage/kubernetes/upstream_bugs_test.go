@@ -677,6 +677,78 @@ func TestOverlappingRangesDoNotReuseSamePodDifferentInterface(t *testing.T) {
 	}
 }
 
+func TestOverlappingIPRangesDoNotReuseSameIPInSameAdd(t *testing.T) {
+	pool1 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-29",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/29",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+	pool2 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.0.0.0-30",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range:       "10.0.0.0/30",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool1, pool2)
+	k8sClient := fake.NewClientset()
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "container1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.0.0.0/29"},
+			{Range: "10.0.0.0/30"},
+		},
+	}
+
+	newips, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("allocation with overlapping ipRanges error: %v", err)
+	}
+	if len(newips) != 2 {
+		t.Fatalf("expected 2 IPs, got %d", len(newips))
+	}
+	if got := newips[0].IP.String(); got != "10.0.0.1" {
+		t.Fatalf("expected first range to allocate 10.0.0.1, got %s", got)
+	}
+	if got := newips[1].IP.String(); got != "10.0.0.2" {
+		t.Fatalf("expected second range to skip the first range IP and allocate 10.0.0.2, got %s", got)
+	}
+	if newips[0].IP.Equal(newips[1].IP) {
+		t.Fatalf("same ADD reused overlapping IP %s across ipRanges", newips[0].IP)
+	}
+
+	secondAdd, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err != nil {
+		t.Fatalf("idempotent allocation with overlapping ipRanges error: %v", err)
+	}
+	if len(secondAdd) != 2 {
+		t.Fatalf("expected 2 IPs on idempotent ADD, got %d", len(secondAdd))
+	}
+	if !newips[0].IP.Equal(secondAdd[0].IP) || !newips[1].IP.Equal(secondAdd[1].IP) {
+		t.Fatalf("idempotent ADD changed overlapping ipRanges allocation: first=%v second=%v", newips, secondAdd)
+	}
+}
+
 // TestOverlappingRangesDisabledNoReservation verifies that when
 // OverlappingRanges=false, no ORIP reservations are created.
 func TestOverlappingRangesDisabledNoReservation(t *testing.T) {

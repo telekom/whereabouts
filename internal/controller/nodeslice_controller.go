@@ -149,7 +149,7 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if allocationsNeedRebuild(pool.Status.Allocations, subnets) {
-		if _, err := r.rebuildPoolStatus(ctx, &pool, subnets, nodes); err != nil {
+		if err := r.rebuildPoolStatus(ctx, &pool, subnets, nodes); err != nil {
 			return ctrl.Result{}, err
 		}
 		return r.ensureNodeAssignments(ctx, &pool, nodes, ipamConf.NetworkName)
@@ -255,11 +255,11 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 
 // rebuildPoolStatus restores missing or stale status allocations when a prior
 // create/update persisted spec but failed before the status patch completed.
-func (r *NodeSliceReconciler) rebuildPoolStatus(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, subnets, nodes []string) (ctrl.Result, error) {
+func (r *NodeSliceReconciler) rebuildPoolStatus(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, subnets, nodes []string) error {
 	logger := log.FromContext(ctx)
 	patchHelper, err := NewPatchHelper(pool, r.client)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
+		return fmt.Errorf("creating patch helper: %w", err)
 	}
 
 	allocations := repairAllocations(pool.Status.Allocations, subnets, nodes)
@@ -267,14 +267,14 @@ func (r *NodeSliceReconciler) rebuildPoolStatus(ctx context.Context, pool *where
 	computeSliceStats(pool)
 	markReady(pool, ReasonReconciled, "rebuilt missing or stale node slice status")
 	if err := patchHelper.Patch(ctx, pool); err != nil {
-		return ctrl.Result{}, fmt.Errorf("patching rebuilt NodeSlicePool status: %w", err)
+		return fmt.Errorf("patching rebuilt NodeSlicePool status: %w", err)
 	}
 
 	logger.Info("rebuilt NodeSlicePool status", "name", pool.Name, "slices", len(allocations), "nodes", len(nodes))
 	r.recorder.Eventf(pool, nil, corev1.EventTypeNormal, "StatusRebuilt", "Reconcile",
 		"rebuilt NodeSlicePool status with %d slice(s) and %d node(s)", len(allocations), len(nodes))
 	recordNodeSliceMetrics(pool.Name, allocations)
-	return ctrl.Result{}, nil
+	return nil
 }
 
 // ensureNodeAssignments checks that all current nodes have slice assignments

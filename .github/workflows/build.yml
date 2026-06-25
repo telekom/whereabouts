@@ -31,6 +31,9 @@ jobs:
     - name: Verify generated API artifacts
       run: make verify-generate-api
 
+    - name: Verify documentation support matrix
+      run: go test ./hack -run TestDocumentationSupportMatrixMatchesSourceTruth -count=1
+
     - name: Build
       env:
         GOARCH: ${{ matrix.goarch }}

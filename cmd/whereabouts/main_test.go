@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -36,6 +37,56 @@ const whereaboutsConfigFile = "whereabouts.kubeconfig"
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Whereabouts Suite")
+}
+
+func TestSupportedCNIVersions(t *testing.T) {
+	want := []string{"0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0"}
+	if got := supportedCNIVersions.SupportedVersions(); !slices.Equal(got, want) {
+		t.Fatalf("supported CNI versions = %v, want %v", got, want)
+	}
+}
+
+func TestCNI11GCAndStatusAreRejected(t *testing.T) {
+	const cniConfig = `{"cniVersion":"1.1.0","name":"whereabouts-test","type":"whereabouts","ipam":{"type":"whereabouts"}}`
+
+	for _, command := range []string{"GC", "STATUS"} {
+		t.Run(command, func(t *testing.T) {
+			t.Setenv("CNI_COMMAND", command)
+			t.Setenv("CNI_PATH", "/opt/cni/bin")
+
+			err := runPluginMainWithStdin(t, cniConfig)
+			if err == nil {
+				t.Fatalf("%s with CNI 1.1.0 succeeded, want incompatible CNI version error", command)
+			}
+			if err.Code != types.ErrIncompatibleCNIVersion {
+				t.Fatalf("%s with CNI 1.1.0 error code = %d, want %d: %v", command, err.Code, types.ErrIncompatibleCNIVersion, err)
+			}
+		})
+	}
+}
+
+func runPluginMainWithStdin(t *testing.T, stdin string) *types.Error {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating stdin pipe: %v", err)
+	}
+	if _, err := writer.WriteString(stdin); err != nil {
+		t.Fatalf("writing stdin pipe: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing stdin pipe writer: %v", err)
+	}
+
+	oldStdin := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		_ = reader.Close()
+	})
+
+	return skel.PluginMainFuncsWithError(skel.CNIFuncs{}, supportedCNIVersions, "whereabouts test")
 }
 
 func AllocateAndReleaseAddressesTest(ipRange string, gw string, kubeconfigPath string, expectedAddresses []string) {

@@ -43,6 +43,15 @@ const (
 	delInitialBackoff = 1 * time.Second
 )
 
+var supportedCNIVersions = cniversion.PluginSupports(
+	"0.1.0",
+	"0.2.0",
+	"0.3.0",
+	"0.3.1",
+	"0.4.0",
+	"1.0.0",
+)
+
 func cmdDelFunc(args *skel.CmdArgs) error {
 	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
 	if err != nil {
@@ -90,7 +99,7 @@ func main() {
 		Check: cmdCheck,
 		Del:   cmdDelFunc,
 	},
-		cniversion.All,
+		supportedCNIVersions,
 		fmt.Sprintf("whereabouts %s", version.GetFullVersionWithRuntimeInfo()))
 }
 

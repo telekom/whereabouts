@@ -288,9 +288,109 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(nodeNames).To(HaveKey("node-b"))
 
 			// Verify slice stats after node assignment.
-			Expect(updated.Status.TotalSlices).To(Equal(int32(3)))
+			Expect(updated.Status.TotalSlices).To(Equal(int32(256)))
 			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
-			Expect(updated.Status.FreeSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(254)))
+		})
+	})
+
+	Context("when a previous status patch did not persist", func() {
+		It("should rebuild missing allocations when the spec already matches", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-16", "10.0.0.0/16", "/24", nil)
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, node1, node2)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(HaveLen(256))
+			Expect(updated.Status.Allocations[0]).To(Equal(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.0.0/24", NodeName: "node-a"}))
+			Expect(updated.Status.Allocations[1]).To(Equal(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-b"}))
+			Expect(updated.Status.TotalSlices).To(Equal(int32(256)))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(254)))
+		})
+
+		It("should rebuild truncated allocations when the existing prefix still matches", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-16", "10.0.0.0/16", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24", NodeName: "node-b"},
+			})
+			node1 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			node2 := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, node1, node2)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(HaveLen(256))
+			Expect(updated.Status.Allocations[0]).To(Equal(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.0.0/24", NodeName: "node-a"}))
+			Expect(updated.Status.Allocations[1]).To(Equal(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.1.0/24", NodeName: "node-b"}))
+			Expect(updated.Status.Allocations[2]).To(Equal(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.2.0/24"}))
+			Expect(updated.Status.TotalSlices).To(Equal(int32(256)))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(254)))
+		})
+
+		It("should rebuild stale allocations when the spec was updated before status", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/20", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-20", "10.0.0.0/20", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.1.0.0/24", NodeName: "old-node"},
+			})
+			node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			buildReconciler(nad, pool, node)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-20"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(HaveLen(16))
+			Expect(updated.Status.Allocations).To(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.0.0.0/24", NodeName: "node-a"}))
+			Expect(updated.Status.Allocations).NotTo(ContainElement(whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: "10.1.0.0/24", NodeName: "old-node"}))
+			Expect(updated.Status.TotalSlices).To(Equal(int32(16)))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(15)))
 		})
 	})
 
@@ -348,9 +448,9 @@ var _ = Describe("NodeSliceReconciler", func() {
 			}
 
 			// Verify slice stats after node removal.
-			Expect(updated.Status.TotalSlices).To(Equal(int32(3)))
+			Expect(updated.Status.TotalSlices).To(Equal(int32(256)))
 			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
-			Expect(updated.Status.FreeSlices).To(Equal(int32(2)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(255)))
 		})
 
 		It("should keep a removed node's slice assigned while its per-node IPPool still has allocations", func() {
@@ -526,7 +626,7 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
-			Expect(updated.Status.FreeSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(255)))
 			conditions := map[string]metav1.Condition{}
 			for _, condition := range updated.Status.Conditions {
 				conditions[condition.Type] = condition

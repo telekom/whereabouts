@@ -3746,13 +3746,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				}
 
 				By("scaling down to 1 replica")
-				var one int32 = 1
-				ss, err := clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
-					context.Background(), serviceName, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				ss.Spec.Replicas = &one
-				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(
-					context.Background(), ss, metav1.UpdateOptions{})
+				err = clientInfo.SetStatefulSetReplicas(serviceName, testNamespace, 1)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("waiting for pods to scale down")
@@ -3769,13 +3763,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				}, 2*time.Minute, 5*time.Second).Should(Equal(1))
 
 				By("scaling back up to 3 replicas")
-				var three int32 = 3
-				ss, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Get(
-					context.Background(), serviceName, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				ss.Spec.Replicas = &three
-				_, err = clientInfo.Client.AppsV1().StatefulSets(testNamespace).Update(
-					context.Background(), ss, metav1.UpdateOptions{})
+				err = clientInfo.SetStatefulSetReplicas(serviceName, testNamespace, 3)
 				Expect(err).NotTo(HaveOccurred())
 
 				By("waiting for pods to scale up")

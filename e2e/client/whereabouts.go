@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -200,18 +201,34 @@ func (c *ClientInfo) DeleteStatefulSet(namespace string, serviceName string, lab
 }
 
 func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, deltaInstance int) error {
+	return c.updateStatefulSetReplicas(statefulSetName, namespace, func(replicas int32) int32 {
+		return replicas + int32(deltaInstance)
+	})
+}
+
+func (c *ClientInfo) SetStatefulSetReplicas(statefulSetName string, namespace string, replicas int32) error {
+	return c.updateStatefulSetReplicas(statefulSetName, namespace, func(int32) int32 {
+		return replicas
+	})
+}
+
+func (c *ClientInfo) updateStatefulSetReplicas(statefulSetName string, namespace string, nextReplicas func(int32) int32) error {
+	return updateStatefulSetReplicas(c.Client.AppsV1().StatefulSets(namespace), statefulSetName, nextReplicas)
+}
+
+func updateStatefulSetReplicas(statefulSets appsv1client.StatefulSetInterface, statefulSetName string, nextReplicas func(int32) int32) error {
 	ctx := context.Background()
 	var lastErr error
 	for range 5 {
-		statefulSet, err := c.Client.AppsV1().StatefulSets(namespace).Get(ctx, statefulSetName, metav1.GetOptions{})
+		statefulSet, err := statefulSets.Get(ctx, statefulSetName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 		replicas := statefulSetReplicasOrDefault(statefulSet)
-		newReplicas := replicas + int32(deltaInstance)
+		newReplicas := nextReplicas(replicas)
 		statefulSet.Spec.Replicas = &newReplicas
 
-		_, err = c.Client.AppsV1().StatefulSets(namespace).Update(ctx, statefulSet, metav1.UpdateOptions{})
+		_, err = statefulSets.Update(ctx, statefulSet, metav1.UpdateOptions{})
 		if err == nil {
 			return nil
 		}

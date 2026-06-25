@@ -43,6 +43,29 @@ func TestHelmEmptyNamespaceOverrideRendersReleaseNamespace(t *testing.T) {
 	)
 }
 
+func TestHelmCustomCNIPathsWireInstallCNIEnvironment(t *testing.T) {
+	rendered := renderHelmChart(t, "custom-ns",
+		"--set", "namespaceOverride=",
+		"--set", "cniConf.confDir=/var/lib/cni/net.d",
+		"--set", "cniConf.binDir=/var/lib/cni/bin",
+	)
+
+	assertContainsAll(t, rendered,
+		`- name: CNI_BIN_DIR`,
+		`value: "/host/var/lib/cni/bin"`,
+		`- name: CNI_CONF_DIR`,
+		`value: "/host/var/lib/cni/net.d"`,
+		`mountPath: "/host/var/lib/cni/bin"`,
+		`mountPath: "/host/var/lib/cni/net.d"`,
+		`path: "/var/lib/cni/bin"`,
+		`path: "/var/lib/cni/net.d"`,
+	)
+	assertContainsNone(t, rendered,
+		"mountPath: /host/opt/cni/bin",
+		"mountPath: /host/etc/cni/net.d",
+	)
+}
+
 func ensureKustomize(t *testing.T) {
 	t.Helper()
 

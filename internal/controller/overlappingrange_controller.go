@@ -156,7 +156,12 @@ func (r *OverlappingRangeReconciler) Reconcile(ctx context.Context, req ctrl.Req
 // deleteReservation removes the ORIP CR.
 func (r *OverlappingRangeReconciler) deleteReservation(ctx context.Context, reservation *whereaboutsv1alpha1.OverlappingRangeIPReservation) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	if err := r.client.Delete(ctx, reservation); err != nil {
+	deleteOpts := []client.DeleteOption{}
+	if reservation.UID != "" {
+		uid := reservation.UID
+		deleteOpts = append(deleteOpts, client.Preconditions{UID: &uid})
+	}
+	if err := r.client.Delete(ctx, reservation, deleteOpts...); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}

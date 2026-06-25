@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -1313,17 +1314,71 @@ var _ = Describe("NodeSliceReconciler extended", func() {
 			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should skip sibling NADs that use a different IPAM plugin", func() {
+			nad1 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad1", Namespace: nadNamespace, UID: "uid-1"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/24"),
+				},
+			}
+			hostLocalNAD := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "host-local", Namespace: nadNamespace, UID: "uid-host-local"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: `{"name":"host-local","ipam":{"type":"host-local","subnet":"10.1.0.0/16"}}`,
+				},
+			}
+			buildReconciler(nad1, hostLocalNAD)
+
+			conf := &nadIPAMConfig{
+				Name:          "testnet",
+				NetworkName:   "shared-net",
+				Range:         "10.0.0.0/16",
+				NodeSliceSize: "/24",
+			}
+			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should fail when a sibling NAD has malformed config", func() {
+			nad1 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad1", Namespace: nadNamespace, UID: "uid-1"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/24"),
+				},
+			}
+			malformedNAD := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "malformed", Namespace: nadNamespace, UID: "uid-malformed"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: `{"name":"broken","ipam":{"type":"whereabouts"`,
+				},
+			}
+			buildReconciler(nad1, malformedNAD)
+
+			conf := &nadIPAMConfig{
+				Name:          "testnet",
+				NetworkName:   "shared-net",
+				Range:         "10.0.0.0/16",
+				NodeSliceSize: "/24",
+			}
+			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("parsing NAD"))
+			Expect(err.Error()).To(ContainSubstring("malformed"))
+		})
 	})
 
 	Context("parseNADIPAMConfig edge cases", func() {
 		It("returns error for invalid JSON", func() {
 			_, err := parseNADIPAMConfig("not-json{{{")
 			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, errNoWhereaboutsIPAMConfig)).To(BeFalse())
 		})
 
 		It("returns error for JSON without whereabouts type", func() {
 			_, err := parseNADIPAMConfig(`{"name":"test","ipam":{"type":"calico"}}`)
 			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, errNoWhereaboutsIPAMConfig)).To(BeTrue())
 		})
 
 		It("parses conflist where whereabouts is not first plugin", func() {

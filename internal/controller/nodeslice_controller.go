@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -29,6 +30,8 @@ import (
 )
 
 const staleIPPoolRequeueInterval = 30 * time.Second
+
+var errNoWhereaboutsIPAMConfig = errors.New("no whereabouts IPAM config found")
 
 // NodeSliceReconciler reconciles NetworkAttachmentDefinition resources by
 // managing the corresponding NodeSlicePool CRDs. It assigns IP range slices
@@ -84,6 +87,9 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Parse IPAM configuration from the NAD.
 	ipamConf, err := parseNADIPAMConfig(nad.Spec.Config)
 	if err != nil {
+		if !errors.Is(err, errNoWhereaboutsIPAMConfig) {
+			return ctrl.Result{}, fmt.Errorf("parsing NAD IPAM config: %w", err)
+		}
 		logger.V(1).Info("NAD has no whereabouts IPAM config, skipping", "error", err)
 		return ctrl.Result{}, nil
 	}
@@ -418,8 +424,11 @@ func (r *NodeSliceReconciler) checkMultiNADMismatch(ctx context.Context, nad *na
 		}
 
 		otherConf, err := parseNADIPAMConfig(other.Spec.Config)
-		if err != nil || otherConf.NodeSliceSize == "" {
+		if errors.Is(err, errNoWhereaboutsIPAMConfig) || (err == nil && otherConf.NodeSliceSize == "") {
 			continue
+		}
+		if err != nil {
+			return fmt.Errorf("parsing NAD %s/%s IPAM config for mismatch check: %w", other.Namespace, other.Name, err)
 		}
 
 		// Only compare NADs that resolve to the same NodeSlicePool.
@@ -533,7 +542,7 @@ type nadIPAMConfig struct {
 // IPAM configuration.
 func parseNADIPAMConfig(specConfig string) (*nadIPAMConfig, error) {
 	if specConfig == "" {
-		return nil, fmt.Errorf("empty spec.config")
+		return nil, errNoWhereaboutsIPAMConfig
 	}
 
 	// Try parsing as a single plugin config.
@@ -547,7 +556,10 @@ func parseNADIPAMConfig(specConfig string) (*nadIPAMConfig, error) {
 			NodeSliceSize string `json:"node_slice_size"`
 		} `json:"ipam"`
 	}
-	if err := json.Unmarshal([]byte(specConfig), &singlePlugin); err == nil && singlePlugin.IPAM.Type == "whereabouts" {
+	if err := json.Unmarshal([]byte(specConfig), &singlePlugin); err != nil {
+		return nil, fmt.Errorf("parsing NAD spec.config JSON: %w", err)
+	}
+	if singlePlugin.IPAM.Type == "whereabouts" {
 		return &nadIPAMConfig{
 			Name:          singlePlugin.Name,
 			NetworkName:   singlePlugin.IPAM.NetworkName,
@@ -568,7 +580,10 @@ func parseNADIPAMConfig(specConfig string) (*nadIPAMConfig, error) {
 			} `json:"ipam"`
 		} `json:"plugins"`
 	}
-	if err := json.Unmarshal([]byte(specConfig), &confList); err == nil {
+	if err := json.Unmarshal([]byte(specConfig), &confList); err != nil {
+		return nil, fmt.Errorf("parsing NAD spec.config conflist JSON: %w", err)
+	}
+	if len(confList.Plugins) > 0 {
 		for _, p := range confList.Plugins {
 			if p.IPAM.Type == "whereabouts" {
 				return &nadIPAMConfig{
@@ -581,7 +596,7 @@ func parseNADIPAMConfig(specConfig string) (*nadIPAMConfig, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no whereabouts IPAM config found")
+	return nil, errNoWhereaboutsIPAMConfig
 }
 
 var _ reconcile.Reconciler = &NodeSliceReconciler{}

@@ -107,6 +107,23 @@ var _ = Describe("NodeSliceReconciler", func() {
 			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 		})
+
+		It("should return an error for malformed config", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: `{"name":"broken","ipam":{"type":"whereabouts"`,
+				},
+			}
+			buildReconciler(nad)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("parsing NAD IPAM config"))
+		})
 	})
 
 	Context("when the NAD has no node_slice_size", func() {

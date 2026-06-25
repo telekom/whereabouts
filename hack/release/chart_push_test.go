@@ -17,15 +17,17 @@ func TestChartPushUsesPasswordStdinWithoutLeakingToken(t *testing.T) {
 	repoRoot := repoRoot(t)
 	binDir := t.TempDir()
 	helmLog := filepath.Join(t.TempDir(), "helm.log")
+	githubOutput := filepath.Join(t.TempDir(), "github-output")
 	secretToken := "secret-token-should-not-leak"
 
-	writeFakeHelm(t, filepath.Join(binDir, "helm"))
+	writeFakeHelm(t, filepath.Join(binDir, "helm"), "Digest: sha256:abc123")
 
 	cmd := exec.Command("bash", "hack/release/chart-push.sh")
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"HELM_LOG="+helmLog,
+		"GITHUB_OUTPUT="+githubOutput,
 		"GITHUB_REPO_OWNER=test-owner",
 		"GITHUB_TOKEN="+secretToken,
 		"GITHUB_TAG=v1.2.3",
@@ -55,6 +57,47 @@ func TestChartPushUsesPasswordStdinWithoutLeakingToken(t *testing.T) {
 	if !strings.Contains(log, "push whereabouts-chart-1.2.3.tgz oci://ghcr.io/test-owner") {
 		t.Fatalf("expected chart push invocation, got log:\n%s", log)
 	}
+
+	outputBytes, err := os.ReadFile(githubOutput)
+	if err != nil {
+		t.Fatalf("read github output: %v", err)
+	}
+	outputs := string(outputBytes)
+	for _, want := range []string{
+		"chart_ref=ghcr.io/test-owner/whereabouts-chart",
+		"chart_digest=sha256:abc123",
+	} {
+		if !strings.Contains(outputs, want) {
+			t.Fatalf("expected GitHub output %q, got:\n%s", want, outputs)
+		}
+	}
+}
+
+func TestChartPushFailsWhenHelmDoesNotReportDigest(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := repoRoot(t)
+	binDir := t.TempDir()
+	helmLog := filepath.Join(t.TempDir(), "helm.log")
+
+	writeFakeHelm(t, filepath.Join(binDir, "helm"), "Pushed: ghcr.io/test-owner/whereabouts-chart:1.2.3")
+
+	cmd := exec.Command("bash", "hack/release/chart-push.sh")
+	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(),
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"HELM_LOG="+helmLog,
+		"GITHUB_REPO_OWNER=test-owner",
+		"GITHUB_TOKEN=secret-token",
+		"GITHUB_TAG=v1.2.3",
+	)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("chart-push.sh succeeded without a Helm digest:\n%s", output)
+	}
+	if !strings.Contains(string(output), "could not extract pushed chart digest") {
+		t.Fatalf("expected missing digest error, got:\n%s", output)
+	}
 }
 
 func repoRoot(t *testing.T) string {
@@ -76,10 +119,10 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-func writeFakeHelm(t *testing.T, path string) {
+func writeFakeHelm(t *testing.T, path string, pushOutput string) {
 	t.Helper()
 
-	const script = `#!/bin/sh
+	script := `#!/bin/sh
 set -eu
 
 printf '%s\n' "$*" >> "$HELM_LOG"
@@ -87,6 +130,12 @@ printf '%s\n' "$*" >> "$HELM_LOG"
 if [ "$1" = "registry" ] && [ "$2" = "login" ]; then
     password=$(cat)
     printf 'stdin-bytes=%s\n' "${#password}" >> "$HELM_LOG"
+fi
+
+if [ "$1" = "push" ]; then
+    cat <<'EOF'
+` + pushOutput + `
+EOF
 fi
 `
 

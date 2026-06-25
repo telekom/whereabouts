@@ -148,6 +148,10 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return r.updatePoolSpec(ctx, &pool, ipamConf.Range, ipamConf.NodeSliceSize, subnets, nodes)
 	}
 
+	if allocationsNeedRebuild(pool.Status.Allocations, subnets) {
+		return r.rebuildPoolStatus(ctx, &pool, subnets, nodes)
+	}
+
 	// Spec unchanged — just ensure node assignments are current.
 	return r.ensureNodeAssignments(ctx, &pool, nodes, ipamConf.NetworkName)
 }
@@ -242,6 +246,30 @@ func (r *NodeSliceReconciler) updatePoolSpec(ctx context.Context, pool *whereabo
 		"range", rangeStr, "sliceSize", sliceSize)
 	r.recorder.Eventf(pool, nil, corev1.EventTypeNormal, "SpecUpdated", "Reconcile",
 		"updated range to %s, slice size to %s, re-sliced allocations", rangeStr, sliceSize)
+	recordNodeSliceMetrics(pool.Name, allocations)
+	return ctrl.Result{}, nil
+}
+
+// rebuildPoolStatus restores missing or stale status allocations when a prior
+// create/update persisted spec but failed before the status patch completed.
+func (r *NodeSliceReconciler) rebuildPoolStatus(ctx context.Context, pool *whereaboutsv1alpha1.NodeSlicePool, subnets, nodes []string) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	patchHelper, err := NewPatchHelper(pool, r.client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
+	}
+
+	allocations := makeAllocations(subnets, nodes)
+	pool.Status.Allocations = allocations
+	computeSliceStats(pool)
+	markReady(pool, ReasonReconciled, "rebuilt missing or stale node slice status")
+	if err := patchHelper.Patch(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("patching rebuilt NodeSlicePool status: %w", err)
+	}
+
+	logger.Info("rebuilt NodeSlicePool status", "name", pool.Name, "slices", len(allocations), "nodes", len(nodes))
+	r.recorder.Eventf(pool, nil, corev1.EventTypeNormal, "StatusRebuilt", "Reconcile",
+		"rebuilt NodeSlicePool status with %d slice(s) and %d node(s)", len(allocations), len(nodes))
 	recordNodeSliceMetrics(pool.Name, allocations)
 	return ctrl.Result{}, nil
 }
@@ -357,6 +385,22 @@ func (r *NodeSliceReconciler) releaseDeletedNodeSlice(ctx context.Context, names
 		return false, fmt.Errorf("deleting empty stale IPPool %s/%s: %w", namespace, poolName, err)
 	}
 	return true, nil
+}
+
+func allocationsNeedRebuild(allocations []whereaboutsv1alpha1.NodeSliceAllocation, subnets []string) bool {
+	if len(allocations) == 0 {
+		return len(subnets) > 0
+	}
+	if len(allocations) > len(subnets) {
+		return true
+	}
+
+	for i := range allocations {
+		if allocations[i].SliceRange != subnets[i] {
+			return true
+		}
+	}
+	return false
 }
 
 // ensureOwnerRef adds a non-controller OwnerReference for multi-NAD scenarios.

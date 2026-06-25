@@ -708,6 +708,7 @@ type committedAlloc struct {
 	ipam        *KubernetesIPAM
 	overlap     storage.OverlappingRangeStore
 	overlapIP   net.IP
+	containerID string
 	podRef      string
 	ifName      string
 	networkName string
@@ -1004,7 +1005,15 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					// Roll back the pool update so the IP is not reserved without
 					// overlap protection, then decide whether to retry.
 					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackCommitted(context.Background(), []committedAlloc{{pool: pool, poolID: poolIdentifier, ip: newip.IP, ipam: ipam}})
+						rollbackCommitted(context.Background(), []committedAlloc{{
+							pool:        pool,
+							poolID:      poolIdentifier,
+							ip:          newip.IP,
+							ipam:        ipam,
+							containerID: ipam.ContainerID,
+							podRef:      ipamConf.GetPodRef(),
+							ifName:      ipam.IfName,
+						}})
 					}
 					if isRetryableRollbackError(err) {
 						requestCancel()
@@ -1029,10 +1038,13 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
 			commit := committedAlloc{
-				pool:   pool,
-				poolID: poolIdentifier,
-				ip:     append(net.IP(nil), newip.IP...),
-				ipam:   ipam,
+				pool:        pool,
+				poolID:      poolIdentifier,
+				ip:          append(net.IP(nil), newip.IP...),
+				ipam:        ipam,
+				containerID: ipam.ContainerID,
+				podRef:      ipamConf.GetPodRef(),
+				ifName:      ipam.IfName,
 			}
 			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
 				commit.overlap = overlappingrangestore
@@ -1107,10 +1119,19 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 
 			allocs := pool.Allocations()
 			var cleaned []whereaboutstypes.IPReservation
+			removed := false
 			for _, r := range allocs {
-				if !r.IP.Equal(c.ip) {
+				if !rollbackAllocationMatches(c, r) {
 					cleaned = append(cleaned, r)
+					continue
 				}
+				removed = true
+			}
+			if !removed {
+				logging.Debugf("Rollback skipping IP %s: allocation no longer belongs to container %q podRef %q ifName %q",
+					c.ip, c.containerID, c.podRef, c.ifName)
+				lastErr = nil
+				break
 			}
 			rbCtx, rbCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 			err := pool.Update(rbCtx, cleaned)
@@ -1134,6 +1155,16 @@ func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 			logging.Errorf("Multi-range rollback failed for IP %s after %d attempt(s): %v", c.ip, attempts, lastErr)
 		}
 	}
+}
+
+func rollbackAllocationMatches(c *committedAlloc, r whereaboutstypes.IPReservation) bool {
+	if !r.IP.Equal(c.ip) {
+		return false
+	}
+	if c.containerID == "" && c.podRef == "" && c.ifName == "" {
+		return true
+	}
+	return r.ContainerID == c.containerID && r.PodRef == c.podRef && r.IfName == c.ifName
 }
 
 func rollbackOverlappingReservation(ctx context.Context, c *committedAlloc) {

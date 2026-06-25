@@ -39,6 +39,19 @@ func (m *mockIPPool) Update(_ context.Context, reservations []types.IPReservatio
 	return nil
 }
 
+type rollbackOverlapStore struct {
+	updateCalls int
+}
+
+func (s *rollbackOverlapStore) GetOverlappingRangeIPReservation(_ context.Context, _ net.IP, _, _ string) (*whereaboutsv1alpha1.OverlappingRangeIPReservation, error) {
+	return nil, nil
+}
+
+func (s *rollbackOverlapStore) UpdateOverlappingRangeAllocation(_ context.Context, _ int, _ net.IP, _, _, _, _ string) error {
+	s.updateCalls++
+	return nil
+}
+
 func TestRollbackCommitted(t *testing.T) {
 	ip1 := net.ParseIP("10.0.0.1")
 	ip2 := net.ParseIP("10.0.0.2")
@@ -80,6 +93,68 @@ func TestRollbackCommitted(t *testing.T) {
 	}
 	if len(pool2.allocations) != 0 {
 		t.Fatalf("expected 0 allocations in pool2, got %d", len(pool2.allocations))
+	}
+}
+
+func TestRollbackCommittedMatchesOriginalOwner(t *testing.T) {
+	ip1 := net.ParseIP("10.0.0.1")
+	ip2 := net.ParseIP("10.0.0.2")
+	pool := &mockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip1, ContainerID: "container1", PodRef: "ns/pod1", IfName: "eth0"},
+			{IP: ip2, ContainerID: "container2", PodRef: "ns/pod2", IfName: "eth0"},
+		},
+	}
+
+	rollbackCommitted(context.Background(), []committedAlloc{{
+		pool:        pool,
+		ip:          ip1,
+		containerID: "container1",
+		podRef:      "ns/pod1",
+		ifName:      "eth0",
+	}})
+
+	if !pool.updated {
+		t.Fatal("expected rollback to update the pool when owner metadata matches")
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected 1 allocation after rollback, got %d", len(pool.allocations))
+	}
+	if !pool.allocations[0].IP.Equal(ip2) {
+		t.Fatalf("expected remaining allocation for %s, got %s", ip2, pool.allocations[0].IP)
+	}
+}
+
+func TestRollbackCommittedSkipsReallocatedIPWithDifferentOwner(t *testing.T) {
+	ip := net.ParseIP("10.0.0.1")
+	pool := &mockIPPool{
+		allocations: []types.IPReservation{
+			{IP: ip, ContainerID: "new-container", PodRef: "ns/new-pod", IfName: "eth0"},
+		},
+	}
+	overlap := &rollbackOverlapStore{}
+
+	rollbackCommitted(context.Background(), []committedAlloc{{
+		pool:        pool,
+		ip:          ip,
+		overlap:     overlap,
+		overlapIP:   ip,
+		containerID: "old-container",
+		podRef:      "ns/old-pod",
+		ifName:      "eth0",
+	}})
+
+	if pool.updated {
+		t.Fatal("rollback updated the pool even though the IP was reallocated to a different owner")
+	}
+	if len(pool.allocations) != 1 {
+		t.Fatalf("expected reallocated IP to remain, got %d allocation(s)", len(pool.allocations))
+	}
+	if got := pool.allocations[0]; got.ContainerID != "new-container" || got.PodRef != "ns/new-pod" {
+		t.Fatalf("rollback changed the later owner allocation: %+v", got)
+	}
+	if overlap.updateCalls != 0 {
+		t.Fatalf("expected ORIP rollback to be skipped for a different owner, got %d calls", overlap.updateCalls)
 	}
 }
 

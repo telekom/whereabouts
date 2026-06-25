@@ -82,7 +82,7 @@ jobs:
           - suite: core-lifecycle
             test-dir: e2e
             test-pkg: "."
-            focus: "Pod cleanup|Node drain|Reconciler cleanup"
+            focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery"
           - suite: node-loss
             test-dir: e2e
             test-pkg: "."

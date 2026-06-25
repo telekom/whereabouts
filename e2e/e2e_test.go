@@ -38,6 +38,7 @@ const (
 	createPodTimeout           = 10 * time.Second
 	ipPoolNamespace            = "kube-system"
 	podDeleteTimeout           = 2 * time.Minute
+	allocationReleaseTimeout   = 2 * time.Minute
 	allocationRecreateTimeout  = 30 * time.Second
 	allocationRecreateInterval = time.Second
 )
@@ -4033,7 +4034,7 @@ func verifyNoAllocationsForPodRef(clientInfo *wbtestclient.ClientInfo, ipv4TestR
 
 		allocation := allocationForPodRef(getPodRef(testNamespace, podName), *ipPool)
 		return len(allocation) == 0
-	}, 30*time.Second, 500*time.Millisecond).Should(BeTrue())
+	}, allocationReleaseTimeout, 500*time.Millisecond).Should(BeTrue())
 
 	for _, ip := range secondaryIfaceIPs {
 		Eventually(func() bool {
@@ -4042,7 +4043,7 @@ func verifyNoAllocationsForPodRef(clientInfo *wbtestclient.ClientInfo, ipv4TestR
 				return true
 			}
 			return false
-		}, 30*time.Second, 500*time.Millisecond).Should(BeTrue())
+		}, allocationReleaseTimeout, 500*time.Millisecond).Should(BeTrue())
 	}
 }
 

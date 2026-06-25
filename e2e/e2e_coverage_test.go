@@ -181,22 +181,40 @@ var _ = Describe("Whereabouts coverage", func() {
 			Expect(err).NotTo(HaveOccurred())
 			defer func() { _ = clientInfo.DeleteReplicaSet(replicaSet) }()
 
-			By("collecting IPs assigned to all replica pods")
-			podList, err := clientInfo.Client.CoreV1().Pods(testNamespace).List(
-				context.Background(),
-				metav1.ListOptions{LabelSelector: entities.ReplicaSetQuery(rsName)},
-			)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(podList.Items).To(HaveLen(int(replicaCount)))
-
+			By("waiting for IPs assigned to all replica pods")
+			var replicaPodNames []string
 			preRestartIPs := make(map[string]string) // podName → secondary IP
-			for i := range podList.Items {
-				p := &podList.Items[i]
-				ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(ips).NotTo(BeEmpty())
-				preRestartIPs[p.Name] = ips[0]
-			}
+			Eventually(func() error {
+				podList, err := clientInfo.Client.CoreV1().Pods(testNamespace).List(
+					context.Background(),
+					metav1.ListOptions{LabelSelector: entities.ReplicaSetQuery(rsName)},
+				)
+				if err != nil {
+					return err
+				}
+				if len(podList.Items) != int(replicaCount) {
+					return fmt.Errorf("expected %d replica pods, got %d", replicaCount, len(podList.Items))
+				}
+
+				ipsByPod := make(map[string]string, len(podList.Items))
+				podNames := make([]string, 0, len(podList.Items))
+				for i := range podList.Items {
+					p := &podList.Items[i]
+					ips, err := retrievers.SecondaryIfaceIPValue(p, "net1")
+					if err != nil {
+						return err
+					}
+					if len(ips) == 0 {
+						return fmt.Errorf("pod %q has no secondary IPs", p.Name)
+					}
+					ipsByPod[p.Name] = ips[0]
+					podNames = append(podNames, p.Name)
+				}
+
+				preRestartIPs = ipsByPod
+				replicaPodNames = podNames
+				return nil
+			}, 2*time.Minute, 2*time.Second).Should(Succeed())
 			Expect(preRestartIPs).To(HaveLen(int(replicaCount)))
 
 			By("triggering a rollout restart of the whereabouts operator")
@@ -238,17 +256,26 @@ var _ = Describe("Whereabouts coverage", func() {
 
 			By("verifying existing pods still hold their pre-restart IPs")
 			verifiedCount := 0
-			for i := range podList.Items {
-				p := &podList.Items[i]
-				currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
-					context.Background(), p.Name, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred(),
-					"pod %s should still exist after operator restart", p.Name)
-				ips, err := retrievers.SecondaryIfaceIPValue(currentPod, "net1")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(ips).NotTo(BeEmpty())
-				Expect(ips[0]).To(Equal(preRestartIPs[p.Name]),
-					"pod %s changed IP after operator restart", p.Name)
+			for _, podName := range replicaPodNames {
+				Eventually(func() error {
+					currentPod, err := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
+						context.Background(), podName, metav1.GetOptions{})
+					if err != nil {
+						return fmt.Errorf("pod %s should still exist after operator restart: %w", podName, err)
+					}
+					ips, err := retrievers.SecondaryIfaceIPValue(currentPod, "net1")
+					if err != nil {
+						return err
+					}
+					if len(ips) == 0 {
+						return fmt.Errorf("pod %q has no secondary IPs", podName)
+					}
+					if ips[0] != preRestartIPs[podName] {
+						return fmt.Errorf("pod %s changed IP after operator restart: got %s, want %s",
+							podName, ips[0], preRestartIPs[podName])
+					}
+					return nil
+				}, 2*time.Minute, 2*time.Second).Should(Succeed())
 				verifiedCount++
 			}
 			Expect(verifiedCount).To(BeNumerically(">", 0),
@@ -275,15 +302,23 @@ var _ = Describe("Whereabouts coverage", func() {
 			Expect(existingIPs).NotTo(ContainElement(newIPs[0]),
 				"new pod received an already-allocated IP")
 
-			By("deleting all replica pods and verifying IP pool drains")
-			for i := range podList.Items {
-				p := &podList.Items[i]
-				existingPod, getErr := clientInfo.Client.CoreV1().Pods(testNamespace).Get(
-					context.Background(), p.Name, metav1.GetOptions{})
-				if getErr == nil {
-					Expect(clientInfo.DeletePod(existingPod)).To(Succeed())
-					verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, p.Name, []string{preRestartIPs[p.Name]})
-				}
+			By("scaling the ReplicaSet to zero and verifying IP pool drains")
+			replicaSet, err = clientInfo.Client.AppsV1().ReplicaSets(testNamespace).Get(
+				context.Background(), rsName, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			zeroReplicas := int32(0)
+			replicaSet.Spec.Replicas = &zeroReplicas
+			replicaSet, err = clientInfo.UpdateReplicaSet(replicaSet)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(wbtestclient.WaitForReplicaSetSteadyState(
+				context.Background(),
+				clientInfo.Client,
+				testNamespace,
+				entities.ReplicaSetQuery(rsName),
+				replicaSet,
+				allocationReleaseTimeout)).To(Succeed())
+			for _, podName := range replicaPodNames {
+				verifyNoAllocationsForPodRef(clientInfo, ipRange, testNamespace, podName, []string{preRestartIPs[podName]})
 			}
 
 			Expect(clientInfo.DeletePod(newPod)).To(Succeed())

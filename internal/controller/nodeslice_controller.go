@@ -149,7 +149,10 @@ func (r *NodeSliceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	if allocationsNeedRebuild(pool.Status.Allocations, subnets) {
-		return r.rebuildPoolStatus(ctx, &pool, subnets, nodes)
+		if _, err := r.rebuildPoolStatus(ctx, &pool, subnets, nodes); err != nil {
+			return ctrl.Result{}, err
+		}
+		return r.ensureNodeAssignments(ctx, &pool, nodes, ipamConf.NetworkName)
 	}
 
 	// Spec unchanged — just ensure node assignments are current.
@@ -259,7 +262,7 @@ func (r *NodeSliceReconciler) rebuildPoolStatus(ctx context.Context, pool *where
 		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
 	}
 
-	allocations := makeAllocations(subnets, nodes)
+	allocations := repairAllocations(pool.Status.Allocations, subnets, nodes)
 	pool.Status.Allocations = allocations
 	computeSliceStats(pool)
 	markReady(pool, ReasonReconciled, "rebuilt missing or stale node slice status")
@@ -388,10 +391,7 @@ func (r *NodeSliceReconciler) releaseDeletedNodeSlice(ctx context.Context, names
 }
 
 func allocationsNeedRebuild(allocations []whereaboutsv1alpha1.NodeSliceAllocation, subnets []string) bool {
-	if len(allocations) == 0 {
-		return len(subnets) > 0
-	}
-	if len(allocations) > len(subnets) {
+	if len(allocations) != len(subnets) {
 		return true
 	}
 
@@ -401,6 +401,31 @@ func allocationsNeedRebuild(allocations []whereaboutsv1alpha1.NodeSliceAllocatio
 		}
 	}
 	return false
+}
+
+func repairAllocations(allocations []whereaboutsv1alpha1.NodeSliceAllocation, subnets, nodes []string) []whereaboutsv1alpha1.NodeSliceAllocation {
+	if allocationsMatchSubnetPrefix(allocations, subnets) {
+		repaired := make([]whereaboutsv1alpha1.NodeSliceAllocation, len(subnets))
+		for i, subnet := range subnets {
+			repaired[i] = whereaboutsv1alpha1.NodeSliceAllocation{SliceRange: subnet}
+		}
+		copy(repaired, allocations)
+		return repaired
+	}
+
+	return makeAllocations(subnets, nodes)
+}
+
+func allocationsMatchSubnetPrefix(allocations []whereaboutsv1alpha1.NodeSliceAllocation, subnets []string) bool {
+	if len(allocations) > len(subnets) {
+		return false
+	}
+	for i := range allocations {
+		if allocations[i].SliceRange != subnets[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ensureOwnerRef adds a non-controller OwnerReference for multi-NAD scenarios.

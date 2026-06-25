@@ -24,6 +24,7 @@ import (
 const (
 	createTimeout          = 10 * time.Second
 	deleteTimeout          = 2 * createTimeout
+	podCreateTimeout       = 90 * time.Second
 	podDeleteTimeout       = 2 * time.Minute
 	rsCreateTimeout        = 600 * time.Second
 	nodeSliceCreateTimeout = 5 * time.Second
@@ -95,7 +96,6 @@ func (c *ClientInfo) ProvisionPod(podName string, namespace string, label, annot
 		return nil, err
 	}
 
-	const podCreateTimeout = 30 * time.Second
 	if err := WaitForPodReady(ctx, c.Client, pod.Namespace, pod.Name, podCreateTimeout); err != nil {
 		return nil, err
 	}

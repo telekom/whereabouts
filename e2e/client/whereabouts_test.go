@@ -20,6 +20,12 @@ func TestPodDeleteTimeoutAllowsSlowCNITeardown(t *testing.T) {
 	}
 }
 
+func TestPodCreateTimeoutAllowsHostedRunnerStartupLatency(t *testing.T) {
+	if podCreateTimeout < 90*time.Second {
+		t.Fatalf("podCreateTimeout = %s, want at least 90s for slow CI pod startup", podCreateTimeout)
+	}
+}
+
 func TestStatefulSetReplicasOrDefault(t *testing.T) {
 	tests := []struct {
 		name     string

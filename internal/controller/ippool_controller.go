@@ -316,6 +316,13 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			continue
 		}
 
+		if isPodLostToNodeFailure(pod.Status) {
+			logger.V(1).Info("pod is lost with its node, marking allocation orphaned",
+				"key", key, "podRef", alloc.PodRef, "phase", pod.Status.Phase, "reason", pod.Status.Reason)
+			orphanedAllocs[key] = alloc
+			continue
+		}
+
 		// Pending pods may not have network-status annotation yet.
 		if pod.Status.Phase == corev1.PodPending {
 			pendingCount++
@@ -615,6 +622,10 @@ func isPodMarkedForDeletion(conditions []corev1.PodCondition) bool {
 
 func isPodCompleted(phase corev1.PodPhase) bool {
 	return phase == corev1.PodSucceeded || phase == corev1.PodFailed
+}
+
+func isPodLostToNodeFailure(status corev1.PodStatus) bool {
+	return status.Phase == corev1.PodUnknown && status.Reason == "NodeLost"
 }
 
 // isPodUsingIP checks whether the pod's Multus network-status annotation

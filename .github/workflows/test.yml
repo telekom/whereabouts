@@ -51,6 +51,9 @@ jobs:
     - name: Verify Helm service CIDRs
       run: make verify-helm-service-cidrs
 
+    - name: Verify Helm imagePullSecrets
+      run: make verify-helm-imagepullsecrets
+
     - name: Verify go fmt
       run: |
         go fmt ./...

@@ -95,6 +95,10 @@ verify-helm-webhook-bypass-serviceaccount: ## Verify Helm webhooks bypass the re
 verify-helm-service-cidrs: ## Verify Helm operator service CIDR collision detection wiring.
 	hack/verify-helm-service-cidrs.sh
 
+.PHONY: verify-helm-imagepullsecrets
+verify-helm-imagepullsecrets: ## Verify Helm imagePullSecrets render for all chart workloads.
+	hack/verify-helm-imagepullsecrets.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...

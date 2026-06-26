@@ -91,12 +91,16 @@ jobs:
           # origin/main so the sync branch never contains upstream workflow changes.
           # Any upstream CI changes must be reviewed and applied to this fork manually.
           WORKFLOW_NOTE=""
+          restore_fork_workflows() {
+            git rm -r -f --ignore-unmatch .github/workflows >/dev/null 2>&1 || true
+            git checkout origin/main -- .github/workflows/
+          }
           if [ "$MERGE_CLEAN" = "true" ]; then
             UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | tr '\n' ' ')
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
-              git checkout origin/main -- .github/workflows/
+              restore_fork_workflows
               git commit --amend --no-edit
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
             fi
@@ -113,7 +117,7 @@ jobs:
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
-              git checkout origin/main -- .github/workflows/
+              restore_fork_workflows
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
             fi
             git commit --no-edit

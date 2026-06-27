@@ -15,9 +15,9 @@ import (
 	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 )
 
-func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string) wait.ConditionWithContextFunc {
-	return func(context.Context) (bool, error) {
-		ipPool, err := k8sIPAM.GetIPPool(ctx, kubeClient.PoolIdentifier{IPRange: ipPoolCIDR, NetworkName: kubeClient.UnnamedNetwork})
+func isIPPoolAllocationsEmpty(k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string) wait.ConditionWithContextFunc {
+	return func(pollCtx context.Context) (bool, error) {
+		ipPool, err := k8sIPAM.GetIPPool(pollCtx, kubeClient.PoolIdentifier{IPRange: ipPoolCIDR, NetworkName: kubeClient.UnnamedNetwork})
 		if err != nil {
 			// ErrPoolInitialized is a temporaryError returned when the pool
 			// doesn't exist and is freshly created — treat as zero allocations.
@@ -35,9 +35,9 @@ func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.Kubernete
 	}
 }
 
-func isIPPoolAllocationsEmptyForNodeSlices(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string, clientInfo *ClientInfo) wait.ConditionWithContextFunc {
-	return func(context.Context) (bool, error) {
-		nodeSlicePools, err := clientInfo.WbClient.WhereaboutsV1alpha1().NodeSlicePools(k8sIPAM.Namespace).List(ctx, metav1.ListOptions{})
+func isIPPoolAllocationsEmptyForNodeSlices(k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string, clientInfo *ClientInfo) wait.ConditionWithContextFunc {
+	return func(pollCtx context.Context) (bool, error) {
+		nodeSlicePools, err := clientInfo.WbClient.WhereaboutsV1alpha1().NodeSlicePools(k8sIPAM.Namespace).List(pollCtx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -52,7 +52,11 @@ func isIPPoolAllocationsEmptyForNodeSlices(ctx context.Context, k8sIPAM *kubeCli
 			}
 
 			for _, allocation := range nodeSlicePool.Status.Allocations {
-				ipPool, err := k8sIPAM.GetExistingIPPool(ctx, kubeClient.PoolIdentifier{
+				if allocation.NodeName == "" {
+					continue
+				}
+
+				ipPool, err := k8sIPAM.GetExistingIPPool(pollCtx, kubeClient.PoolIdentifier{
 					NodeName:    allocation.NodeName,
 					IPRange:     allocation.SliceRange,
 					NetworkName: k8sIPAM.Config.NetworkName,
@@ -76,11 +80,11 @@ func isIPPoolAllocationsEmptyForNodeSlices(ctx context.Context, k8sIPAM *kubeCli
 // WaitForZeroIPPoolAllocations polls up to timeout seconds for IP pool allocations to be gone from the Kubernetes cluster.
 // Returns an error if any IP pool allocations remain after time limit, or if GETing IP pools causes an error.
 func WaitForZeroIPPoolAllocations(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string, timeout time.Duration) error {
-	return wait.PollUntilContextTimeout(ctx, time.Second, timeout, true, isIPPoolAllocationsEmpty(ctx, k8sIPAM, ipPoolCIDR))
+	return wait.PollUntilContextTimeout(ctx, time.Second, timeout, true, isIPPoolAllocationsEmpty(k8sIPAM, ipPoolCIDR))
 }
 
 // WaitForZeroIPPoolAllocationsAcrossNodeSlices polls up to timeout seconds for IP pool allocations to be gone from the Kubernetes cluster.
 // Returns an error if any IP pool allocations remain after time limit, or if GETing IP pools causes an error.
 func WaitForZeroIPPoolAllocationsAcrossNodeSlices(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string, timeout time.Duration, clientInfo *ClientInfo) error {
-	return wait.PollUntilContextTimeout(ctx, time.Second, timeout, true, isIPPoolAllocationsEmptyForNodeSlices(ctx, k8sIPAM, ipPoolCIDR, clientInfo))
+	return wait.PollUntilContextTimeout(ctx, time.Second, timeout, true, isIPPoolAllocationsEmptyForNodeSlices(k8sIPAM, ipPoolCIDR, clientInfo))
 }

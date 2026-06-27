@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -36,22 +37,36 @@ func isIPPoolAllocationsEmpty(ctx context.Context, k8sIPAM *kubeClient.Kubernete
 
 func isIPPoolAllocationsEmptyForNodeSlices(ctx context.Context, k8sIPAM *kubeClient.KubernetesIPAM, ipPoolCIDR string, clientInfo *ClientInfo) wait.ConditionWithContextFunc {
 	return func(context.Context) (bool, error) {
-		nodes, err := clientInfo.Client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		nodeSlicePools, err := clientInfo.WbClient.WhereaboutsV1alpha1().NodeSlicePools(k8sIPAM.Namespace).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
-		for i := range nodes.Items {
-			node := &nodes.Items[i]
-			ipPool, err := k8sIPAM.GetIPPool(ctx, kubeClient.PoolIdentifier{NodeName: node.Name, IPRange: ipPoolCIDR, NetworkName: k8sIPAM.Config.NetworkName})
-			if err != nil {
-				if errors.Is(err, kubeClient.ErrPoolInitialized) {
-					continue
-				}
-				return false, err
+
+		for i := range nodeSlicePools.Items {
+			nodeSlicePool := &nodeSlicePools.Items[i]
+			if nodeSlicePool.Spec.Range != ipPoolCIDR {
+				continue
+			}
+			if k8sIPAM.Config.NetworkName != kubeClient.UnnamedNetwork && nodeSlicePool.Name != k8sIPAM.Config.NetworkName {
+				continue
 			}
 
-			if len(ipPool.Allocations()) != 0 {
-				return false, nil
+			for _, allocation := range nodeSlicePool.Status.Allocations {
+				ipPool, err := k8sIPAM.GetExistingIPPool(ctx, kubeClient.PoolIdentifier{
+					NodeName:    allocation.NodeName,
+					IPRange:     allocation.SliceRange,
+					NetworkName: k8sIPAM.Config.NetworkName,
+				})
+				if err != nil {
+					if apierrors.IsNotFound(err) {
+						continue
+					}
+					return false, err
+				}
+
+				if len(ipPool.Allocations()) != 0 {
+					return false, nil
+				}
 			}
 		}
 		return true, nil

@@ -12,6 +12,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
+
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
+	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
+	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	whereaboutstypes "github.com/telekom/whereabouts/pkg/types"
 )
 
 func TestPodDeleteTimeoutAllowsSlowCNITeardown(t *testing.T) {
@@ -98,6 +103,73 @@ func TestSetStatefulSetReplicasRetriesConflicts(t *testing.T) {
 	}
 	if got := statefulSetReplicasOrDefault(statefulSet); got != 3 {
 		t.Fatalf("StatefulSet replicas = %d, want 3", got)
+	}
+}
+
+func TestNodeSliceAllocationCleanupChecksActualSliceIPPools(t *testing.T) {
+	const (
+		namespace      = "kube-system"
+		networkName    = "fast-net"
+		nodeName       = "node-a"
+		parentRange    = "10.0.0.0/16"
+		nodeSliceRange = "10.0.1.0/24"
+	)
+
+	nodeSlicePool := &whereaboutsv1alpha1.NodeSlicePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      networkName,
+			Namespace: namespace,
+		},
+		Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+			Range:     parentRange,
+			SliceSize: "24",
+		},
+		Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+			Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{
+				{
+					NodeName:   nodeName,
+					SliceRange: nodeSliceRange,
+				},
+			},
+		},
+	}
+	slicePoolID := kubeClient.PoolIdentifier{
+		NodeName:    nodeName,
+		IPRange:     nodeSliceRange,
+		NetworkName: networkName,
+	}
+	sliceIPPool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      kubeClient.IPPoolName(slicePoolID),
+			Namespace: namespace,
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: nodeSliceRange,
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "default/pod-a", IfName: "net1"},
+			},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(nodeSlicePool, sliceIPPool)
+	coreClient := fake.NewClientset()
+	clientInfo := &ClientInfo{
+		WbClient: wbClient,
+	}
+	k8sIPAM := &kubeClient.KubernetesIPAM{
+		Client:    *kubeClient.NewKubernetesClient(wbClient, coreClient),
+		Namespace: namespace,
+		Config: whereaboutstypes.IPAMConfig{
+			NetworkName: networkName,
+		},
+	}
+
+	empty, err := isIPPoolAllocationsEmptyForNodeSlices(t.Context(), k8sIPAM, parentRange, clientInfo)(t.Context())
+	if err != nil {
+		t.Fatalf("isIPPoolAllocationsEmptyForNodeSlices returned error: %v", err)
+	}
+	if empty {
+		t.Fatal("expected lingering allocation in node-slice IPPool to be detected")
 	}
 }
 

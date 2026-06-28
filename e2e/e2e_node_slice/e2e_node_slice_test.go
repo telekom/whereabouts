@@ -16,7 +16,6 @@ import (
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 
-	"github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbtestclient "github.com/telekom/whereabouts/e2e/client"
 	"github.com/telekom/whereabouts/e2e/entities"
 	"github.com/telekom/whereabouts/e2e/poolconsistency"
@@ -246,21 +245,11 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 						WithTransform(podList, BeEmpty()),
 						"cannot have leaked pods in the system")
 
-					poolAllocations := func(ipPool *v1alpha1.IPPool) map[string]v1alpha1.IPAllocation {
-						return ipPool.Spec.Allocations
-					}
-					nodes, err := clientInfo.Client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-					Expect(err).NotTo(HaveOccurred())
-					Expect(nodes.Items).NotTo(BeEmpty())
-					for _, node := range nodes.Items {
-						Expect(
-							clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace).Get(
-								context.TODO(),
-								wbstorage.IPPoolName(wbstorage.PoolIdentifier{IPRange: ipv4TestRange, NetworkName: testNetworkName, NodeName: node.Name}),
-								metav1.GetOptions{})).To(
-							WithTransform(poolAllocations, BeEmpty()),
-							"cannot have leaked IPAllocations in the system")
-					}
+					Expect(
+						wbtestclient.WaitForZeroIPPoolAllocationsAcrossNodeSlices(
+							context.TODO(), k8sIPAM, ipv4TestRange, util.CreatePodTimeout, clientInfo)).To(
+						Succeed(),
+						"cannot have leaked IPAllocations in the system")
 				})
 
 				It("IPPools feature allocations", func() {

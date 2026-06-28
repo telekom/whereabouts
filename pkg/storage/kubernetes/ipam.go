@@ -168,6 +168,29 @@ func IPPoolName(poolIdentifier PoolIdentifier) string {
 	return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IPRange))
 }
 
+// EffectivePoolIdentifier returns the concrete IPPool identifier used for the
+// configured range. Fast IPAM stores allocations in the current node's slice
+// pool instead of the parent configured range.
+func EffectivePoolIdentifier(ctx context.Context, ipam *KubernetesIPAM, configuredRange string) (PoolIdentifier, error) {
+	poolIdentifier := PoolIdentifier{IPRange: configuredRange, NetworkName: ipam.Config.NetworkName}
+	if ipam.Config.NodeSliceSize == "" {
+		return poolIdentifier, nil
+	}
+
+	hostname, err := getNodeName(ipam)
+	if err != nil {
+		return poolIdentifier, err
+	}
+	nodeSliceRange, err := GetNodeSlicePoolRange(ctx, ipam, hostname)
+	if err != nil {
+		return poolIdentifier, err
+	}
+
+	poolIdentifier.NodeName = hostname
+	poolIdentifier.IPRange = nodeSliceRange
+	return poolIdentifier, nil
+}
+
 // normalizeRange converts an IP range CIDR into a string suitable for use as a
 // Kubernetes resource name. Colons (IPv6) and slashes (CIDR notation) are
 // replaced with dashes because metadata.name must match RFC 1123 DNS subdomain.

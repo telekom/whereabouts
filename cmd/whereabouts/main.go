@@ -138,19 +138,22 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 
 	for idx := range ipam.Config.IPRanges {
 		ipRange := &ipam.Config.IPRanges[idx]
-		poolIdentifier := kubernetes.PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipam.Config.NetworkName}
+		poolIdentifier, err := kubernetes.EffectivePoolIdentifier(ctx, ipam, ipRange.Range)
+		if err != nil {
+			return logging.Errorf("CHECK: error resolving pool for range %s: %w", ipRange.Range, err)
+		}
 		pool, err := ipam.GetExistingIPPool(ctx, poolIdentifier)
 		if err != nil {
 			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
-				return logging.Errorf("CHECK: transient error reading pool %s: %w", ipRange.Range, err)
+				return logging.Errorf("CHECK: transient error reading pool %s: %w", poolIdentifier.IPRange, err)
 			}
-			return logging.Errorf("CHECK: error reading pool %s: %w", ipRange.Range, err)
+			return logging.Errorf("CHECK: error reading pool %s: %w", poolIdentifier.IPRange, err)
 		}
 
 		found := false
-		_, ipNet, err := net.ParseCIDR(ipRange.Range)
+		_, ipNet, err := net.ParseCIDR(poolIdentifier.IPRange)
 		if err != nil {
-			return logging.Errorf("CHECK: invalid configured range %s: %w", ipRange.Range, err)
+			return logging.Errorf("CHECK: invalid pool range %s: %w", poolIdentifier.IPRange, err)
 		}
 		for _, alloc := range pool.Allocations() {
 			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
@@ -161,10 +164,10 @@ func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult
 		}
 		if !found {
 			return logging.Errorf("CHECK: no allocation found for containerID %q ifName %q in range %s",
-				args.ContainerID, args.IfName, ipRange.Range)
+				args.ContainerID, args.IfName, poolIdentifier.IPRange)
 		}
 		logging.Debugf("CHECK: allocation verified for containerID %q ifName %q in range %s",
-			args.ContainerID, args.IfName, ipRange.Range)
+			args.ContainerID, args.IfName, poolIdentifier.IPRange)
 	}
 	for _, address := range ipam.Config.Addresses {
 		allocatedIPs[resultKey(address.Address, address.Gateway)] = true

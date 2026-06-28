@@ -1626,6 +1626,82 @@ var _ = Describe("Whereabouts operations", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		It("succeeds when Fast IPAM stores allocation in the node-slice pool", func() {
+			const (
+				nodeName       = "worker-a"
+				parentRange    = "10.0.0.0/16"
+				nodeSliceRange = "10.0.1.0/24"
+				networkName    = "fast-net"
+				allocatedIP    = "10.0.1.1"
+			)
+
+			Expect(os.Setenv("NODENAME", nodeName)).To(Succeed())
+			DeferCleanup(os.Unsetenv, "NODENAME")
+
+			fastIPAMConf := ipamConfig(podName, podNamespace, networkName, parentRange, "10.0.1.254", kubeConfigPath)
+			fastIPAMConf.NodeSliceSize = "24"
+
+			nodeSlicePool := &v1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      networkName,
+					Namespace: podNamespace,
+				},
+				Spec: v1alpha1.NodeSlicePoolSpec{
+					Range:     parentRange,
+					SliceSize: "24",
+				},
+				Status: v1alpha1.NodeSlicePoolStatus{
+					Allocations: []v1alpha1.NodeSliceAllocation{
+						{
+							NodeName:   nodeName,
+							SliceRange: nodeSliceRange,
+						},
+					},
+				},
+			}
+			nodeSlicePoolIdentifier := kubernetes.PoolIdentifier{
+				IPRange:     nodeSliceRange,
+				NetworkName: networkName,
+				NodeName:    nodeName,
+			}
+			nodeSliceIPPool := &v1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            kubernetes.IPPoolName(nodeSlicePoolIdentifier),
+					Namespace:       podNamespace,
+					ResourceVersion: "1",
+				},
+				Spec: v1alpha1.IPPoolSpec{
+					Range: nodeSliceRange,
+					Allocations: map[string]v1alpha1.IPAllocation{
+						"1": {
+							ContainerID: checkContainerID,
+							PodRef:      podNamespace + "/" + podName,
+							IfName:      checkIfName,
+						},
+					},
+				},
+			}
+
+			client := newK8sIPAM(
+				checkContainerID, checkIfName, fastIPAMConf,
+				fakek8sclient.NewClientset(),
+				fake.NewClientset(nodeSlicePool, nodeSliceIPPool))
+
+			prevResult := &current.Result{
+				IPs: []*current.IPConfig{
+					{Address: mustCIDR(allocatedIP + "/24"), Gateway: fastIPAMConf.Gateway},
+				},
+			}
+
+			args := &skel.CmdArgs{
+				ContainerID: checkContainerID,
+				IfName:      checkIfName,
+			}
+
+			err := runCmdCheck(client, args, prevResult)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		It("succeeds when configured dynamic gateway is from a different address family", func() {
 			ipv6IPAMConf := ipamConfig(podName, podNamespace, checkNetName, "abcd::/64", "192.168.1.254", kubeConfigPath)
 			ipv6Pool := &v1alpha1.IPPool{

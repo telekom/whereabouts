@@ -16,6 +16,15 @@ data:
     CNI_VERSION="v1.9.1"
     archive="/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
     wget -O "${archive}" "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
+    wget -O "${archive}.sha256" "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz.sha256"
+    expected=$(awk '{print $1}' "${archive}.sha256")
+    actual=$(sha256sum "${archive}" | awk '{print $1}')
+    if [ "$expected" != "$actual" ]; then
+      echo "FATAL: SHA256 mismatch for ${archive}" >&2
+      echo "  expected: ${expected}" >&2
+      echo "  actual:   ${actual}" >&2
+      exit 1
+    fi
     cd /host/opt/cni/bin
     tar -xzf "${archive}"
     exec tail -f /dev/null
@@ -43,7 +52,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: install-cni-plugins
-        image: alpine
+        image: alpine:3.20@sha256:beefdbd8a1da6d2915566fde36db9db0b524eb737fc57cd1367effd16dc0d06d
         command: ["/bin/sh", "/scripts/install_cni.sh"]
         resources:
           requests:

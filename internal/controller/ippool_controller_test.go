@@ -909,7 +909,7 @@ var _ = Describe("allocationKeyToIP", func() {
 var _ = Describe("computePoolStats overlapping counts", func() {
 	It("should not double-count overlapping reservations for same IP but different networks", func() {
 		scheme := newTestScheme()
-		
+
 		pool1 := &whereaboutsv1alpha1.IPPool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "pool-1",
@@ -925,7 +925,7 @@ var _ = Describe("computePoolStats overlapping counts", func() {
 
 		res1 := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "10-0-0-1-net1",
+				Name:      "net1-10.0.0.1",
 				Namespace: "default",
 			},
 			Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
@@ -936,7 +936,7 @@ var _ = Describe("computePoolStats overlapping counts", func() {
 
 		res2 := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "10-0-0-1-net2",
+				Name:      "net2-10.0.0.1",
 				Namespace: "default",
 			},
 			Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
@@ -951,8 +951,7 @@ var _ = Describe("computePoolStats overlapping counts", func() {
 			Build()
 
 		reconciler := &IPPoolReconciler{
-			client:   fakeClient,
-			
+			client: fakeClient,
 		}
 
 		reconciler.computePoolStats(context.Background(), pool1, 0, 0)

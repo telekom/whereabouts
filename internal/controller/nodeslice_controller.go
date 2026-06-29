@@ -57,9 +57,9 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 		// Secondary: when a Node is added/deleted, re-reconcile all NADs.
 		WatchesRawSource(source.Kind(mgr.GetCache(), &corev1.Node{},
 			handler.TypedEnqueueRequestsFromMapFunc(r.mapNodeToNADs),
-			predicate.Funcs{
-				UpdateFunc: func(e event.UpdateEvent) bool {
-					return false // Ignore Node updates (e.g. heartbeat/status) since we only care about Node addition/removal
+			predicate.TypedFuncs[*corev1.Node]{
+				UpdateFunc: func(e event.TypedUpdateEvent[*corev1.Node]) bool {
+					return false
 				},
 			},
 		)).

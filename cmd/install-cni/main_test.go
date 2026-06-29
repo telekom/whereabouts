@@ -44,7 +44,6 @@ func newTestConfig(t *testing.T, withCA bool) *config {
 		CNIBinDir:          binDir,
 		CNIBinSrc:          "/whereabouts",
 		CNIConfDir:         cniDir,
-		ReconcilerCron:     defaultReconcilerCron,
 		ServiceAccountPath: saDir,
 		KubeCAFile:         filepath.Join(saDir, "ca.crt"),
 		SkipTLSVerify:      !withCA,
@@ -98,7 +97,6 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	}
 	assertEqual(t, "CNIBinDir", cfg.CNIBinDir, defaultCNIBinDir)
 	assertEqual(t, "CNIConfDir", cfg.CNIConfDir, defaultCNIConfDir)
-	assertEqual(t, "ReconcilerCron", cfg.ReconcilerCron, defaultReconcilerCron)
 	assertEqual(t, "KubeProtocol", cfg.KubeProtocol, defaultKubeProtocol)
 	if cfg.SkipTLSVerify {
 		t.Error("SkipTLSVerify should default to false")
@@ -124,7 +122,6 @@ func TestLoadConfig_CustomValues(t *testing.T) {
 	}
 	assertEqual(t, "CNIBinDir", cfg.CNIBinDir, "/custom/bin")
 	assertEqual(t, "CNIConfDir", cfg.CNIConfDir, "/custom/conf")
-	assertEqual(t, "ReconcilerCron", cfg.ReconcilerCron, "*/5 * * * *")
 	assertEqual(t, "KubeProtocol", cfg.KubeProtocol, "http")
 	assertEqual(t, "Namespace", cfg.Namespace, "my-ns")
 	assertEqual(t, "ServiceAccountPath", cfg.ServiceAccountPath, "/custom/sa")
@@ -367,7 +364,6 @@ func TestWriteKubeConfig_FilePermissions(t *testing.T) {
 
 func TestWriteWhereaboutsConf(t *testing.T) {
 	cfg := newTestConfig(t, false)
-	cfg.ReconcilerCron = "0 */6 * * *"
 	must(t, writeWhereaboutsConf(cfg))
 
 	data, err := os.ReadFile(cfg.whereaboutsConfPath())
@@ -381,7 +377,6 @@ func TestWriteWhereaboutsConf(t *testing.T) {
 	assertEqual(t, "datastore", parsed.Datastore, "kubernetes")
 	assertEqual(t, "configuration_path", parsed.ConfigurationPath, cfg.configurationPathLiteral())
 	assertEqual(t, "kubeconfig", parsed.Kubernetes.Kubeconfig, cfg.kubeconfigLiteral())
-	assertEqual(t, "cron", parsed.ReconcilerCronExpression, "0 */6 * * *")
 }
 
 func TestWriteWhereaboutsConf_UnwritableDir(t *testing.T) {

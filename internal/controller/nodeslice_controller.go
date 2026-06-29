@@ -58,7 +58,7 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 		WatchesRawSource(source.Kind(mgr.GetCache(), &corev1.Node{},
 			handler.TypedEnqueueRequestsFromMapFunc(r.mapNodeToNADs),
 			predicate.TypedFuncs[*corev1.Node]{
-				UpdateFunc: func(e event.TypedUpdateEvent[*corev1.Node]) bool {
+				UpdateFunc: func(_ event.TypedUpdateEvent[*corev1.Node]) bool {
 					return false
 				},
 			},

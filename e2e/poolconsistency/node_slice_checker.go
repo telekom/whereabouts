@@ -62,6 +62,9 @@ func (pc *NodeSliceChecker) StaleIPs() []string {
 			for i := range pc.podList {
 				pod := &pc.podList[i]
 				podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
+				if errors.Is(err, retrievers.ErrNoSecondaryIface) {
+					continue
+				}
 				if err != nil {
 					panic(fmt.Errorf("node-slice StaleIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
 				}

@@ -157,9 +157,9 @@ type IPAMConfig struct {
 	// NetworkName optionally names the network for multi-tenant scenarios,
 	// creating separate IPPool CRs per network name.
 	NetworkName string `json:"network_name,omitempty"`
-	// ServiceCIDRs is an optional list of Kubernetes service CIDR ranges.
-	// When set, the reconciler will emit a Warning event if this pool's CIDR
-	// overlaps with any service CIDR, helping operators detect misconfigurations.
+	// Deprecated: ServiceCIDRs is parsed from CNI config but NOT consumed by the
+	// operator reconciler, which sources service CIDRs exclusively from the
+	// --service-cidr flag. This field is retained for config compatibility only.
 	ServiceCIDRs []string `json:"service_cidrs,omitempty"`
 }
 

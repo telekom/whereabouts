@@ -20,8 +20,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -55,6 +57,11 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 		// Secondary: when a Node is added/deleted, re-reconcile all NADs.
 		WatchesRawSource(source.Kind(mgr.GetCache(), &corev1.Node{},
 			handler.TypedEnqueueRequestsFromMapFunc(r.mapNodeToNADs),
+			predicate.Funcs{
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					return false // Ignore Node updates (e.g. heartbeat/status) since we only care about Node addition/removal
+				},
+			},
 		)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,

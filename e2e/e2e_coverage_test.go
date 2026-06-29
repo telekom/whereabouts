@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
@@ -150,12 +151,12 @@ var _ = Describe("Whereabouts coverage", func() {
 	// -----------------------------------------------------------------------
 	Context("Operator restart recovery", func() {
 		const (
-			networkName  = "wa-coverage-restart"
-			ipRange      = "10.120.0.0/24"
-			operatorName = "whereabouts-controller-manager"
-			operatorNS   = "kube-system"
-			replicaCount = int32(3)
-			rsName       = "wb-restart-rs"
+			networkName           = "wa-coverage-restart"
+			ipRange               = "10.120.0.0/24"
+			operatorNS            = "kube-system"
+			operatorLabelSelector = "control-plane=controller-manager"
+			replicaCount          = int32(3)
+			rsName                = "wb-restart-rs"
 		)
 
 		var netAttachDef *nettypes.NetworkAttachmentDefinition
@@ -218,8 +219,7 @@ var _ = Describe("Whereabouts coverage", func() {
 			Expect(preRestartIPs).To(HaveLen(int(replicaCount)))
 
 			By("triggering a rollout restart of the whereabouts operator")
-			deployment, err := clientInfo.Client.AppsV1().Deployments(operatorNS).Get(
-				context.Background(), operatorName, metav1.GetOptions{})
+			deployment, err := whereaboutsOperatorDeployment(clientInfo, operatorNS, operatorLabelSelector)
 			Expect(err).NotTo(HaveOccurred())
 
 			if deployment.Spec.Template.Annotations == nil {
@@ -235,14 +235,12 @@ var _ = Describe("Whereabouts coverage", func() {
 			By("waiting for the operator rollout to complete")
 			const rolloutTimeout = 3 * time.Minute
 			// Get the deployment generation after the restart annotation was applied
-			updatedDep, err := clientInfo.Client.AppsV1().Deployments(operatorNS).Get(
-				context.Background(), operatorName, metav1.GetOptions{})
+			updatedDep, err := whereaboutsOperatorDeployment(clientInfo, operatorNS, operatorLabelSelector)
 			Expect(err).NotTo(HaveOccurred())
 			targetGeneration := updatedDep.Generation
 
 			Eventually(func() bool {
-				dep, err := clientInfo.Client.AppsV1().Deployments(operatorNS).Get(
-					context.Background(), operatorName, metav1.GetOptions{})
+				dep, err := whereaboutsOperatorDeployment(clientInfo, operatorNS, operatorLabelSelector)
 				if err != nil {
 					return false
 				}
@@ -329,3 +327,22 @@ var _ = Describe("Whereabouts coverage", func() {
 		})
 	})
 })
+
+func whereaboutsOperatorDeployment(
+	clientInfo *wbtestclient.ClientInfo,
+	namespace string,
+	labelSelector string,
+) (*appsv1.Deployment, error) {
+	deployments, err := clientInfo.Client.AppsV1().Deployments(namespace).List(
+		context.Background(),
+		metav1.ListOptions{LabelSelector: labelSelector},
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(deployments.Items) != 1 {
+		return nil, fmt.Errorf("expected exactly one whereabouts operator deployment with selector %q in %s, got %d",
+			labelSelector, namespace, len(deployments.Items))
+	}
+	return deployments.Items[0].DeepCopy(), nil
+}

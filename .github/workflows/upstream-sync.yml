@@ -103,6 +103,9 @@ jobs:
               restore_fork_workflows
               git commit --amend --no-edit
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
+              gh issue create --title "upstream-sync: workflow drift detected" \
+                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
+                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
             fi
             BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
           else
@@ -119,6 +122,9 @@ jobs:
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
               restore_fork_workflows
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
+              gh issue create --title "upstream-sync: workflow drift detected" \
+                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
+                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
             fi
             git commit --no-edit
             # After stripping workflow files, check whether any real conflicts remain.

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -577,6 +578,9 @@ func denormalizeIPName(name string) net.IP {
 	if ip := net.ParseIP(name); ip != nil {
 		return ip
 	}
+	if ip := parseDashedIPv4Name(name); ip != nil {
+		return ip
+	}
 
 	// Try full dash→colon replacement (IPv6 normalization).
 	if ip := net.ParseIP(strings.ReplaceAll(name, "-", ":")); ip != nil {
@@ -591,6 +595,9 @@ func denormalizeIPName(name string) net.IP {
 		if ip := net.ParseIP(suffix); ip != nil {
 			return ip
 		}
+		if ip := parseDashedIPv4Name(suffix); ip != nil {
+			return ip
+		}
 		if ip := net.ParseIP(strings.ReplaceAll(suffix, "-", ":")); ip != nil {
 			return ip
 		}
@@ -602,6 +609,44 @@ func denormalizeIPName(name string) net.IP {
 	}
 
 	return nil
+}
+
+func parseDashedIPv4Name(name string) net.IP {
+	parts := strings.Split(name, "-")
+	for i := 0; i+3 < len(parts); i++ {
+		if i > 0 && isDecimalToken(parts[i-1]) {
+			continue
+		}
+		if i+4 < len(parts) && isDecimalToken(parts[i+4]) {
+			continue
+		}
+		octets := make([]byte, 4)
+		valid := true
+		for j := range 4 {
+			value, err := strconv.Atoi(parts[i+j])
+			if err != nil || value < 0 || value > 255 {
+				valid = false
+				break
+			}
+			octets[j] = byte(value)
+		}
+		if valid {
+			return net.IPv4(octets[0], octets[1], octets[2], octets[3])
+		}
+	}
+	return nil
+}
+
+func isDecimalToken(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // parsePodRef splits "namespace/name" into its components.

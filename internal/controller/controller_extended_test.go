@@ -82,6 +82,12 @@ var _ = Describe("denormalizeIPName", func() {
 		Expect(ip.Equal(net.ParseIP("10.0.0.5"))).To(BeTrue())
 	})
 
+	It("parses a dash-normalized IPv4 address", func() {
+		ip := denormalizeIPName("10-0-0-5")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("10.0.0.5"))).To(BeTrue())
+	})
+
 	It("parses a plain IPv6 address with dashes instead of colons", func() {
 		ip := denormalizeIPName("fd00--1")
 		Expect(ip).NotTo(BeNil())
@@ -102,6 +108,12 @@ var _ = Describe("denormalizeIPName", func() {
 
 	It("parses a multi-dash network-name prefixed IPv4", func() {
 		ip := denormalizeIPName("my-fancy-net-10.0.0.1")
+		Expect(ip).NotTo(BeNil())
+		Expect(ip.Equal(net.ParseIP("10.0.0.1"))).To(BeTrue())
+	})
+
+	It("parses a dash-normalized IPv4 with a network suffix", func() {
+		ip := denormalizeIPName("10-0-0-1-net1")
 		Expect(ip).NotTo(BeNil())
 		Expect(ip.Equal(net.ParseIP("10.0.0.1"))).To(BeTrue())
 	})

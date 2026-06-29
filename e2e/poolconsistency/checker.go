@@ -1,6 +1,7 @@
 package poolconsistency
 
 import (
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +27,9 @@ func (pc *Checker) MissingIPs() []string {
 	for i := range pc.podList {
 		pod := &pc.podList[i]
 		podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
+		if errors.Is(err, retrievers.ErrNoSecondaryIface) {
+			continue
+		}
 		if err != nil {
 			panic(fmt.Errorf("pool-consistency MissingIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
 		}
@@ -56,6 +60,9 @@ func (pc *Checker) StaleIPs() []string {
 		for i := range pc.podList {
 			pod := &pc.podList[i]
 			podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
+			if errors.Is(err, retrievers.ErrNoSecondaryIface) {
+				continue
+			}
 			if err != nil {
 				panic(fmt.Errorf("pool-consistency StaleIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
 			}

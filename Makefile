@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 # ---------------------------------------------------------------
 # Variables
 # ---------------------------------------------------------------
+=======
+.PHONY: build clean docker-build generate-api install-tools test test-skip-static kind update-deps chart-prepare-release chart-push-release
+
+>>>>>>> upstream/master
 CURPATH=$(PWD)
 BIN_DIR=$(CURPATH)/bin
 
@@ -13,11 +18,16 @@ COMPUTE_NODES ?= 2
 OCI_BIN ?= docker
 GO ?= go
 
+<<<<<<< HEAD
 # Tool versions
 CONTROLLER_GEN_VERSION ?= v0.21.0
 STATICCHECK_VERSION ?= v0.7.0
 KUSTOMIZE_VERSION ?= v5.8.1
 GOLANGCI_LINT_VERSION ?= v2.12.2
+=======
+clean:
+	rm -rf bin/
+>>>>>>> upstream/master
 
 # Resolved tool paths
 CONTROLLER_GEN := $(BIN_DIR)/controller-gen
@@ -40,6 +50,7 @@ LDFLAGS := -X $(VERSION_PKG).Version=$(VERSION) \
            -X $(VERSION_PKG).GitTreeState=$(GIT_TREE_STATE) \
            -X $(VERSION_PKG).ReleaseStatus=$(RELEASE_STATUS)
 
+<<<<<<< HEAD
 # ---------------------------------------------------------------
 # General
 # ---------------------------------------------------------------
@@ -66,6 +77,10 @@ generate: $(CONTROLLER_GEN) ## Generate deepcopy and clientsets/informers/lister
 	$(CONTROLLER_GEN) object paths="./api/whereabouts.cni.cncf.io/..."
 	hack/update-codegen.sh
 	rm -rf github.com
+=======
+generate-api:
+	hack/verify-codegen.sh
+>>>>>>> upstream/master
 
 .PHONY: generate-api
 generate-api: manifests generate ## Generate all API artifacts (CRDs + deepcopy + clientsets).
@@ -179,9 +194,15 @@ undeploy: $(KUSTOMIZE) ## Undeploy controller from the cluster.
 kind: ## Create a KinD cluster with whereabouts installed (kustomize).
 	hack/e2e-setup-kind-cluster.sh -n $(COMPUTE_NODES)
 
+<<<<<<< HEAD
 .PHONY: kind-helm
 kind-helm: ## Create a KinD cluster with whereabouts installed (Helm).
 	hack/e2e-setup-kind-cluster-helm.sh -n $(COMPUTE_NODES)
+=======
+update-deps:
+	go mod tidy
+	go mod verify
+>>>>>>> upstream/master
 
 ##@ Dependencies
 

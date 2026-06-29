@@ -7,6 +7,8 @@ package whereabouts_e2e
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -333,16 +335,84 @@ func whereaboutsOperatorDeployment(
 	namespace string,
 	labelSelector string,
 ) (*appsv1.Deployment, error) {
+	ctx := context.Background()
 	deployments, err := clientInfo.Client.AppsV1().Deployments(namespace).List(
-		context.Background(),
+		ctx,
 		metav1.ListOptions{LabelSelector: labelSelector},
 	)
 	if err != nil {
 		return nil, err
 	}
-	if len(deployments.Items) != 1 {
+	if len(deployments.Items) == 1 {
+		return deployments.Items[0].DeepCopy(), nil
+	}
+	if len(deployments.Items) > 1 {
 		return nil, fmt.Errorf("expected exactly one whereabouts operator deployment with selector %q in %s, got %d",
 			labelSelector, namespace, len(deployments.Items))
 	}
-	return deployments.Items[0].DeepCopy(), nil
+
+	pods, err := clientInfo.Client.CoreV1().Pods(namespace).List(
+		ctx,
+		metav1.ListOptions{LabelSelector: labelSelector},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentNames := make(map[string]struct{}, len(pods.Items))
+	for i := range pods.Items {
+		pod := pods.Items[i]
+		replicaSetRef := controllerOwnerRef(pod.OwnerReferences, "ReplicaSet")
+		if replicaSetRef == nil {
+			continue
+		}
+		replicaSet, err := clientInfo.Client.AppsV1().ReplicaSets(namespace).Get(
+			ctx,
+			replicaSetRef.Name,
+			metav1.GetOptions{},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("get ReplicaSet %q for operator pod %q: %w", replicaSetRef.Name, pod.Name, err)
+		}
+		deploymentRef := controllerOwnerRef(replicaSet.OwnerReferences, "Deployment")
+		if deploymentRef != nil {
+			deploymentNames[deploymentRef.Name] = struct{}{}
+		}
+	}
+
+	if len(deploymentNames) != 1 {
+		names := make([]string, 0, len(deploymentNames))
+		for name := range deploymentNames {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		return nil, fmt.Errorf(
+			"expected exactly one whereabouts operator deployment with selector %q in %s, got %d by deployment label and %d by pod owner (%s)",
+			labelSelector, namespace, len(deployments.Items), len(deploymentNames), strings.Join(names, ","),
+		)
+	}
+
+	var deploymentName string
+	for name := range deploymentNames {
+		deploymentName = name
+	}
+	deployment, err := clientInfo.Client.AppsV1().Deployments(namespace).Get(
+		ctx,
+		deploymentName,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get operator deployment %q: %w", deploymentName, err)
+	}
+	return deployment.DeepCopy(), nil
+}
+
+func controllerOwnerRef(ownerRefs []metav1.OwnerReference, kind string) *metav1.OwnerReference {
+	for i := range ownerRefs {
+		ref := &ownerRefs[i]
+		if ref.Controller != nil && *ref.Controller && ref.Kind == kind {
+			return ref
+		}
+	}
+	return nil
 }

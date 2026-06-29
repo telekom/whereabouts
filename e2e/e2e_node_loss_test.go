@@ -31,11 +31,13 @@ import (
 
 var _ = Describe("Node loss", func() {
 	const (
-		testNamespace = "default"
-		networkName   = "wa-node-loss"
-		ipRange       = "10.121.0.0/24"
-		lostPodName   = "wb-node-loss-1"
-		reusePodName  = "wb-node-loss-2"
+		testNamespace         = "default"
+		networkName           = "wa-node-loss"
+		ipRange               = "10.121.0.0/24"
+		lostPodName           = "wb-node-loss-1"
+		reusePodName          = "wb-node-loss-2"
+		operatorNamespace     = "kube-system"
+		operatorLabelSelector = "control-plane=controller-manager"
 	)
 
 	var (
@@ -67,7 +69,7 @@ var _ = Describe("Node loss", func() {
 
 	It("releases and reuses IPs after a kind worker disappears", func() {
 		ctx := context.Background()
-		workerNode := firstReadyWorkerNode(ctx, clientInfo)
+		workerNode := firstReadyWorkerNodeWithoutOperator(ctx, clientInfo, operatorNamespace, operatorLabelSelector)
 
 		By(fmt.Sprintf("creating a pod pinned to worker node %s", workerNode.Name))
 		lostPod := podPinnedToNode(lostPodName, testNamespace, networkName, workerNode.Name)
@@ -130,10 +132,29 @@ var _ = Describe("Node loss", func() {
 	})
 })
 
-func firstReadyWorkerNode(ctx context.Context, clientInfo *wbtestclient.ClientInfo) corev1.Node {
+func firstReadyWorkerNodeWithoutOperator(
+	ctx context.Context,
+	clientInfo *wbtestclient.ClientInfo,
+	operatorNamespace string,
+	operatorLabelSelector string,
+) corev1.Node {
 	nodes, err := clientInfo.Client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
+	operatorPods, err := clientInfo.Client.CoreV1().Pods(operatorNamespace).List(
+		ctx,
+		metav1.ListOptions{LabelSelector: operatorLabelSelector},
+	)
+	Expect(err).NotTo(HaveOccurred())
+
+	operatorNodes := make(map[string]struct{}, len(operatorPods.Items))
+	for _, pod := range operatorPods.Items {
+		if pod.Spec.NodeName != "" && pod.DeletionTimestamp == nil {
+			operatorNodes[pod.Spec.NodeName] = struct{}{}
+		}
+	}
+
+	var fallback *corev1.Node
 	for _, node := range nodes.Items {
 		if _, isControlPlane := node.Labels["node-role.kubernetes.io/control-plane"]; isControlPlane {
 			continue
@@ -142,8 +163,17 @@ func firstReadyWorkerNode(ctx context.Context, clientInfo *wbtestclient.ClientIn
 			continue
 		}
 		if nodeReadyStatus(&node) == corev1.ConditionTrue {
-			return node
+			if fallback == nil {
+				nodeCopy := node
+				fallback = &nodeCopy
+			}
+			if _, hostsOperator := operatorNodes[node.Name]; !hostsOperator {
+				return node
+			}
 		}
+	}
+	if fallback != nil {
+		return *fallback
 	}
 	Fail("expected at least one ready worker node")
 	return corev1.Node{}

@@ -1,6 +1,8 @@
 package poolconsistency
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/telekom/whereabouts/e2e/retrievers"
@@ -25,7 +27,7 @@ func (pc *NodeSliceChecker) MissingIPs() []string {
 		pod := &pc.podList[i]
 		podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
 		if err != nil {
-			return []string{}
+			panic(fmt.Errorf("node-slice MissingIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
 		}
 		podIP := podIPs[len(podIPs)-1]
 
@@ -56,10 +58,10 @@ func (pc *NodeSliceChecker) StaleIPs() []string {
 			for i := range pc.podList {
 				pod := &pc.podList[i]
 				podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
-				podIP := podIPs[len(podIPs)-1]
 				if err != nil {
-					continue
+					panic(fmt.Errorf("node-slice StaleIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
 				}
+				podIP := podIPs[len(podIPs)-1]
 
 				if reservedIP == podIP {
 					found = true

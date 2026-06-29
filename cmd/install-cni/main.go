@@ -36,7 +36,6 @@ import (
 const (
 	defaultCNIBinDir          = "/host/opt/cni/bin/"
 	defaultCNIConfDir         = "/host/etc/cni/net.d"
-	defaultReconcilerCron     = "30 4 * * *"
 	defaultKubeConfigMode     = 0o600
 	defaultServiceAccountPath = "/var/run/secrets/kubernetes.io/serviceaccount"
 	defaultSkipTLSVerify      = "false"
@@ -56,7 +55,6 @@ type config struct {
 	CNIBinDir          string
 	CNIBinSrc          string
 	CNIConfDir         string
-	ReconcilerCron     string
 	ServiceAccountPath string
 	KubeCAFile         string
 	SkipTLSVerify      bool
@@ -74,7 +72,6 @@ func loadConfig() (*config, error) {
 		CNIBinDir:          envOr("CNI_BIN_DIR", defaultCNIBinDir),
 		CNIBinSrc:          envOr("CNI_BIN_SRC", "/whereabouts"),
 		CNIConfDir:         envOr("CNI_CONF_DIR", defaultCNIConfDir),
-		ReconcilerCron:     envOr("WHEREABOUTS_RECONCILER_CRON", defaultReconcilerCron),
 		ServiceAccountPath: saPath,
 		KubeCAFile:         envOr("KUBE_CA_FILE", filepath.Join(saPath, "ca.crt")),
 		SkipTLSVerify:      envOr("SKIP_TLS_VERIFY", defaultSkipTLSVerify) == "true",
@@ -263,10 +260,9 @@ func writeKubeConfig(cfg *config) error {
 
 // whereaboutsConf is the JSON schema for whereabouts.conf.
 type whereaboutsConf struct {
-	Datastore                string         `json:"datastore"`
-	ConfigurationPath        string         `json:"configuration_path"`
-	Kubernetes               kubernetesConf `json:"kubernetes"`
-	ReconcilerCronExpression string         `json:"reconciler_cron_expression"`
+	Datastore         string         `json:"datastore"`
+	ConfigurationPath string         `json:"configuration_path"`
+	Kubernetes        kubernetesConf `json:"kubernetes"`
 }
 
 type kubernetesConf struct {
@@ -281,7 +277,6 @@ func writeWhereaboutsConf(cfg *config) error {
 		Kubernetes: kubernetesConf{
 			Kubeconfig: cfg.kubeconfigLiteral(),
 		},
-		ReconcilerCronExpression: cfg.ReconcilerCron,
 	}
 
 	data, err := json.MarshalIndent(conf, "", "  ")

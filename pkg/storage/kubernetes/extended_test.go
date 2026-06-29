@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1284,5 +1285,103 @@ func TestIPManagementKubernetesUpdateRetriesORIPDeleteAfterPoolUpdate(t *testing
 	}
 	if len(reservations.Items) != 0 {
 		t.Fatalf("expected ORIP to be deleted after retry, got %d reservation(s)", len(reservations.Items))
+	}
+}
+
+func TestDeallocateORIPFirst(t *testing.T) {
+	ctx := context.Background()
+
+	ipRange := "192.168.2.0/24"
+	ipamConf := types.IPAMConfig{
+		PodName:           "test-pod",
+		PodNamespace:      "default",
+		NetworkName:       "test-net",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: ipRange},
+		},
+	}
+
+	pool := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            IPPoolName(PoolIdentifier{IPRange: ipRange, NetworkName: "test-net"}),
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: ipRange,
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {
+					ContainerID: "test-container",
+					IfName:      "eth0",
+				},
+			},
+		},
+	}
+
+	orip := &whereaboutsv1alpha1.OverlappingRangeIPReservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            NormalizeIP(net.ParseIP("192.168.2.1"), "test-net"),
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.OverlappingRangeIPReservationSpec{
+			PodRef: "default/test-pod",
+			IfName: "eth0",
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool, orip)
+	k8sClient := fake.NewClientset()
+	client := *NewKubernetesClient(wbClient, k8sClient)
+	ipam := &KubernetesIPAM{
+		Client:      client,
+		Config:      ipamConf,
+		ContainerID: "test-container",
+		IfName:      "eth0",
+		Namespace:   "default",
+	}
+
+	failOnce := true
+	wbClient.PrependReactor("delete", "overlappingrangeipreservations", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+		if failOnce {
+			failOnce = false
+			return true, nil, fmt.Errorf("simulated ORIP deletion failure")
+		}
+		return false, nil, nil
+	})
+
+	_, err := IPManagementKubernetesUpdate(ctx, types.Deallocate, ipam, ipamConf)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "simulated ORIP deletion failure") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	poolCheck, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(ctx, pool.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(poolCheck.Spec.Allocations) != 1 {
+		t.Fatalf("expected 1 allocation, got %d", len(poolCheck.Spec.Allocations))
+	}
+
+	_, err = IPManagementKubernetesUpdate(ctx, types.Deallocate, ipam, ipamConf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	poolCheck2, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(ctx, pool.Name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(poolCheck2.Spec.Allocations) != 0 {
+		t.Fatalf("expected 0 allocations, got %d", len(poolCheck2.Spec.Allocations))
+	}
+
+	_, err = wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").Get(ctx, orip.Name, metav1.GetOptions{})
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected NotFound error, got %v", err)
 	}
 }

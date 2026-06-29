@@ -1001,6 +1001,28 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				time.Sleep(time.Duration(sleepSec) * time.Second)
 			}
 
+			// For Deallocate mode, delete the OverlappingRangeIPReservation BEFORE updating the pool.
+			// This prevents a permanent IP leak if the pool update succeeds but the ORIP deletion
+			// fails, because subsequent retries from the CNI would find no pool allocation and skip the ORIP cleanup entirely.
+			// UpdateOverlappingRangeAllocation handles NotFound gracefully, making it safe to retry if pool.Update fails.
+			if mode == whereaboutstypes.Deallocate && ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
+				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
+					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, ipamConf.PodUID)
+				overlappingCancel()
+				if err != nil {
+					logging.Errorf("Error performing UpdateOverlappingRangeAllocation for Deallocate (attempt: %d): %w", j, err)
+					if isRetryableRollbackError(err) {
+						requestCancel()
+						retryBackoff(ctx, backoff)
+						backoff = min(backoff*2, retryMaxBackoff)
+						continue
+					}
+					requestCancel()
+					break RETRYLOOP
+				}
+			}
+
 			if !skipPoolUpdate {
 				err = pool.Update(requestCtx, usereservelist)
 				if err != nil {
@@ -1015,19 +1037,19 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					break RETRYLOOP
 				}
 			}
-			// Update the clusterwide overlapping range reservation inside the retry
-			// loop so that a transient ORIP conflict (AlreadyExists) causes a retry
-			// rather than a hard failure.
-			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
+
+			// For Allocate mode, update the clusterwide overlapping range reservation AFTER updating the pool
+			// so that a transient ORIP conflict (AlreadyExists) causes a retry rather than a hard failure.
+			if mode == whereaboutstypes.Allocate && ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
 				overlappingCtx, overlappingCancel := context.WithTimeout(ctx, storage.RequestTimeout)
 				err = overlappingrangestore.UpdateOverlappingRangeAllocation(overlappingCtx, mode, ipforoverlappingrangeupdate,
 					ipamConf.GetPodRef(), ipam.IfName, ipamConf.NetworkName, ipamConf.PodUID)
 				overlappingCancel()
 				if err != nil {
-					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)
+					logging.Errorf("Error performing UpdateOverlappingRangeAllocation for Allocate (attempt: %d): %w", j, err)
 					// Roll back the pool update so the IP is not reserved without
 					// overlap protection, then decide whether to retry.
-					if mode == whereaboutstypes.Allocate && pool != nil {
+					if pool != nil {
 						rollbackCommitted(context.Background(), []committedAlloc{{
 							pool:        pool,
 							poolID:      poolIdentifier,

@@ -118,6 +118,12 @@ func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereabou
 
 	var count int32
 	seenIPs := make(map[string]struct{})
+	_, parsedNet, parseErr := net.ParseCIDR(pool.Spec.Range)
+	if parseErr != nil {
+		log.FromContext(ctx).V(1).Info("failed to parse CIDR for stats", "error", parseErr)
+		return
+	}
+
 	for i := range reservations.Items {
 		res := &reservations.Items[i]
 		resIP := denormalizeIPName(res.Name)
@@ -128,13 +134,12 @@ func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereabou
 		if _, ok := seenIPs[resIPStr]; ok {
 			continue
 		}
-		// Check if this reservation's IP matches any allocation in the pool.
-		for key := range pool.Spec.Allocations {
-			poolIP := allocationKeyToIP(pool, key)
-			if poolIP != nil && poolIP.Equal(resIP) {
+		// Check if this reservation's IP matches any allocation in the pool using O(1) offset lookup.
+		offset, err := iphelpers.IPGetOffset(resIP, parsedNet.IP)
+		if err == nil {
+			if _, exists := pool.Spec.Allocations[offset.String()]; exists {
 				count++
 				seenIPs[resIPStr] = struct{}{}
-				break
 			}
 		}
 	}

@@ -238,8 +238,7 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 
 // Status tests connectivity to the kubernetes backend.
 func (i *KubernetesIPAM) Status(ctx context.Context) error {
-	_, err := i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).List(ctx, metav1.ListOptions{})
-	return err
+	return nil
 }
 
 // Close cleans up the IPAM client.

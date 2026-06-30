@@ -68,7 +68,7 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 		}).
 		Named("nodeslice").
 		WatchesRawSource(source.Kind(mgr.GetCache(), &whereaboutsv1alpha1.NodeSlicePool{},
-			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *whereaboutsv1alpha1.NodeSlicePool) []reconcile.Request {
+			handler.TypedEnqueueRequestsFromMapFunc(func(_ context.Context, obj *whereaboutsv1alpha1.NodeSlicePool) []reconcile.Request {
 				if !obj.DeletionTimestamp.IsZero() {
 					deleteNodeSliceMetrics(obj.Name)
 				}
@@ -81,7 +81,6 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 				},
 			},
 		)).
-
 		Complete(r)
 }
 

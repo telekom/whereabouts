@@ -22,12 +22,11 @@ var (
 	PodRefreshRetries = 3
 )
 
-// IPPool is the interface that represents an manageable pool of allocated IPs.
+// IPPool is the interface that represents a manageable pool of allocated IPs.
 type IPPool interface {
 	Allocations() []types.IPReservation
 	Update(ctx context.Context, reservations []types.IPReservation) error
 }
-
 
 // OverlappingRangeStore is an interface for wrapping overlappingrange storage options.
 type OverlappingRangeStore interface {

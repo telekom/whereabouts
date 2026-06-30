@@ -6,19 +6,18 @@ import (
 	"net"
 	"testing"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	fake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
 	wbfake "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/fake"
 	"github.com/telekom/whereabouts/pkg/types"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8stesting "k8s.io/client-go/testing"
 )
 
 // TestNormalizeIP tests the NormalizeIP function.
@@ -360,7 +359,6 @@ func TestGetPoolReturnsExisting(t *testing.T) {
 		t.Errorf("expected range '10.0.0.0/24', got '%s'", result.Spec.Range)
 	}
 }
-
 
 // TestKubernetesIPAMClose tests the Close method.
 func TestKubernetesIPAMClose(t *testing.T) {

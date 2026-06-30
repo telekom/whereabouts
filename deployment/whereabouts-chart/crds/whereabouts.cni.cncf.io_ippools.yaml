@@ -87,6 +87,11 @@ spec:
                   Allocations is the set of allocated IPs for the given range. Its indices are a direct mapping to the
                   IP with the same index/offset for the pool's range.
                 type: object
+              enable_l3:
+                description: |-
+                  EnableL3 enables L3/routed mode for this range. In L3 mode, all IPs in the
+                  subnet are usable — there is no network or broadcast address exclusion.
+                type: boolean
               range:
                 description: Range is a RFC 4632/4291-style string that represents
                   an IP address and prefix length in CIDR notation.

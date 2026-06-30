@@ -236,7 +236,6 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 	return pool, nil
 }
 
-
 // Close cleans up the IPAM client.
 func (i *KubernetesIPAM) Close() error {
 	return nil
@@ -748,8 +747,6 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 	var overlappingrangestore storage.OverlappingRangeStore
 	var pool storage.IPPool
 
-
-
 	// handle the ip add/del until successful
 	// For multi-range (e.g. dual-stack), if allocation succeeds for range N
 	// but fails for range N+1, we perform a best-effort rollback of the
@@ -1220,4 +1217,5 @@ func wbNamespaceFromCtx(ctx *clientcmdapi.Context) string {
 	}
 	return namespace
 }
-// Fixes issue #245
+
+// Fixes issue #245.

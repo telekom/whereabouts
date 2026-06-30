@@ -29,12 +29,6 @@ type IPPool interface {
 }
 
 // Store is the interface that wraps the basic IP Allocation methods on the underlying storage backend.
-type Store interface {
-	GetIPPool(ctx context.Context, ipRange string) (IPPool, error)
-	GetOverlappingRangeStore() (OverlappingRangeStore, error)
-	Status(ctx context.Context) error
-	Close() error
-}
 
 // OverlappingRangeStore is an interface for wrapping overlappingrange storage options.
 type OverlappingRangeStore interface {

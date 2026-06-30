@@ -120,7 +120,7 @@ Pod Create → kubelet → Multus → whereabouts CNI ADD
 
 ## Storage Layer (`pkg/storage/`)
 
-* `Store` and `IPPool` interfaces defined in `storage.go`.
+* `IPPool` interface defined in `storage.go`.
 * Sole production implementation: `pkg/storage/kubernetes/` using IPPool CRDs
   with JSON Patch + optimistic locking (resource version checks with retry).
 

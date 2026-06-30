@@ -242,7 +242,7 @@ func (i *KubernetesIPAM) Status(ctx context.Context) error {
 	return err
 }
 
-// Close partially implements the Store interface.
+// Close cleans up the IPAM client.
 func (i *KubernetesIPAM) Close() error {
 	return nil
 }

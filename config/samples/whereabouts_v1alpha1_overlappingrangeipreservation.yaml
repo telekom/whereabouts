@@ -1,0 +1,10 @@
+# Example OverlappingRangeIPReservation resource
+apiVersion: whereabouts.cni.cncf.io/v1alpha1
+kind: OverlappingRangeIPReservation
+metadata:
+  name: example-reservation
+  namespace: kube-system
+spec:
+  podref: "default/my-pod"
+  containerid: "abc123"
+  ifname: "eth0"

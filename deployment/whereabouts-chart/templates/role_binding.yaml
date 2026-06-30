@@ -1,0 +1,14 @@
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "whereabouts.serviceAccountName" . }}
+  {{- include "whereabouts.namespace" . | nindent 2 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "whereabouts.serviceAccountName" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "whereabouts.serviceAccountName" . }}
+  {{- include "whereabouts.namespace" . | nindent 2 }}

@@ -1,4 +1,3 @@
-# Dont'forget to update doc/crds/daemonset-install.yaml as well
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -25,6 +24,8 @@ spec:
     spec:
       hostNetwork: true
       serviceAccountName: {{ include "whereabouts.serviceAccountName" . }}
+      {{- $cniBinDir := printf "/host%s" .Values.cniConf.binDir }}
+      {{- $cniConfDir := printf "/host%s" .Values.cniConf.confDir }}
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
@@ -40,13 +41,7 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: [ "/bin/sh" ]
-          args:
-            - -c
-            - |
-              SLEEP=false source /install-cni.sh
-              /token-watcher.sh &
-              /ip-control-loop -log-level debug
+          command: ["/install-cni"]
           env:
           - name: NODENAME
             valueFrom:
@@ -57,29 +52,24 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
+          - name: CNI_BIN_DIR
+            value: {{ $cniBinDir | quote }}
+          - name: CNI_CONF_DIR
+            value: {{ $cniConfDir | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
           - name: cnibin
-            mountPath: /host/opt/cni/bin
+            mountPath: {{ $cniBinDir | quote }}
           - name: cni-net-dir
-            mountPath: /host/etc/cni/net.d
-          - name: cron-scheduler-configmap
-            mountPath: /cron-schedule
+            mountPath: {{ $cniConfDir | quote }}
       volumes:
         - name: cnibin
           hostPath:
-            path: {{ .Values.cniConf.binDir }}
+            path: {{ .Values.cniConf.binDir | quote }}
         - name: cni-net-dir
           hostPath:
-            path: {{ .Values.cniConf.confDir }}
-        - name: cron-scheduler-configmap
-          configMap:
-            name: {{ include "whereabouts.fullname" . }}-config
-            defaultMode: 0744
-            items:
-            - key: "cron-expression"
-              path: "config"
+            path: {{ .Values.cniConf.confDir | quote }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

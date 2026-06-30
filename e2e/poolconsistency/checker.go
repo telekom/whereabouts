@@ -1,10 +1,13 @@
 package poolconsistency
 
 import (
+	"errors"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/retrievers"
-	"github.com/k8snetworkplumbingwg/whereabouts/pkg/storage"
+	"github.com/telekom/whereabouts/e2e/retrievers"
+	"github.com/telekom/whereabouts/pkg/storage"
 )
 
 type Checker struct {
@@ -21,12 +24,16 @@ func NewPoolConsistencyCheck(ipPool storage.IPPool, podList []corev1.Pod) *Check
 
 func (pc *Checker) MissingIPs() []string {
 	var mismatchedIPs []string
-	for _, pod := range pc.podList {
-		podIPs, err := retrievers.SecondaryIfaceIPValue(&pod, "net1")
-		podIP := podIPs[len(podIPs)-1]
-		if err != nil {
-			return []string{}
+	for i := range pc.podList {
+		pod := &pc.podList[i]
+		podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
+		if errors.Is(err, retrievers.ErrNoSecondaryIface) {
+			continue
 		}
+		if err != nil {
+			panic(fmt.Errorf("pool-consistency MissingIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
+		}
+		podIP := podIPs[len(podIPs)-1]
 
 		var found bool
 		for _, allocation := range pc.ipPool.Allocations() {
@@ -50,12 +57,16 @@ func (pc *Checker) StaleIPs() []string {
 	for _, allocation := range pc.ipPool.Allocations() {
 		reservedIP := allocation.IP.String()
 		found := false
-		for _, pod := range pc.podList {
-			podIPs, err := retrievers.SecondaryIfaceIPValue(&pod, "net1")
-			podIP := podIPs[len(podIPs)-1]
-			if err != nil {
+		for i := range pc.podList {
+			pod := &pc.podList[i]
+			podIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
+			if errors.Is(err, retrievers.ErrNoSecondaryIface) {
 				continue
 			}
+			if err != nil {
+				panic(fmt.Errorf("pool-consistency StaleIPs: read net1 IP of pod %s/%s: %w", pod.Namespace, pod.Name, err))
+			}
+			podIP := podIPs[len(podIPs)-1]
 
 			if reservedIP == podIP {
 				found = true

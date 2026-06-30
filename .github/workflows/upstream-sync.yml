@@ -1,0 +1,147 @@
+name: Sync from upstream
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync upstream changes
+    runs-on: ubuntu-latest
+    if: github.repository == 'telekom/whereabouts'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/k8snetworkplumbingwg/whereabouts.git || true
+
+      - name: Fetch upstream
+        run: git fetch upstream
+
+      - name: Check for new upstream commits
+        id: check
+        run: |
+          BEHIND=$(git rev-list --count HEAD..upstream/master)
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "Upstream is $BEHIND commits ahead"
+
+      - name: Ensure upstream-sync label exists
+        if: steps.check.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create "upstream-sync" \
+            --repo "$GH_REPO" \
+            --description "Automated upstream synchronisation PR" \
+            --color "0075ca" \
+            --force
+
+      - name: Create sync branch and PR
+        if: steps.check.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          SYNC_BRANCH="upstream-sync/$(date +%Y-%m-%d)"
+
+          # Check if a sync PR already exists
+          EXISTING_PR=$(gh pr list --repo "$GH_REPO" --head "$SYNC_BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Sync PR #$EXISTING_PR already exists, skipping"
+            exit 0
+          fi
+
+          # Clean up any stale local/remote branch from a previous failed run
+          git branch -D "$SYNC_BRANCH" 2>/dev/null || true
+          git push origin --delete "$SYNC_BRANCH" 2>/dev/null || true
+
+          # Create sync branch from main
+          git checkout -b "$SYNC_BRANCH" origin/main
+
+          # Merge upstream (allow conflicts — they'll be flagged in the PR).
+          # --no-ff ensures a merge commit is always created even for fast-forwards,
+          # so that --amend later rewrites the merge commit (not an upstream commit).
+          MERGE_CLEAN=true
+          git merge upstream/master --no-ff --no-edit || MERGE_CLEAN=false
+
+          # GITHUB_TOKEN cannot push .github/workflows/ changes — GitHub enforces
+          # this regardless of declared permissions because the token is a GitHub App
+          # installation token without the explicit "workflows" scope.
+          #
+          # Fix: after the merge, restore the fork's own .github/workflows/ from
+          # origin/main so the sync branch never contains upstream workflow changes.
+          # Any upstream CI changes must be reviewed and applied to this fork manually.
+          WORKFLOW_NOTE=""
+          restore_fork_workflows() {
+            git rm -r -f --ignore-unmatch .github/workflows >/dev/null 2>&1 || true
+            git checkout origin/main -- .github/workflows/
+          }
+          if [ "$MERGE_CLEAN" = "true" ]; then
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | tr '\n' ' ')
+            if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
+              echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
+              echo "  $UPSTREAM_WORKFLOW_CHANGES"
+              restore_fork_workflows
+              git commit --amend --no-edit
+              WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
+              gh issue create --title "upstream-sync: workflow drift detected" \
+                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
+                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
+            fi
+            BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
+          else
+            # Merge had conflicts — commit the conflict markers so the PR shows them.
+            # Capture conflicting files BEFORE staging (git diff --diff-filter=U only
+            # shows unmerged paths; after git add -A they become staged and disappear
+            # from the unstaged diff).
+            CONFLICTS=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            git add -A
+            # Strip upstream workflow changes from the conflict commit too.
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | tr '\n' ' ')
+            if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
+              echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
+              echo "  $UPSTREAM_WORKFLOW_CHANGES"
+              restore_fork_workflows
+              WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
+              gh issue create --title "upstream-sync: workflow drift detected" \
+                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
+                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
+            fi
+            git commit --no-edit
+            # After stripping workflow files, check whether any real conflicts remain.
+            REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')
+            if [ -z "$REMAINING_CONFLICTS" ] && [ -z "$(echo "$CONFLICTS" | tr -d ' '| grep -v '^\.github/workflows/')" ]; then
+              BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
+            else
+              BODY=$(printf '⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR has **merge conflicts** that need manual resolution.\n\n**${{ steps.check.outputs.behind }}** new upstream commit(s) detected.\n\n**Conflicting files:** `%s`\n\nTo resolve locally:\n```bash\ngit fetch upstream\ngit merge upstream/master\n# Resolve conflicts, then:\ngit add . && git commit\n```%s' "$CONFLICTS" "$WORKFLOW_NOTE")
+            fi
+          fi
+
+          git push origin "$SYNC_BRANCH" --force
+
+          gh pr create \
+            --repo "$GH_REPO" \
+            --base main \
+            --head "$SYNC_BRANCH" \
+            --title "chore: sync upstream whereabouts $(date +%Y-%m-%d)" \
+            --body "$BODY" \
+            --label "upstream-sync"

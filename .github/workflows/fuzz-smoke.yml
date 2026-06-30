@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Fuzz Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  go-fuzz-smoke:
+    name: Go fuzz smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Run fuzz seed corpus
+        run: go test -run='Fuzz' ./pkg/config ./pkg/iphelpers
+      - name: Fuzz config parsing
+        run: |
+          go test -run='^$' -fuzz=FuzzLoadIPAMConfiguration -fuzztime=5s ./pkg/config
+          go test -run='^$' -fuzz=FuzzParsePrevResult -fuzztime=5s ./pkg/config
+      - name: Fuzz CIDR parsing
+        run: go test -run='^$' -fuzz=FuzzCIDRParsing -fuzztime=5s ./pkg/iphelpers

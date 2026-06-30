@@ -3,6 +3,7 @@ API rule violation: list_type_missing,github.com/telekom/whereabouts/api/whereab
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,IPAllocation,ContainerID
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,IPAllocation,IfName
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,IPAllocation,PodRef
+API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,IPPoolSpec,EnableL3
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,ContainerID
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,IfName
 API rule violation: names_match,github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1,OverlappingRangeIPReservationSpec,PodRef

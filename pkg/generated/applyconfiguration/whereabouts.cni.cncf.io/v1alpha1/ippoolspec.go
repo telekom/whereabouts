@@ -27,6 +27,9 @@ type IPPoolSpecApplyConfiguration struct {
 	// Allocations is the set of allocated IPs for the given range. Its indices are a direct mapping to the
 	// IP with the same index/offset for the pool's range.
 	Allocations map[string]IPAllocationApplyConfiguration `json:"allocations,omitempty"`
+	// EnableL3 enables L3/routed mode for this range. In L3 mode, all IPs in the
+	// subnet are usable — there is no network or broadcast address exclusion.
+	EnableL3 *bool `json:"enable_l3,omitempty"`
 }
 
 // IPPoolSpecApplyConfiguration constructs a declarative configuration of the IPPoolSpec type for use with
@@ -54,5 +57,13 @@ func (b *IPPoolSpecApplyConfiguration) WithAllocations(entries map[string]IPAllo
 	for k, v := range entries {
 		b.Allocations[k] = v
 	}
+	return b
+}
+
+// WithEnableL3 sets the EnableL3 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnableL3 field is set to the value of the last call.
+func (b *IPPoolSpecApplyConfiguration) WithEnableL3(value bool) *IPPoolSpecApplyConfiguration {
+	b.EnableL3 = &value
 	return b
 }

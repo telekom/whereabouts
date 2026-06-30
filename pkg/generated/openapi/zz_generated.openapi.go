@@ -302,6 +302,13 @@ func schema_whereabouts_api_whereaboutscnicncfio_v1alpha1_IPPoolSpec(ref common.
 							},
 						},
 					},
+					"enable_l3": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EnableL3 enables L3/routed mode for this range. In L3 mode, all IPs in the subnet are usable — there is no network or broadcast address exclusion.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"range", "allocations"},
 			},

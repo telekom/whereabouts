@@ -67,17 +67,34 @@ type IPPoolReconciler struct {
 func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereaboutsv1alpha1.IPPool, orphanedCount, pendingCount int32) {
 	// Parse CIDR to get first and last usable IPs.
 	_, ipNet, err := net.ParseCIDR(pool.Spec.Range)
+	var totalIPs int32
 	if err == nil {
-		if first, fErr := iphelpers.FirstUsableIP(*ipNet); fErr == nil {
-			pool.Status.FirstIP = first.String()
-		}
-		if last, lErr := iphelpers.LastUsableIP(*ipNet); lErr == nil {
-			pool.Status.LastIP = last.String()
+		if pool.Spec.EnableL3 {
+			pool.Status.FirstIP = iphelpers.NetworkIP(*ipNet).String()
+			pool.Status.LastIP = iphelpers.SubnetBroadcastIP(*ipNet).String()
+		} else {
+			if first, fErr := iphelpers.FirstUsableIP(*ipNet); fErr == nil {
+				pool.Status.FirstIP = first.String()
+			}
+			if last, lErr := iphelpers.LastUsableIP(*ipNet); lErr == nil {
+				pool.Status.LastIP = last.String()
+			}
 		}
 	}
 
 	// Count total usable IPs from the CIDR range.
-	totalIPs, err := iphelpers.CountUsableIPs(pool.Spec.Range)
+	if pool.Spec.EnableL3 && ipNet != nil {
+		first := iphelpers.NetworkIP(*ipNet)
+		last := iphelpers.SubnetBroadcastIP(*ipNet)
+		offset, oErr := iphelpers.IPGetOffset(first, last)
+		if oErr == nil {
+			// math/big is needed but maybe not imported, let's use a simpler way if possible
+			// actually we can just let goimports handle it
+			totalIPs = int32(offset.Int64() + 1)
+		}
+	} else {
+		totalIPs, err = iphelpers.CountUsableIPs(pool.Spec.Range)
+	}
 	if err != nil {
 		log.FromContext(ctx).V(1).Info("failed to count usable IPs", "range", pool.Spec.Range, "error", err)
 	}

@@ -118,6 +118,12 @@ func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereabou
 
 	var count int32
 	seenIPs := make(map[string]struct{})
+	poolIPs := make(map[string]struct{})
+	for key := range pool.Spec.Allocations {
+		if poolIP := allocationKeyToIP(pool, key); poolIP != nil {
+			poolIPs[poolIP.String()] = struct{}{}
+		}
+	}
 	for i := range reservations.Items {
 		res := &reservations.Items[i]
 		resIP := denormalizeIPName(res.Name)
@@ -129,13 +135,9 @@ func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereabou
 			continue
 		}
 		// Check if this reservation's IP matches any allocation in the pool.
-		for key := range pool.Spec.Allocations {
-			poolIP := allocationKeyToIP(pool, key)
-			if poolIP != nil && poolIP.Equal(resIP) {
-				count++
-				seenIPs[resIPStr] = struct{}{}
-				break
-			}
+		if _, ok := poolIPs[resIPStr]; ok {
+			count++
+			seenIPs[resIPStr] = struct{}{}
 		}
 	}
 	pool.Status.OverlappingReservations = count

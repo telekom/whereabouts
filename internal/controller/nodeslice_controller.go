@@ -67,6 +67,21 @@ func SetupNodeSliceReconciler(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: 1,
 		}).
 		Named("nodeslice").
+		WatchesRawSource(source.Kind(mgr.GetCache(), &whereaboutsv1alpha1.NodeSlicePool{},
+			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *whereaboutsv1alpha1.NodeSlicePool) []reconcile.Request {
+				if !obj.DeletionTimestamp.IsZero() {
+					deleteNodeSliceMetrics(obj.Name)
+				}
+				return nil
+			}),
+			predicate.TypedFuncs[*whereaboutsv1alpha1.NodeSlicePool]{
+				DeleteFunc: func(e event.TypedDeleteEvent[*whereaboutsv1alpha1.NodeSlicePool]) bool {
+					deleteNodeSliceMetrics(e.Object.GetName())
+					return false
+				},
+			},
+		)).
+
 		Complete(r)
 }
 
@@ -543,6 +558,7 @@ func (r *NodeSliceReconciler) cleanupStaleOwnedPools(ctx context.Context, nad *n
 		remainingOwners := append([]metav1.OwnerReference{}, pool.OwnerReferences[:ownerIdx]...)
 		remainingOwners = append(remainingOwners, pool.OwnerReferences[ownerIdx+1:]...)
 		if len(remainingOwners) == 0 {
+			deleteNodeSliceMetrics(pool.Name)
 			if err := client.IgnoreNotFound(r.client.Delete(ctx, pool)); err != nil {
 				return err
 			}

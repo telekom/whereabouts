@@ -130,6 +130,12 @@ func deleteIPPoolMetrics(poolName string) {
 	ippoolFreeGauge.DeleteLabelValues(poolName)
 }
 
+// deleteNodeSliceMetrics removes all per-pool gauges for a deleted NodeSlicePool.
+func deleteNodeSliceMetrics(poolName string) {
+	nodesliceSlicesGauge.DeleteLabelValues(poolName)
+	nodesliceNodesGauge.DeleteLabelValues(poolName)
+}
+
 // recordNodeSliceMetrics updates the NodeSlicePool gauges.
 func recordNodeSliceMetrics(poolName string, allocations []whereaboutsv1alpha1.NodeSliceAllocation) {
 	nodesliceSlicesGauge.WithLabelValues(poolName).Set(float64(len(allocations)))

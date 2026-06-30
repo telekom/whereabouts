@@ -361,21 +361,6 @@ func TestGetPoolReturnsExisting(t *testing.T) {
 	}
 }
 
-// TestKubernetesIPAMStatus tests the Status method.
-func TestKubernetesIPAMStatus(t *testing.T) {
-	wbClient := wbfake.NewClientset()
-	k8sClient := fake.NewClientset()
-
-	ipam := &KubernetesIPAM{
-		Client:    *NewKubernetesClient(wbClient, k8sClient),
-		Namespace: "default",
-	}
-
-	err := ipam.Status(context.Background())
-	if err != nil {
-		t.Errorf("Status() should succeed with empty pool list, got: %v", err)
-	}
-}
 
 // TestKubernetesIPAMClose tests the Close method.
 func TestKubernetesIPAMClose(t *testing.T) {

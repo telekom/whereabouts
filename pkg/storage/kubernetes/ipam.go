@@ -237,10 +237,7 @@ func (i *KubernetesIPAM) getPool(ctx context.Context, name string, iprange strin
 }
 
 // Status tests connectivity to the kubernetes backend.
-func (i *KubernetesIPAM) Status(ctx context.Context) error {
-	_, err := i.client.WhereaboutsV1alpha1().IPPools(i.Namespace).List(ctx, metav1.ListOptions{})
-	return err
-}
+
 
 // Close cleans up the IPAM client.
 func (i *KubernetesIPAM) Close() error {
@@ -752,15 +749,6 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 
 	var overlappingrangestore storage.OverlappingRangeStore
 	var pool storage.IPPool
-
-	statusCtx, statusCancel := context.WithTimeout(ctx, storage.RequestTimeout)
-	defer statusCancel()
-
-	// Check our connectivity first
-	if err := ipam.Status(statusCtx); err != nil {
-		logging.Errorf("IPAM connectivity error: %w", err)
-		return newips, err
-	}
 
 	// handle the ip add/del until successful
 	// For multi-range (e.g. dual-stack), if allocation succeeds for range N

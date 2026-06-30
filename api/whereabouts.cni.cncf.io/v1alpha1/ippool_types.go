@@ -15,6 +15,11 @@ type IPPoolSpec struct {
 	// Allocations is the set of allocated IPs for the given range. Its indices are a direct mapping to the
 	// IP with the same index/offset for the pool's range.
 	Allocations map[string]IPAllocation `json:"allocations"`
+
+	// EnableL3 enables L3/routed mode for this range. In L3 mode, all IPs in the
+	// subnet are usable — there is no network or broadcast address exclusion.
+	// +optional
+	EnableL3 bool `json:"enable_l3,omitempty"`
 }
 
 // IPPoolStatus defines the observed state of IPPool.

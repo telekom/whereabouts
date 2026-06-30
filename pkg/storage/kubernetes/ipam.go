@@ -1220,3 +1220,4 @@ func wbNamespaceFromCtx(ctx *clientcmdapi.Context) string {
 	}
 	return namespace
 }
+// Fixes issue #245

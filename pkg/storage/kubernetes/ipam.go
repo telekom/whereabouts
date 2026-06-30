@@ -1027,16 +1027,26 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)
 					// Roll back the pool update so the IP is not reserved without
 					// overlap protection, then decide whether to retry.
-					if mode == whereaboutstypes.Allocate && pool != nil {
-						rollbackCommitted(context.Background(), []committedAlloc{{
-							pool:        pool,
-							poolID:      poolIdentifier,
-							ip:          newip.IP,
-							ipam:        ipam,
-							containerID: ipam.ContainerID,
-							podRef:      ipamConf.GetPodRef(),
-							ifName:      ipam.IfName,
-						}})
+					if pool != nil {
+						if mode == whereaboutstypes.Deallocate {
+							for _, orig := range reservelist {
+								if orig.IP.Equal(ipforoverlappingrangeupdate) {
+									usereservelist = append(usereservelist, orig)
+									_ = pool.Update(context.Background(), usereservelist)
+									break
+								}
+							}
+						} else {
+							rollbackCommitted(context.Background(), []committedAlloc{{
+								pool:        pool,
+								poolID:      poolIdentifier,
+								ip:          newip.IP,
+								ipam:        ipam,
+								containerID: ipam.ContainerID,
+								podRef:      ipamConf.GetPodRef(),
+								ifName:      ipam.IfName,
+							}})
+						}
 					}
 					if isRetryableRollbackError(err) {
 						requestCancel()

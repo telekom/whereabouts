@@ -10,19 +10,22 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	netclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1"
 
-	"github.com/k8snetworkplumbingwg/whereabouts/e2e/entities"
-	whereaboutscnicncfiov1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/api/whereabouts.cni.cncf.io/v1alpha1"
-	wbclient "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned"
+	whereaboutsv1alpha1 "github.com/telekom/whereabouts/api/whereabouts.cni.cncf.io/v1alpha1"
+	"github.com/telekom/whereabouts/e2e/entities"
+	wbclient "github.com/telekom/whereabouts/pkg/generated/clientset/versioned"
 )
 
 const (
 	createTimeout          = 10 * time.Second
 	deleteTimeout          = 2 * createTimeout
+	podCreateTimeout       = 90 * time.Second
+	podDeleteTimeout       = 2 * time.Minute
 	rsCreateTimeout        = 600 * time.Second
 	nodeSliceCreateTimeout = 5 * time.Second
 )
@@ -57,7 +60,7 @@ func NewClientInfo(config *rest.Config) (*ClientInfo, error) {
 	}, nil
 }
 
-func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutscnicncfiov1alpha1.NodeSlicePool, error) {
+func (c *ClientInfo) GetNodeSlicePool(name string, namespace string) (*whereaboutsv1alpha1.NodeSlicePool, error) {
 	err := WaitForNodeSliceReady(context.TODO(), c, namespace, name, nodeSliceCreateTimeout)
 	if err != nil {
 		return nil, err
@@ -93,7 +96,6 @@ func (c *ClientInfo) ProvisionPod(podName string, namespace string, label, annot
 		return nil, err
 	}
 
-	const podCreateTimeout = 10 * time.Second
 	if err := WaitForPodReady(ctx, c.Client, pod.Namespace, pod.Name, podCreateTimeout); err != nil {
 		return nil, err
 	}
@@ -112,7 +114,6 @@ func (c *ClientInfo) DeletePod(pod *corev1.Pod) error {
 		return err
 	}
 
-	const podDeleteTimeout = 20 * time.Second
 	if err := WaitForPodToDisappear(ctx, c.Client, pod.GetNamespace(), pod.GetName(), podDeleteTimeout); err != nil {
 		return err
 	}
@@ -200,17 +201,51 @@ func (c *ClientInfo) DeleteStatefulSet(namespace string, serviceName string, lab
 }
 
 func (c *ClientInfo) ScaleStatefulSet(statefulSetName string, namespace string, deltaInstance int) error {
-	statefulSet, err := c.Client.AppsV1().StatefulSets(namespace).Get(context.TODO(), statefulSetName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	newReplicas := *statefulSet.Spec.Replicas + int32(deltaInstance)
-	statefulSet.Spec.Replicas = &newReplicas
+	return c.updateStatefulSetReplicas(statefulSetName, namespace, func(replicas int32) int32 {
+		return replicas + int32(deltaInstance)
+	})
+}
 
-	if _, err := c.Client.AppsV1().StatefulSets(namespace).Update(context.TODO(), statefulSet, metav1.UpdateOptions{}); err != nil {
-		return err
+func (c *ClientInfo) SetStatefulSetReplicas(statefulSetName string, namespace string, replicas int32) error {
+	return c.updateStatefulSetReplicas(statefulSetName, namespace, func(int32) int32 {
+		return replicas
+	})
+}
+
+func (c *ClientInfo) updateStatefulSetReplicas(statefulSetName string, namespace string, nextReplicas func(int32) int32) error {
+	return updateStatefulSetReplicas(c.Client.AppsV1().StatefulSets(namespace), statefulSetName, nextReplicas)
+}
+
+func updateStatefulSetReplicas(statefulSets appsv1client.StatefulSetInterface, statefulSetName string, nextReplicas func(int32) int32) error {
+	ctx := context.Background()
+	var lastErr error
+	for range 5 {
+		statefulSet, err := statefulSets.Get(ctx, statefulSetName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		replicas := statefulSetReplicasOrDefault(statefulSet)
+		newReplicas := nextReplicas(replicas)
+		statefulSet.Spec.Replicas = &newReplicas
+
+		_, err = statefulSets.Update(ctx, statefulSet, metav1.UpdateOptions{})
+		if err == nil {
+			return nil
+		}
+		if !errors.IsConflict(err) {
+			return err
+		}
+		lastErr = err
+		time.Sleep(200 * time.Millisecond)
 	}
-	return nil
+	return lastErr
+}
+
+func statefulSetReplicasOrDefault(statefulSet *appsv1.StatefulSet) int32 {
+	if statefulSet.Spec.Replicas == nil {
+		return 1
+	}
+	return *statefulSet.Spec.Replicas
 }
 
 func deleteRightNowAndBlockUntilAssociatedPodsAreGone() metav1.DeleteOptions {

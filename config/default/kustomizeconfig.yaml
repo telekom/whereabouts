@@ -1,0 +1,5 @@
+varReference:
+- kind: ValidatingWebhookConfiguration
+  path: metadata/annotations/cert-controller.cert-rotation~1inject-ca-from
+- kind: ValidatingWebhookConfiguration
+  path: webhooks/matchConditions/expression

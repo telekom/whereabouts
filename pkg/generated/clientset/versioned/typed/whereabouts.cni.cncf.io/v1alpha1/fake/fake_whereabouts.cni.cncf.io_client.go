@@ -18,7 +18,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/k8snetworkplumbingwg/whereabouts/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
+	v1alpha1 "github.com/telekom/whereabouts/pkg/generated/clientset/versioned/typed/whereabouts.cni.cncf.io/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

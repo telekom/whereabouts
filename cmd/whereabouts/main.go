@@ -1,0 +1,345 @@
+// Package main contains the beginning of the whereabouts cmd.
+package main
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"time"
+
+	"github.com/containernetworking/cni/pkg/skel"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
+	current "github.com/containernetworking/cni/pkg/types/100"
+	cniversion "github.com/containernetworking/cni/pkg/version"
+
+	"github.com/telekom/whereabouts/pkg/config"
+	"github.com/telekom/whereabouts/pkg/logging"
+	"github.com/telekom/whereabouts/pkg/storage"
+	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
+	"github.com/telekom/whereabouts/pkg/types"
+	"github.com/telekom/whereabouts/pkg/version"
+)
+
+func cmdAddFunc(args *skel.CmdArgs) error {
+	ipamConf, confVersion, err := config.LoadIPAMConfig(args.StdinData, args.Args)
+	if err != nil {
+		return logging.Errorf("IPAM configuration load failed: %w", err)
+	}
+	logIPAMConfigLoaded("ADD", ipamConf)
+	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
+	if err != nil {
+		return logging.Errorf("failed to create Kubernetes IPAM manager: %w", err)
+	}
+	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
+
+	logging.Debugf("Beginning IPAM for ContainerID: %q - podRef: %q - ifName: %q", args.ContainerID, ipamConf.GetPodRef(), args.IfName)
+	return cmdAdd(ipam, confVersion)
+}
+
+const (
+	// delMaxRetries is the number of times to retry a failed CNI DEL before giving up.
+	delMaxRetries = 3
+	// delInitialBackoff is the initial backoff duration between DEL retries.
+	delInitialBackoff = 1 * time.Second
+)
+
+var supportedCNIVersions = cniversion.PluginSupports(
+	"0.1.0",
+	"0.2.0",
+	"0.3.0",
+	"0.3.1",
+	"0.4.0",
+	"1.0.0",
+)
+
+func cmdDelFunc(args *skel.CmdArgs) error {
+	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
+	if err != nil {
+		// CNI spec: DEL should be lenient about missing/invalid config.
+		// Log the error but do not return it — the container is already gone.
+		logging.Errorf("IPAM configuration load failed (DEL tolerant): %w", err)
+		return nil
+	}
+	logIPAMConfigLoaded("DEL", ipamConf)
+
+	var lastErr error
+	backoff := delInitialBackoff
+	for attempt := range delMaxRetries {
+		if attempt > 0 {
+			logging.Debugf("Retrying DEL (attempt %d/%d) after %s", attempt+1, delMaxRetries, backoff)
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+
+		ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
+		if err != nil {
+			lastErr = err
+			logging.Errorf("IPAM client initialization error (attempt %d/%d): %w", attempt+1, delMaxRetries, err)
+			continue
+		}
+
+		logging.Debugf("Beginning delete for ContainerID: %q - podRef: %q - ifName: %q", args.ContainerID, ipamConf.GetPodRef(), args.IfName)
+		lastErr = cmdDel(ipam)
+		safeCloseKubernetesBackendConnection(ipam)
+		if lastErr == nil {
+			return nil
+		}
+		logging.Errorf("DEL attempt %d/%d failed: %w", attempt+1, delMaxRetries, lastErr)
+	}
+
+	// All retries exhausted — return the error so the container runtime
+	// can retry the DEL call. Swallowing the error here would cause
+	// permanent IP leaks that only the reconciler could clean up.
+	return logging.Errorf("DEL failed after %d attempts: %w", delMaxRetries, lastErr)
+}
+
+func main() {
+	skel.PluginMainFuncs(skel.CNIFuncs{
+		Add:   cmdAddFunc,
+		Check: cmdCheck,
+		Del:   cmdDelFunc,
+	},
+		supportedCNIVersions,
+		fmt.Sprintf("whereabouts %s", version.GetFullVersionWithRuntimeInfo()))
+}
+
+func safeCloseKubernetesBackendConnection(ipam *kubernetes.KubernetesIPAM) {
+	if err := ipam.Close(); err != nil {
+		_ = logging.Errorf("failed to close the connection to the K8s backend: %w", err)
+	}
+}
+
+func cmdCheck(args *skel.CmdArgs) error {
+	ipamConf, _, err := config.LoadIPAMConfig(args.StdinData, args.Args)
+	if err != nil {
+		return logging.Errorf("IPAM configuration load failed: %w", err)
+	}
+	logIPAMConfigLoaded("CHECK", ipamConf)
+
+	ipam, err := kubernetes.NewKubernetesIPAM(args.ContainerID, args.IfName, *ipamConf)
+	if err != nil {
+		return logging.Errorf("failed to create Kubernetes IPAM manager: %w", err)
+	}
+	defer func() { safeCloseKubernetesBackendConnection(ipam) }()
+
+	prevResult, err := config.ParsePrevResult(args.StdinData)
+	if err != nil {
+		return logging.Errorf("CHECK: could not parse prevResult: %w", err)
+	}
+
+	return runCmdCheck(ipam, args, prevResult)
+}
+
+func runCmdCheck(ipam *kubernetes.KubernetesIPAM, args *skel.CmdArgs, prevResult *current.Result) error {
+	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
+	defer cancel()
+
+	allocatedIPs := make(map[string]bool)
+
+	for idx := range ipam.Config.IPRanges {
+		ipRange := &ipam.Config.IPRanges[idx]
+		poolIdentifier, err := kubernetes.EffectivePoolIdentifier(ctx, ipam, ipRange.Range)
+		if err != nil {
+			return logging.Errorf("CHECK: error resolving pool for range %s: %w", ipRange.Range, err)
+		}
+		pool, err := ipam.GetExistingIPPool(ctx, poolIdentifier)
+		if err != nil {
+			if e, ok := err.(storage.Temporary); ok && e.Temporary() {
+				return logging.Errorf("CHECK: transient error reading pool %s: %w", poolIdentifier.IPRange, err)
+			}
+			return logging.Errorf("CHECK: error reading pool %s: %w", poolIdentifier.IPRange, err)
+		}
+
+		found := false
+		_, ipNet, err := net.ParseCIDR(poolIdentifier.IPRange)
+		if err != nil {
+			return logging.Errorf("CHECK: invalid pool range %s: %w", poolIdentifier.IPRange, err)
+		}
+		for _, alloc := range pool.Allocations() {
+			if alloc.ContainerID == args.ContainerID && alloc.IfName == args.IfName {
+				found = true
+				allocationAddress := net.IPNet{IP: alloc.IP, Mask: ipNet.Mask}
+				allocatedIPs[resultKey(allocationAddress, gatewayForExpectedAllocation(allocationAddress, ipam.Config.Gateway))] = true
+			}
+		}
+		if !found {
+			return logging.Errorf("CHECK: no allocation found for containerID %q ifName %q in range %s",
+				args.ContainerID, args.IfName, poolIdentifier.IPRange)
+		}
+		logging.Debugf("CHECK: allocation verified for containerID %q ifName %q in range %s",
+			args.ContainerID, args.IfName, poolIdentifier.IPRange)
+	}
+	for _, address := range ipam.Config.Addresses {
+		allocatedIPs[resultKey(address.Address, address.Gateway)] = true
+	}
+
+	// If prevResult was provided, cross-check bidirectionally:
+	// (a) every prevResult IP must be expected by IPAM (prevResult→IPAM), and
+	// (b) every expected IP for this container must be in prevResult (IPAM→prevResult).
+	// Either mismatch indicates state drift between the runtime and the IPAM store.
+	if prevResult != nil {
+		prevResultIPs := make(map[string]bool, len(prevResult.IPs))
+		for _, ipConf := range prevResult.IPs {
+			prevResultIPs[resultKey(ipConf.Address, ipConf.Gateway)] = true
+		}
+
+		for key := range prevResultIPs {
+			if !allocatedIPs[key] {
+				return logging.Errorf(
+					"CHECK: IP config %s from prevResult is not expected for containerID %q ifName %q",
+					key, args.ContainerID, args.IfName)
+			}
+			logging.Debugf("CHECK: prevResult IP config %s matches expected IPAM result", key)
+		}
+
+		for key := range allocatedIPs {
+			if !prevResultIPs[key] {
+				return logging.Errorf(
+					"CHECK: expected IP config %s for containerID %q ifName %q is missing from prevResult",
+					key, args.ContainerID, args.IfName)
+			}
+			logging.Debugf("CHECK: expected IP config %s confirmed in prevResult", key)
+		}
+	}
+
+	return nil
+}
+
+func resultKey(address net.IPNet, gateway net.IP) string {
+	gatewayKey := ""
+	if gateway != nil {
+		gatewayKey = gateway.String()
+	}
+	return fmt.Sprintf("%s gateway=%s", address.String(), gatewayKey)
+}
+
+func gatewayForExpectedAllocation(address net.IPNet, gateway net.IP) net.IP {
+	if gateway == nil {
+		return nil
+	}
+	if (address.IP.To4() != nil) != (gateway.To4() != nil) {
+		return nil
+	}
+	return gateway
+}
+
+func logIPAMConfigLoaded(operation string, ipamConf *types.IPAMConfig) {
+	logging.Debugf(
+		"%s - IPAM configuration read: ranges=%d staticAddresses=%d routes=%d dnsNameservers=%d gatewayConfigured=%t networkNameSet=%t nodeSliceEnabled=%t overlappingRanges=%t optimisticIPAM=%t",
+		operation,
+		len(ipamConf.IPRanges),
+		len(ipamConf.Addresses),
+		len(ipamConf.Routes),
+		len(ipamConf.DNS.Nameservers),
+		ipamConf.Gateway != nil,
+		ipamConf.NetworkName != "",
+		ipamConf.NodeSliceSize != "",
+		ipamConf.OverlappingRanges,
+		ipamConf.OptimisticIPAM,
+	)
+}
+
+func cmdAdd(client *kubernetes.KubernetesIPAM, cniVersion string) error {
+	// Initialize our result, and assign DNS & routing.
+	result := &current.Result{}
+	result.DNS = client.Config.DNS
+	result.Routes = client.Config.Routes
+
+	var newips []net.IPNet
+
+	ctx, cancel := context.WithTimeout(context.Background(), types.AddTimeLimit)
+	defer cancel()
+
+	if err := validateStaticAddressesOutsideManagedRanges(client.Config.Addresses, client.Config.IPRanges); err != nil {
+		return logging.Errorf("invalid static address configuration: %w", err)
+	}
+
+	var err error
+	if client.Config.OptimisticIPAM {
+		// Optimistic mode: bypass leader election and rely on Kubernetes
+		// resourceVersion-based optimistic concurrency control. This reduces
+		// latency significantly in large clusters (600+ pods). See #510.
+		logging.Debugf("Using optimistic IPAM (no leader election)")
+		newips, err = kubernetes.IPManagementKubernetesUpdate(ctx, types.Allocate, client, client.Config)
+	} else {
+		newips, err = kubernetes.IPManagement(ctx, types.Allocate, client.Config, client)
+	}
+	if err != nil {
+		return logging.Errorf("error at storage engine: %w", err)
+	}
+
+	logging.Verbosef("ADD: allocated %d IP(s) for containerID %q podRef %q", len(newips), client.ContainerID, client.Config.GetPodRef())
+
+	for _, newip := range newips {
+		result.IPs = append(result.IPs, &current.IPConfig{
+			Address: newip,
+			Gateway: gatewayForAddress(newip, client.Config.Gateway)})
+	}
+
+	// Assign all the static IP elements.
+	for _, v := range client.Config.Addresses {
+		result.IPs = append(result.IPs, &current.IPConfig{
+			Address: v.Address,
+			Gateway: v.Gateway})
+	}
+
+	if len(result.IPs) == 0 {
+		return logging.Errorf("no IP addresses allocated - check IPAM configuration (ipRanges may be empty)")
+	}
+
+	return cnitypes.PrintResult(result, cniVersion)
+}
+
+func gatewayForAddress(address net.IPNet, gateway net.IP) net.IP {
+	if gateway == nil {
+		return nil
+	}
+	return gatewayWithSameFamily(address.IP, gateway)
+}
+
+func gatewayWithSameFamily(address, gateway net.IP) net.IP {
+	if address.To4() != nil {
+		if gateway.To4() != nil {
+			return gateway
+		}
+		return nil
+	}
+	if gateway.To4() == nil {
+		return gateway
+	}
+	return nil
+}
+
+func validateStaticAddressesOutsideManagedRanges(addresses []types.Address, ranges []types.RangeConfiguration) error {
+	for _, address := range addresses {
+		for rangeIndex := range ranges {
+			ipRange := &ranges[rangeIndex]
+			_, ipNet, err := net.ParseCIDR(ipRange.Range)
+			if err != nil {
+				return fmt.Errorf("invalid managed range %q: %w", ipRange.Range, err)
+			}
+			if ipNet.Contains(address.Address.IP) {
+				return fmt.Errorf("static address %s overlaps managed range %s", address.Address.String(), ipRange.Range)
+			}
+		}
+	}
+	return nil
+}
+
+func cmdDel(client *kubernetes.KubernetesIPAM) error {
+	ctx, cancel := context.WithTimeout(context.Background(), types.DelTimeLimit)
+	defer cancel()
+
+	var err error
+	if client.Config.OptimisticIPAM {
+		logging.Debugf("Using optimistic IPAM for deallocation (no leader election)")
+		_, err = kubernetes.IPManagementKubernetesUpdate(ctx, types.Deallocate, client, client.Config)
+	} else {
+		_, err = kubernetes.IPManagement(ctx, types.Deallocate, client.Config, client)
+	}
+	if err != nil {
+		return logging.Errorf("error deallocating IP: %w", err)
+	}
+	logging.Verbosef("DEL: released IP(s) for containerID %q podRef %q", client.ContainerID, client.Config.GetPodRef())
+	return nil
+}

@@ -27,11 +27,7 @@ If release name contains chart name it will be used as a full name.
 Provide a method to override namespace so parent charts can set it
 */}}
 {{- define "whereabouts.namespace" -}}
-{{- if hasKey .Values "namespaceOverride" -}}
-namespace: {{ .Values.namespaceOverride }}
-{{- else }}
-namespace: {{ .Release.Namespace }}
-{{- end }}
+namespace: {{ .Values.namespaceOverride | default .Release.Namespace }}
 {{- end }}
 
 {{/*
@@ -69,6 +65,18 @@ Create the name of the service account to use
 {{- if .Values.serviceAccount.create }}
 {{- default (include "whereabouts.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default (include "whereabouts.fullname" .) .Values.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/*
+CEL matchCondition expression to bypass webhook validation for the CNI
+plugin and operator ServiceAccounts. Used in ValidatingWebhookConfiguration.
+*/}}
+{{- define "whereabouts.webhookBypassCondition" -}}
+matchConditions:
+- name: bypass-cni-plugin
+  expression: >-
+    !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.serviceAccountName" . }}")
+    && !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.fullname" . }}-operator")
 {{- end }}

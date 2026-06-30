@@ -1,0 +1,3 @@
+This directory contains vendored third-party dependencies.
+Each dependency retains its own license, found in its respective directory.
+No license assertion is made by this project for third-party code.

@@ -242,7 +242,6 @@ func (i *KubernetesIPAM) Status(ctx context.Context) error {
 	return err
 }
 
-
 func (i *KubernetesIPAM) Close() error {
 	return nil
 }

@@ -118,7 +118,10 @@ jobs:
                 --limit 100 \
                 --json number,title,createdAt \
                 --jq "map(select(.title == \"$issue_title\")) | sort_by(.createdAt)[0].number" 2>/dev/null); then
-                echo "::warning::Failed fallback lookup for an existing workflow-drift issue; skipping issue creation to avoid duplicates"
+                echo "::warning::Failed fallback lookup for an existing workflow-drift issue; recording drift in the job summary to avoid duplicate issues"
+                if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                  printf '## Workflow drift report\n\n%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"
+                fi
                 return
               fi
             fi

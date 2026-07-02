@@ -96,8 +96,7 @@ jobs:
             git checkout origin/main -- .github/workflows/
           }
           report_workflow_drift() {
-            local changed_files
-            changed_files=$(printf '%s' "$1" | awk '{$1=$1; print}')
+            local changed_files=$1
             local issue_title="upstream-sync: workflow drift detected"
             local drift_marker="<!-- upstream-sync-workflow-drift: ${changed_files} -->"
             local body

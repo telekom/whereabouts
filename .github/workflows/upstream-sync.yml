@@ -101,6 +101,11 @@ jobs:
             local drift_marker="<!-- upstream-sync-workflow-drift: ${changed_files} -->"
             local body
             body=$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n%s\n_Auto-created by upstream-sync workflow._' "$changed_files" "$drift_marker")
+            write_drift_summary() {
+              if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                printf '## Workflow drift report\n\n%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            }
 
             local existing_issue
             if ! existing_issue=$(gh issue list \
@@ -119,9 +124,7 @@ jobs:
                 --json number,title,createdAt \
                 --jq "map(select(.title == \"$issue_title\")) | sort_by(.createdAt)[0].number" 2>/dev/null); then
                 echo "::warning::Failed fallback lookup for an existing workflow-drift issue; recording drift in the job summary to avoid duplicate issues"
-                if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-                  printf '## Workflow drift report\n\n%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"
-                fi
+                write_drift_summary
                 return
               fi
             fi
@@ -136,7 +139,8 @@ jobs:
                 --repo "$GH_REPO" \
                 --json body \
                 --jq '.body' 2>/dev/null); then
-                echo "::warning::Failed to read workflow-drift issue #$existing_issue body; skipping update to avoid duplicates"
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue body; recording drift in the job summary to avoid duplicates"
+                write_drift_summary
                 return
               fi
               if printf '%s' "$existing_body" | grep -Fq "$drift_marker"; then
@@ -148,7 +152,8 @@ jobs:
                 --repo "$GH_REPO" \
                 --json comments \
                 --jq '.comments[].body' 2>/dev/null); then
-                echo "::warning::Failed to read workflow-drift issue #$existing_issue comments; skipping update to avoid duplicate comments"
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue comments; recording drift in the job summary to avoid duplicate comments"
+                write_drift_summary
                 return
               fi
               if printf '%s' "$existing_comments" | grep -Fq "$drift_marker"; then

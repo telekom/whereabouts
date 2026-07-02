@@ -98,8 +98,9 @@ jobs:
           report_workflow_drift() {
             local changed_files=$1
             local issue_title="upstream-sync: workflow drift detected"
+            local drift_marker="<!-- upstream-sync-workflow-drift: ${changed_files} -->"
             local body
-            body=$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$changed_files")
+            body=$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n%s\n_Auto-created by upstream-sync workflow._' "$changed_files" "$drift_marker")
 
             local existing_issue
             existing_issue=$(gh issue list \
@@ -110,7 +111,20 @@ jobs:
               --jq '.[0].number' 2>/dev/null || true)
 
             if [ -n "$existing_issue" ]; then
-              echo "Workflow-drift issue #$existing_issue is already open; skipping duplicate issue creation"
+              local existing_body
+              existing_body=$(gh issue view "$existing_issue" \
+                --repo "$GH_REPO" \
+                --json body \
+                --jq '.body' 2>/dev/null || true)
+              if printf '%s' "$existing_body" | grep -Fq "$drift_marker"; then
+                echo "Workflow-drift issue #$existing_issue already has the current drift set; skipping duplicate issue creation"
+                return
+              fi
+
+              echo "Workflow-drift issue #$existing_issue is already open; updating changed-file set"
+              gh issue comment "$existing_issue" \
+                --repo "$GH_REPO" \
+                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue"
               return
             fi
 

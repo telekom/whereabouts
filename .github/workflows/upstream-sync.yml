@@ -96,7 +96,8 @@ jobs:
             git checkout origin/main -- .github/workflows/
           }
           report_workflow_drift() {
-            local changed_files=$1
+            local changed_files
+            changed_files=$(printf '%s' "$1" | awk '{$1=$1; print}')
             local issue_title="upstream-sync: workflow drift detected"
             local drift_marker="<!-- upstream-sync-workflow-drift: ${changed_files} -->"
             local body
@@ -110,8 +111,14 @@ jobs:
               --limit 100 \
               --json number,createdAt \
               --jq 'sort_by(.createdAt)[0].number' 2>/dev/null); then
-              echo "::warning::Failed to check for an existing workflow-drift issue; skipping issue creation to avoid duplicates"
-              return
+              echo "::warning::Failed title-search for an existing workflow-drift issue; trying label/title fallback"
+              existing_issue=$(gh issue list \
+                --repo "$GH_REPO" \
+                --state open \
+                --label "ci" \
+                --limit 100 \
+                --json number,title,createdAt \
+                --jq "map(select(.title == \"$issue_title\")) | sort_by(.createdAt)[0].number" 2>/dev/null || true)
             fi
             existing_issue=$(printf '%s' "$existing_issue" | tr -d '[:space:]')
             if [ "$existing_issue" = "null" ]; then
@@ -152,7 +159,7 @@ jobs:
               --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
           }
           if [ "$MERGE_CLEAN" = "true" ]; then
-            UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | tr '\n' ' ')
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | paste -sd ' ' -)
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
@@ -170,7 +177,7 @@ jobs:
             CONFLICTS=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
             git add -A
             # Strip upstream workflow changes from the conflict commit too.
-            UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | tr '\n' ' ')
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | paste -sd ' ' -)
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"

@@ -162,17 +162,23 @@ jobs:
               fi
 
               echo "Workflow-drift issue #$existing_issue is already open; adding changed-file update"
-              gh issue comment "$existing_issue" \
+              if ! gh issue comment "$existing_issue" \
                 --repo "$GH_REPO" \
-                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue"
+                --body "$body" 2>/dev/null; then
+                echo "::warning::Failed to update workflow-drift issue; recording drift in the job summary"
+                write_drift_summary
+              fi
               return
             fi
 
-            gh issue create \
+            if ! gh issue create \
               --repo "$GH_REPO" \
               --title "$issue_title" \
               --body "$body" \
-              --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
+              --label "ci" 2>/dev/null; then
+              echo "::warning::Failed to create workflow-drift issue; recording drift in the job summary"
+              write_drift_summary
+            fi
           }
           if [ "$MERGE_CLEAN" = "true" ]; then
             UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | paste -sd ' ' -)

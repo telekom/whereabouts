@@ -109,6 +109,10 @@ jobs:
               --search "in:title \"$issue_title\"" \
               --json number \
               --jq '.[0].number' 2>/dev/null || true)
+            existing_issue=$(printf '%s' "$existing_issue" | tr -d '[:space:]')
+            if [ "$existing_issue" = "null" ]; then
+              existing_issue=""
+            fi
 
             if [ -n "$existing_issue" ]; then
               local existing_body
@@ -122,9 +126,9 @@ jobs:
               fi
 
               echo "Workflow-drift issue #$existing_issue is already open; updating changed-file set"
-              gh issue comment "$existing_issue" \
+              gh issue edit "$existing_issue" \
                 --repo "$GH_REPO" \
-                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue"
+                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue body"
               return
             fi
 

@@ -107,8 +107,9 @@ jobs:
               --repo "$GH_REPO" \
               --state open \
               --search "in:title \"$issue_title\"" \
-              --json number \
-              --jq '.[0].number' 2>/dev/null || true)
+              --limit 100 \
+              --json number,createdAt \
+              --jq 'sort_by(.createdAt)[0].number' 2>/dev/null || true)
             existing_issue=$(printf '%s' "$existing_issue" | tr -d '[:space:]')
             if [ "$existing_issue" = "null" ]; then
               existing_issue=""
@@ -124,11 +125,20 @@ jobs:
                 echo "Workflow-drift issue #$existing_issue already has the current drift set; skipping duplicate issue creation"
                 return
               fi
-
-              echo "Workflow-drift issue #$existing_issue is already open; updating changed-file set"
-              gh issue edit "$existing_issue" \
+              local existing_comments
+              existing_comments=$(gh issue view "$existing_issue" \
                 --repo "$GH_REPO" \
-                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue body"
+                --json comments \
+                --jq '.comments[].body' 2>/dev/null || true)
+              if printf '%s' "$existing_comments" | grep -Fq "$drift_marker"; then
+                echo "Workflow-drift issue #$existing_issue already has the current drift set in comments; skipping duplicate issue creation"
+                return
+              fi
+
+              echo "Workflow-drift issue #$existing_issue is already open; adding changed-file update"
+              gh issue comment "$existing_issue" \
+                --repo "$GH_REPO" \
+                --body "$body" 2>/dev/null || echo "::warning::Failed to update workflow-drift issue"
               return
             fi
 

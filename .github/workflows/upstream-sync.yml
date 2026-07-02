@@ -112,13 +112,16 @@ jobs:
               --json number,createdAt \
               --jq 'sort_by(.createdAt)[0].number' 2>/dev/null); then
               echo "::warning::Failed title-search for an existing workflow-drift issue; trying label/title fallback"
-              existing_issue=$(gh issue list \
+              if ! existing_issue=$(gh issue list \
                 --repo "$GH_REPO" \
                 --state open \
                 --label "ci" \
                 --limit 100 \
                 --json number,title,createdAt \
-                --jq "map(select(.title == \"$issue_title\")) | sort_by(.createdAt)[0].number" 2>/dev/null || true)
+                --jq "map(select(.title == \"$issue_title\")) | sort_by(.createdAt)[0].number" 2>/dev/null); then
+                echo "::warning::Failed fallback lookup for an existing workflow-drift issue; skipping issue creation to avoid duplicates"
+                return
+              fi
             fi
             existing_issue=$(printf '%s' "$existing_issue" | tr -d '[:space:]')
             if [ "$existing_issue" = "null" ]; then
@@ -127,19 +130,25 @@ jobs:
 
             if [ -n "$existing_issue" ]; then
               local existing_body
-              existing_body=$(gh issue view "$existing_issue" \
+              if ! existing_body=$(gh issue view "$existing_issue" \
                 --repo "$GH_REPO" \
                 --json body \
-                --jq '.body' 2>/dev/null || true)
+                --jq '.body' 2>/dev/null); then
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue body; skipping update to avoid duplicates"
+                return
+              fi
               if printf '%s' "$existing_body" | grep -Fq "$drift_marker"; then
                 echo "Workflow-drift issue #$existing_issue already has the current drift set; skipping duplicate issue creation"
                 return
               fi
               local existing_comments
-              existing_comments=$(gh issue view "$existing_issue" \
+              if ! existing_comments=$(gh issue view "$existing_issue" \
                 --repo "$GH_REPO" \
                 --json comments \
-                --jq '.comments[].body' 2>/dev/null || true)
+                --jq '.comments[].body' 2>/dev/null); then
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue comments; skipping update to avoid duplicate comments"
+                return
+              fi
               if printf '%s' "$existing_comments" | grep -Fq "$drift_marker"; then
                 echo "Workflow-drift issue #$existing_issue already has the current drift set in comments; skipping duplicate issue creation"
                 return

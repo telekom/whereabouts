@@ -103,13 +103,16 @@ jobs:
             body=$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n%s\n_Auto-created by upstream-sync workflow._' "$changed_files" "$drift_marker")
 
             local existing_issue
-            existing_issue=$(gh issue list \
+            if ! existing_issue=$(gh issue list \
               --repo "$GH_REPO" \
               --state open \
               --search "in:title \"$issue_title\"" \
               --limit 100 \
               --json number,createdAt \
-              --jq 'sort_by(.createdAt)[0].number' 2>/dev/null || true)
+              --jq 'sort_by(.createdAt)[0].number' 2>/dev/null); then
+              echo "::warning::Failed to check for an existing workflow-drift issue; skipping issue creation to avoid duplicates"
+              return
+            fi
             existing_issue=$(printf '%s' "$existing_issue" | tr -d '[:space:]')
             if [ "$existing_issue" = "null" ]; then
               existing_issue=""

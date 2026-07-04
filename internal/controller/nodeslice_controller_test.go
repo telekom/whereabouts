@@ -309,6 +309,87 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
 			Expect(updated.Status.FreeSlices).To(Equal(int32(254)))
 		})
+
+		It("should assign multiple new nodes to free slots in allocation order", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/16", "/24"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-16", "10.0.0.0/16", "/24", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24"},
+				{SliceRange: "10.0.2.0/24", NodeName: "node-c"},
+				{SliceRange: "10.0.3.0/24"},
+			})
+			nodeA := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			nodeB := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			nodeC := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-c"}}
+			nodeD := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-d"}}
+			buildReconciler(nad, pool, nodeA, nodeB, nodeC, nodeD)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-16"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations[:4]).To(Equal([]whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/24", NodeName: "node-a"},
+				{SliceRange: "10.0.1.0/24", NodeName: "node-b"},
+				{SliceRange: "10.0.2.0/24", NodeName: "node-c"},
+				{SliceRange: "10.0.3.0/24", NodeName: "node-d"},
+			}))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(4)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(252)))
+		})
+
+		It("should mark the pool full when no slots are available", func() {
+			nad := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      nadName,
+					Namespace: nadNamespace,
+					UID:       "nad-uid-1",
+				},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("", "10.0.0.0/30", "/30"),
+				},
+			}
+			pool := nodeSlicePool(nadNamespace, "10.0.0.0-30", "10.0.0.0/30", "/30", []whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/30", NodeName: "node-a"},
+			})
+			nodeA := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-a"}}
+			nodeB := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-b"}}
+			buildReconciler(nad, pool, nodeA, nodeB)
+
+			result, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "10.0.0.0-30"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Status.Allocations).To(Equal([]whereaboutsv1alpha1.NodeSliceAllocation{
+				{SliceRange: "10.0.0.0/30", NodeName: "node-a"},
+			}))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(1)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(0)))
+
+			conditions := map[string]metav1.Condition{}
+			for _, condition := range updated.Status.Conditions {
+				conditions[condition.Type] = condition
+			}
+			Expect(conditions[fluxmeta.StalledCondition].Status).To(Equal(metav1.ConditionTrue))
+			Expect(conditions[fluxmeta.StalledCondition].Reason).To(Equal(ReasonPoolFull))
+			Expect(conditions[fluxmeta.ReadyCondition].Status).To(Equal(metav1.ConditionFalse))
+			Expect(conditions[fluxmeta.ReadyCondition].Reason).To(Equal(ReasonPoolFull))
+		})
 	})
 
 	Context("when a previous status patch did not persist", func() {

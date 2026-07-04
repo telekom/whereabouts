@@ -90,6 +90,35 @@ var _ = Describe("IPPoolValidator", func() {
 			Expect(warnings).To(BeEmpty())
 		})
 
+		DescribeTable("should reject invalid allocation keys",
+			func(key, expectedKey string) {
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-pool",
+						Namespace: "default",
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: "10.0.0.0/24",
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							key: {
+								ContainerID: "abc123",
+								PodRef:      "default/pod-a",
+								IfName:      "eth0",
+							},
+						},
+					},
+				}
+				warnings, err := validator.ValidateCreate(ctx, pool)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("invalid allocation key"))
+				Expect(err.Error()).To(ContainSubstring(expectedKey))
+				Expect(warnings).To(BeNil())
+			},
+			Entry("non-decimal key", "one", `"one"`),
+			Entry("negative key", "-1", `"-1"`),
+			Entry("empty key", "", `""`),
+		)
+
 		It("should reject an IPPool with invalid podRef format", func() {
 			pool := &whereaboutsv1alpha1.IPPool{
 				ObjectMeta: metav1.ObjectMeta{

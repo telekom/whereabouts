@@ -6,6 +6,7 @@ package webhook
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -73,8 +74,11 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 		return nil, fmt.Errorf("invalid spec.range: %w", err)
 	}
 
-	// Validate allocation podRefs.
+	// Validate allocation keys and podRefs.
 	for key, alloc := range pool.Spec.Allocations {
+		if err := validateAllocationKey(key); err != nil {
+			return nil, err
+		}
 		if alloc.PodRef == "" {
 			warnings = append(warnings, fmt.Sprintf("allocation %s has empty podRef", key))
 			continue
@@ -85,4 +89,12 @@ func validateIPPool(pool *whereaboutsv1alpha1.IPPool) (admission.Warnings, error
 	}
 
 	return warnings, nil
+}
+
+func validateAllocationKey(key string) error {
+	offset, ok := new(big.Int).SetString(key, 10)
+	if !ok || offset.Sign() < 0 {
+		return fmt.Errorf("invalid allocation key %q: must be a non-negative base-10 integer", key)
+	}
+	return nil
 }

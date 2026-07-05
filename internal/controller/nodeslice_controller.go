@@ -499,11 +499,11 @@ func (r *NodeSliceReconciler) mapNodeToNADs(ctx context.Context, _ *corev1.Node)
 	return requests
 }
 
-// checkMultiNADMismatch verifies that all NADs sharing the same network_name
-// have consistent range and node_slice_size configurations.
+// checkMultiNADMismatch verifies that NADs in the same namespace sharing the
+// same NodeSlicePool have consistent range and node_slice_size configurations.
 func (r *NodeSliceReconciler) checkMultiNADMismatch(ctx context.Context, nad *nadv1.NetworkAttachmentDefinition, conf *nadIPAMConfig) error {
 	var nadList nadv1.NetworkAttachmentDefinitionList
-	if err := r.client.List(ctx, &nadList); err != nil {
+	if err := r.client.List(ctx, &nadList, client.InNamespace(nad.Namespace)); err != nil {
 		return fmt.Errorf("listing NADs for mismatch check: %w", err)
 	}
 

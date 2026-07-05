@@ -673,6 +673,56 @@ var _ = Describe("Whereabouts operations", func() {
 		Expect(pool.Allocations()).To(BeEmpty())
 	})
 
+	It("allows static addresses inside the CIDR but outside effective range bounds", func() {
+		ranges := []whereaboutstypes.RangeConfiguration{{
+			Range:      "192.168.1.0/24",
+			RangeStart: net.ParseIP("192.168.1.100"),
+			RangeEnd:   net.ParseIP("192.168.1.150"),
+		}}
+		addresses := []whereaboutstypes.Address{
+			{Address: mustCIDR("192.168.1.50/24")},
+			{Address: mustCIDR("192.168.1.200/24")},
+		}
+
+		Expect(validateStaticAddressesOutsideManagedRanges(addresses, ranges)).To(Succeed())
+	})
+
+	It("rejects static addresses inside effective range bounds", func() {
+		ranges := []whereaboutstypes.RangeConfiguration{{
+			Range:      "192.168.1.0/24",
+			RangeStart: net.ParseIP("192.168.1.100"),
+			RangeEnd:   net.ParseIP("192.168.1.150"),
+		}}
+		addresses := []whereaboutstypes.Address{
+			{Address: mustCIDR("192.168.1.125/24")},
+		}
+
+		err := validateStaticAddressesOutsideManagedRanges(addresses, ranges)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("static address 192.168.1.125/24 overlaps managed range 192.168.1.0/24"))
+	})
+
+	It("uses L3 effective bounds for static address overlap validation", func() {
+		ranges := []whereaboutstypes.RangeConfiguration{{
+			Range:      "10.20.0.0/24",
+			RangeStart: net.ParseIP("10.20.0.0"),
+			RangeEnd:   net.ParseIP("10.20.0.10"),
+			L3:         true,
+		}}
+
+		Expect(validateStaticAddressesOutsideManagedRanges(
+			[]whereaboutstypes.Address{{Address: mustCIDR("10.20.0.250/24")}},
+			ranges,
+		)).To(Succeed())
+
+		err := validateStaticAddressesOutsideManagedRanges(
+			[]whereaboutstypes.Address{{Address: mustCIDR("10.20.0.0/24")}},
+			ranges,
+		)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("static address 10.20.0.0/24 overlaps managed range 10.20.0.0/24"))
+	})
+
 	It("allocates an address using IPRanges notation", func() {
 		backend := fmt.Sprintf(`"kubernetes": {"kubeconfig": "%s"}`, kubeConfigPath)
 		conf := fmt.Sprintf(`{

@@ -787,7 +787,9 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		configuredRange := ipRange.Range // capture before potential node-slice reassignment
 		var err error
 		var attempts int
-		skipOverlappingRangeUpdate := false
+		allocationCreated := false
+		overlappingReservationCreated := false
+		var skipOverlappingRangeUpdate bool
 		var pendingOverlapDeletionIP net.IP
 		backoff := retryInitialBackoff
 		poolIdentifier := PoolIdentifier{IPRange: ipRange.Range, NetworkName: ipamConf.NetworkName}
@@ -796,6 +798,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 			attempts = j + 1
 			skipPoolUpdate := false
 			requestCtx, requestCancel := context.WithTimeout(ctx, storage.RequestTimeout)
+			allocationCreated = false
+			overlappingReservationCreated = false
 			skipOverlappingRangeUpdate = false
 			select {
 			case <-ctx.Done():
@@ -877,7 +881,8 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 				return newips, err
 			}
 
-			reservelist := pool.Allocations()
+			poolReservelist := pool.Allocations()
+			reservelist := append([]whereaboutstypes.IPReservation(nil), poolReservelist...)
 			reservelist = append(reservelist, overlappingrangeallocations...)
 			var updatedreservelist []whereaboutstypes.IPReservation
 			switch mode {
@@ -892,6 +897,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					return newips, err
 				}
+				allocationCreated = !allocationAlreadyInPool(poolReservelist, newip.IP, ipamConf.GetPodRef(), ipam.IfName)
 				// Now check if this is allocated overlappingrange wide
 				// When it's allocated overlappingrange wide, we add it to a local reserved list
 				// And we try again.
@@ -1012,7 +1018,7 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					logging.Errorf("Error performing UpdateOverlappingRangeAllocation (attempt: %d): %w", j, err)
 					// Roll back the pool update so the IP is not reserved without
 					// overlap protection, then decide whether to retry.
-					if mode == whereaboutstypes.Allocate && pool != nil {
+					if mode == whereaboutstypes.Allocate && pool != nil && allocationCreated {
 						rollbackCommitted(context.Background(), []committedAlloc{{
 							pool:        pool,
 							poolID:      poolIdentifier,
@@ -1032,6 +1038,9 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 					requestCancel()
 					break RETRYLOOP
 				}
+				if mode == whereaboutstypes.Allocate {
+					overlappingReservationCreated = true
+				}
 			}
 			requestCancel()
 			break RETRYLOOP
@@ -1045,24 +1054,26 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		// Only append to newips in Allocate mode — during Deallocate, newip is
 		// never assigned and would be a zero-value net.IPNet{}.
 		if mode == whereaboutstypes.Allocate {
-			commit := committedAlloc{
-				pool:        pool,
-				poolID:      poolIdentifier,
-				ip:          append(net.IP(nil), newip.IP...),
-				ipam:        ipam,
-				containerID: ipam.ContainerID,
-				podRef:      ipamConf.GetPodRef(),
-				ifName:      ipam.IfName,
+			if allocationCreated || overlappingReservationCreated {
+				commit := committedAlloc{
+					ip:          append(net.IP(nil), newip.IP...),
+					containerID: ipam.ContainerID,
+					podRef:      ipamConf.GetPodRef(),
+					ifName:      ipam.IfName,
+				}
+				if allocationCreated {
+					commit.pool = pool
+					commit.poolID = poolIdentifier
+					commit.ipam = ipam
+				}
+				if overlappingReservationCreated {
+					commit.overlap = overlappingrangestore
+					commit.overlapIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
+					commit.networkName = ipamConf.NetworkName
+					commit.podUID = ipamConf.PodUID
+				}
+				committed = append(committed, commit)
 			}
-			if ipamConf.OverlappingRanges && !skipOverlappingRangeUpdate {
-				commit.overlap = overlappingrangestore
-				commit.overlapIP = append(net.IP(nil), ipforoverlappingrangeupdate...)
-				commit.podRef = ipamConf.GetPodRef()
-				commit.ifName = ipam.IfName
-				commit.networkName = ipamConf.NetworkName
-				commit.podUID = ipamConf.PodUID
-			}
-			committed = append(committed, commit)
 			if ipamConf.OverlappingRanges {
 				// Reserve successful allocations locally so later ipRanges in the
 				// same ADD cannot reuse the same overlapping IP.
@@ -1072,6 +1083,15 @@ func IPManagementKubernetesUpdate(ctx context.Context, mode int, ipam *Kubernete
 		}
 	}
 	return newips, nil
+}
+
+func allocationAlreadyInPool(reservations []whereaboutstypes.IPReservation, ip net.IP, podRef, ifName string) bool {
+	for _, r := range reservations {
+		if r.IP.Equal(ip) && r.PodRef == podRef && r.IfName == ifName {
+			return true
+		}
+	}
+	return false
 }
 
 // rollbackRetries limits the number of conflict-retry attempts during
@@ -1107,6 +1127,10 @@ func isRetryableRollbackError(err error) bool {
 func rollbackCommitted(ctx context.Context, committed []committedAlloc) {
 	for i := range committed {
 		c := &committed[i]
+		if c.pool == nil {
+			rollbackOverlappingReservation(ctx, c)
+			continue
+		}
 		var lastErr error
 		var attempts int
 		for attempt := range rollbackRetries {

@@ -99,3 +99,6 @@ jobs:
 
     - name: Lint Helm chart
       run: helm lint deployment/whereabouts-chart
+
+    - name: Template Helm chart
+      run: helm template whereabouts deployment/whereabouts-chart

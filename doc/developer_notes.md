@@ -239,7 +239,7 @@ kubectl get ippool -n kube-system <pool-name> -o jsonpath='{.spec.allocations}' 
    ```
 5. Run Fast IPAM (NodeSlice) e2e tests:
    ```bash
-   cd e2e/e2e_node_slice && godotenv -f ../e2e/.env go test -v . -timeout=1h
+   cd e2e/e2e_node_slice && godotenv -f ../../e2e/.env go test -v . -timeout=1h
    ```
 
 ### E2E Test Coverage

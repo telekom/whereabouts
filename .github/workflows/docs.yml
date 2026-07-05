@@ -1,0 +1,43 @@
+name: Docs
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "CLAUDE.md"
+      - "doc/**"
+      - "hack/verify-release-docs.sh"
+      - "Makefile"
+      - ".github/workflows/**"
+      - "deployment/whereabouts-chart/**"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "CLAUDE.md"
+      - "doc/**"
+      - "hack/verify-release-docs.sh"
+      - "Makefile"
+      - ".github/workflows/**"
+      - "deployment/whereabouts-chart/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  release-docs:
+    name: Release docs guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Verify release docs
+        run: make verify-release-docs

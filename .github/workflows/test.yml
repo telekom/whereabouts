@@ -196,6 +196,10 @@ jobs:
             test-dir: e2e
             test-pkg: "."
             focus: "DS:|Multi-pool:|Failure:"
+          - suite: node-slice
+            test-dir: e2e
+            test-pkg: "./e2e_node_slice/..."
+            focus: ""
     env:
       NUMBER_OF_COMPUTE_NODES: 5
     steps:

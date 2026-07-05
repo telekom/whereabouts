@@ -350,8 +350,8 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 			freeSlots = append(freeSlots, i)
 		}
 	}
-	poolFull := false
 	nextFreeSlot := 0
+	poolFullThisReconcile := false
 	for _, nodeName := range nodes {
 		if _, assigned := assignedNodes[nodeName]; !assigned {
 			if nextFreeSlot < len(freeSlots) {
@@ -371,7 +371,7 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 					"no available IP slice for node %s — pool is full", nodeName)
 				markStalled(pool, ReasonPoolFull,
 					fmt.Sprintf("no available IP slice for node %s", nodeName))
-				poolFull = true
+				poolFullThisReconcile = true
 			}
 		}
 	}
@@ -380,7 +380,7 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 	computeSliceStats(pool)
 	if staleIPPoolBlocking {
 		markReconciling(pool, "waiting for stale per-node IPPools to be cleaned up")
-	} else if !poolFull {
+	} else if !poolFullThisReconcile {
 		markReady(pool, ReasonReconciled, "all nodes assigned to slices")
 	}
 

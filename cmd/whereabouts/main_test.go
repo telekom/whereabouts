@@ -1682,10 +1682,11 @@ var _ = Describe("Whereabouts operations", func() {
 				},
 			}
 
+			wbClient := fake.NewClientset(nodeSlicePool, nodeSliceIPPool)
 			client := newK8sIPAM(
 				checkContainerID, checkIfName, fastIPAMConf,
 				fakek8sclient.NewClientset(),
-				fake.NewClientset(nodeSlicePool, nodeSliceIPPool))
+				wbClient)
 
 			prevResult := &current.Result{
 				IPs: []*current.IPConfig{
@@ -1700,6 +1701,15 @@ var _ = Describe("Whereabouts operations", func() {
 
 			err := runCmdCheck(client, args, prevResult)
 			Expect(err).NotTo(HaveOccurred())
+
+			pools, err := wbClient.WhereaboutsV1alpha1().IPPools(podNamespace).List(context.Background(), metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pools.Items).To(HaveLen(1))
+			Expect(pools.Items[0].Name).To(Equal(kubernetes.IPPoolName(nodeSlicePoolIdentifier)))
+			Expect(pools.Items[0].Name).NotTo(Equal(kubernetes.IPPoolName(kubernetes.PoolIdentifier{
+				IPRange:     parentRange,
+				NetworkName: networkName,
+			})))
 		})
 
 		It("succeeds when configured dynamic gateway is from a different address family", func() {

@@ -331,9 +331,11 @@ For static or Kustomize installs, add the equivalent comma-separated flag to the
 operator deployment args, for example `--service-cidr=10.96.0.0/12`.
 
 When configured, each IPPool reconciliation compares `spec.range` with the
-configured service CIDRs. If a range overlaps, the operator logs the overlap and
-emits a Kubernetes Warning event with reason `ServiceCIDROverlap`; it does not
-reject or mutate the IPPool.
+configured service CIDRs. If a range overlaps, the operator logs the overlap,
+emits a Kubernetes Warning event with reason `ServiceCIDROverlap`, and stores an
+internal `whereabouts.cni.cncf.io/service-cidr-overlap` annotation so repeated
+reconciles do not spam duplicate warnings. It does not reject the IPPool or
+change IP allocation data.
 
 
 ## Core Parameters

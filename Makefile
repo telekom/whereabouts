@@ -99,6 +99,10 @@ verify-helm-service-cidrs: ## Verify Helm operator service CIDR collision detect
 verify-helm-imagepullsecrets: ## Verify Helm imagePullSecrets render for all chart workloads.
 	hack/verify-helm-imagepullsecrets.sh
 
+.PHONY: verify-release-docs
+verify-release-docs: ## Verify release docs and workflow guardrails.
+	hack/verify-release-docs.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	$(GO) fmt ./...

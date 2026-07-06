@@ -88,12 +88,15 @@ The DaemonSet and operator manifests are supported on Kubernetes 1.28+ Linux nod
 ### Installing with helm 3
 You can also install whereabouts with helm 3:
 
+Helm chart versions do not include the release tag's leading `v`. For example,
+use chart version `0.0.7` for the `v0.0.7` application release.
+
 ```
 # Install from OCI registry
-helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
+helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
 
 # Or use template to render manifests locally
-helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <WHEREABOUTS_VERSION>
+helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
 ```
 
 Helm will install the CRDs as well as the daemonset, operator, and webhooks.
@@ -103,12 +106,20 @@ Helm will install the CRDs as well as the daemonset, operator, and webhooks.
 For **kubectl-based** installations, re-apply the manifests with the new version:
 
 ```
-git pull && make deploy IMG=ghcr.io/telekom/whereabouts:<NEW_VERSION>
+git pull
+make kustomize
+(cd config/manager && ../../bin/kustomize edit set image controller=ghcr.io/telekom/whereabouts:v<APP_VERSION>)
+(cd config/daemonset && ../../bin/kustomize edit set image controller=ghcr.io/telekom/whereabouts:v<APP_VERSION>)
+make deploy
 ```
+
+The static Kustomize manifests default to the `latest` image tag. `make deploy`
+does not consume an `IMG` variable; set the image in the manager and daemonset
+Kustomize components, or use Helm when installing a packaged release.
 
 For **Helm**:
 ```
-helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <NEW_VERSION>
+helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
 ```
 
 ### Uninstalling
@@ -301,6 +312,28 @@ A single NodeSlicePool supports up to 16,384 slices. Configurations that would
 produce more slices are rejected before the controller creates or updates the
 pool, because very large allocation lists can exceed Kubernetes object-size
 limits.
+
+### Service CIDR collision warnings
+
+The operator can warn when an `IPPool` range overlaps a Kubernetes Service CIDR.
+By default this check is disabled: `--service-cidr` is empty, and Helm renders no
+operator flag because `operator.serviceCIDRs` defaults to `[]`.
+
+For Helm installs, configure one or more service CIDRs with chart values:
+
+```
+helm upgrade --install whereabouts oci://ghcr.io/telekom/whereabouts-chart \
+  --version <CHART_VERSION> \
+  --set 'operator.serviceCIDRs[0]=10.96.0.0/12'
+```
+
+For static or Kustomize installs, add the equivalent comma-separated flag to the
+operator deployment args, for example `--service-cidr=10.96.0.0/12`.
+
+When configured, each IPPool reconciliation compares `spec.range` with the
+configured service CIDRs. If a range overlaps, the operator logs the overlap and
+emits a Kubernetes Warning event with reason `ServiceCIDROverlap`; it does not
+reject or mutate the IPPool.
 
 
 ## Core Parameters

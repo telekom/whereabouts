@@ -96,7 +96,7 @@ End-to-end tests verify the full CNI plugin lifecycle against a real Kubernetes 
 
 For Fast IPAM (NodeSlice) e2e tests:
 ```bash
-cd e2e/e2e_node_slice && godotenv -f ../e2e/.env go test -v . -timeout=1h
+cd e2e/e2e_node_slice && godotenv -f ../../e2e/.env go test -v . -timeout=1h
 ```
 
 ## Pull Requests

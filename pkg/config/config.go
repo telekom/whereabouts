@@ -39,6 +39,81 @@ func canonicalizeIP(ip *net.IP) error {
 // far larger than any reasonable configuration but caps potential abuse.
 const maxConfigBytes = 1 << 20 // 1 MiB
 
+var ipamBoolJSONFields = []string{
+	"enable_overlapping_ranges",
+	"exclude_gateway",
+	"optimistic_ipam",
+	"enable_l3",
+}
+
+type ipamBoolValues map[string]bool
+
+func ipamBoolValuesFromNetConfig(configBytes []byte) (ipamBoolValues, error) {
+	var rawNet struct {
+		IPAM json.RawMessage `json:"ipam"`
+	}
+	if err := json.Unmarshal(configBytes, &rawNet); err != nil {
+		return nil, err
+	}
+	return ipamBoolValuesFromIPAMConfig(rawNet.IPAM)
+}
+
+func ipamBoolValuesFromIPAMConfig(ipamBytes []byte) (ipamBoolValues, error) {
+	values := ipamBoolValues{}
+	if len(ipamBytes) == 0 || string(ipamBytes) == "null" {
+		return values, nil
+	}
+
+	var rawIPAM map[string]json.RawMessage
+	if err := json.Unmarshal(ipamBytes, &rawIPAM); err != nil {
+		return nil, err
+	}
+
+	for _, fieldName := range ipamBoolJSONFields {
+		rawValue, ok := rawIPAM[fieldName]
+		if !ok {
+			continue
+		}
+
+		var value bool
+		if err := json.Unmarshal(rawValue, &value); err != nil {
+			return nil, fmt.Errorf("%s: %w", fieldName, err)
+		}
+		values[fieldName] = value
+	}
+
+	return values, nil
+}
+
+func applyIPAMBoolPrecedence(ipam *types.IPAMConfig, primaryValues, flatFileValues ipamBoolValues) {
+	if ipam == nil {
+		return
+	}
+
+	for _, fieldName := range ipamBoolJSONFields {
+		if value, ok := primaryValues[fieldName]; ok {
+			setIPAMBoolField(ipam, fieldName, value)
+			continue
+		}
+		if value, ok := flatFileValues[fieldName]; ok {
+			setIPAMBoolField(ipam, fieldName, value)
+		}
+	}
+}
+
+func setIPAMBoolField(ipam *types.IPAMConfig, fieldName string, value bool) {
+	switch fieldName {
+	case "enable_overlapping_ranges":
+		ipam.OverlappingRanges = value
+	case "exclude_gateway":
+		ipam.ExcludeGateway = value
+	case "optimistic_ipam":
+		ipam.OptimisticIPAM = value
+	case "enable_l3":
+		ipam.EnableL3 = value
+	}
+}
+
 // LoadIPAMConfig creates IPAMConfig using json encoded configuration provided
 // as `bytes`. At the moment values provided in envArgs are ignored so there
 // is no possibility to overload the json configuration using envArgs.
@@ -65,7 +140,12 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 	n.IPAM.PodNamespace = string(args.K8S_POD_NAMESPACE)
 	n.IPAM.PodUID = string(args.K8S_POD_UID)
 
-	flatipam, foundflatfile, err := GetFlatIPAM(false, n.IPAM, extraConfigPaths...)
+	primaryBoolValues, err := ipamBoolValuesFromNetConfig(bytes)
+	if err != nil {
+		return nil, "", fmt.Errorf("LoadIPAMConfig - JSON Parsing Error: %w", err)
+	}
+
+	flatipam, foundflatfile, flatConfigBytes, err := getFlatIPAM(false, n.IPAM, extraConfigPaths...)
 	if err != nil {
 		// Config file not found is non-fatal — inline IPAM config may be sufficient.
 		var notFoundErr *FileNotFoundError
@@ -74,13 +154,20 @@ func LoadIPAMConfig(bytes []byte, envArgs string, extraConfigPaths ...string) (*
 		}
 	}
 
+	flatFileBoolValues := ipamBoolValues{}
+	if foundflatfile != "" {
+		flatFileBoolValues, err = ipamBoolValuesFromIPAMConfig(flatConfigBytes)
+		if err != nil {
+			return nil, "", fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w", foundflatfile, err)
+		}
+	}
+
 	// Now let's try to merge the configurations...
 	// NB: Don't try to do any initialization before this point or it won't account for merged flat file.
-	var OverlappingRanges = n.IPAM.OverlappingRanges
 	if err := mergo.Merge(&n, flatipam); err != nil {
 		return nil, "", logging.Errorf("merge error with flat file: %w", err)
 	}
-	n.IPAM.OverlappingRanges = OverlappingRanges
+	applyIPAMBoolPrecedence(n.IPAM, primaryBoolValues, flatFileBoolValues)
 
 	// Logging
 	if n.IPAM.LogFile != "" {
@@ -286,6 +373,11 @@ func configureStatic(n *types.Net, args types.IPAMEnvArgs) error {
 }
 
 func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPaths ...string) (types.Net, string, error) {
+	flatipam, foundflatfile, _, err := getFlatIPAM(isControlLoop, ipamConfig, extraConfigPaths...)
+	return flatipam, foundflatfile, err
+}
+
+func getFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPaths ...string) (flatipam types.Net, foundflatfile string, jsonBytes []byte, err error) {
 	// Once we have our basics, let's look for our (optional) configuration file
 	confdirs := []string{"/etc/kubernetes/cni/net.d/whereabouts.d/whereabouts.conf", "/etc/cni/net.d/whereabouts.d/whereabouts.conf", "/host/etc/cni/net.d/whereabouts.d/whereabouts.conf"}
 	confdirs = append(confdirs, extraConfigPaths...)
@@ -295,15 +387,13 @@ func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPa
 		if ipamConfig.ConfigurationPath != "" {
 			cleanPath := filepath.Clean(ipamConfig.ConfigurationPath)
 			if strings.Contains(cleanPath, "..") {
-				return types.Net{}, "", fmt.Errorf("configuration_path %q contains path traversal", ipamConfig.ConfigurationPath)
+				return types.Net{}, "", nil, fmt.Errorf("configuration_path %q contains path traversal", ipamConfig.ConfigurationPath)
 			}
 			confdirs = append([]string{cleanPath}, confdirs...)
 		}
 	}
 
 	// Cycle through the path and parse the JSON config
-	flatipam := types.Net{}
-	foundflatfile := ""
 	for _, confpath := range confdirs {
 		if !pathExists(confpath) {
 			continue
@@ -311,18 +401,18 @@ func GetFlatIPAM(isControlLoop bool, ipamConfig *types.IPAMConfig, extraConfigPa
 
 		jsonBytes, err := readFlatConfigFile(confpath)
 		if err != nil {
-			return flatipam, foundflatfile, err
+			return flatipam, foundflatfile, nil, err
 		}
 
 		if err := json.Unmarshal(jsonBytes, &flatipam.IPAM); err != nil {
-			return flatipam, foundflatfile, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w", confpath, err)
+			return flatipam, foundflatfile, nil, fmt.Errorf("LoadIPAMConfig Flatfile (%s) - JSON Parsing Error: %w", confpath, err)
 		}
 
 		foundflatfile = confpath
-		return flatipam, foundflatfile, nil
+		return flatipam, foundflatfile, jsonBytes, nil
 	}
 
-	return flatipam, foundflatfile, NewFileNotFoundError()
+	return flatipam, foundflatfile, nil, NewFileNotFoundError()
 }
 
 func readFlatConfigFile(confpath string) ([]byte, error) {
@@ -415,8 +505,7 @@ func LoadIPAMConfiguration(bytes []byte, envArgs string, extraConfigPaths ...str
 			return nil, fmt.Errorf("CNI config list first plugin must not be null")
 		}
 
-		pluginConfigList.Plugins[0].CNIVersion = pluginConfig.CNIVersion
-		firstPluginBytes, err := json.Marshal(pluginConfigList.Plugins[0])
+		firstPluginBytes, err := firstPluginConfigBytes(bytes, pluginConfig.CNIVersion)
 		if err != nil {
 			return nil, err
 		}
@@ -441,6 +530,34 @@ func loadPluginConfigList(bytes []byte) (*types.NetConfList, error) {
 	}
 
 	return &netConfList, nil
+}
+
+func firstPluginConfigBytes(configBytes []byte, cniVersion string) ([]byte, error) {
+	var rawConfigList struct {
+		Plugins []json.RawMessage `json:"plugins"`
+	}
+	if err := json.Unmarshal(configBytes, &rawConfigList); err != nil {
+		return nil, err
+	}
+	if len(rawConfigList.Plugins) == 0 {
+		return nil, fmt.Errorf("CNI config list must contain at least one plugin")
+	}
+
+	var firstPlugin map[string]json.RawMessage
+	if err := json.Unmarshal(rawConfigList.Plugins[0], &firstPlugin); err != nil {
+		return nil, err
+	}
+	if firstPlugin == nil {
+		return nil, fmt.Errorf("CNI config list first plugin must not be null")
+	}
+
+	cniVersionBytes, err := json.Marshal(cniVersion)
+	if err != nil {
+		return nil, err
+	}
+	firstPlugin["cniVersion"] = cniVersionBytes
+
+	return json.Marshal(firstPlugin)
 }
 
 func loadPluginConfig(bytes []byte) (*cnitypes.NetConf, error) {

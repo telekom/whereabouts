@@ -157,6 +157,129 @@ var _ = Describe("Allocation operations", func() {
 		Expect(ipamconfig.OverlappingRanges).To(BeFalse())
 	})
 
+	It("merges flat-file boolean defaults by field presence", func() {
+		fields := []struct {
+			jsonName     string
+			defaultValue bool
+			value        func(*types.IPAMConfig) bool
+		}{
+			{
+				jsonName:     "enable_overlapping_ranges",
+				defaultValue: true,
+				value: func(ipamConfig *types.IPAMConfig) bool {
+					return ipamConfig.OverlappingRanges
+				},
+			},
+			{
+				jsonName:     "exclude_gateway",
+				defaultValue: false,
+				value: func(ipamConfig *types.IPAMConfig) bool {
+					return ipamConfig.ExcludeGateway
+				},
+			},
+			{
+				jsonName:     "optimistic_ipam",
+				defaultValue: false,
+				value: func(ipamConfig *types.IPAMConfig) bool {
+					return ipamConfig.OptimisticIPAM
+				},
+			},
+			{
+				jsonName:     "enable_l3",
+				defaultValue: false,
+				value: func(ipamConfig *types.IPAMConfig) bool {
+					return ipamConfig.EnableL3
+				},
+			},
+		}
+
+		cases := []struct {
+			name         string
+			primaryState string
+			flatState    string
+			expected     func(defaultValue bool) bool
+		}{
+			{
+				name: "both omitted use field default",
+				expected: func(defaultValue bool) bool {
+					return defaultValue
+				},
+			},
+			{
+				name:      "flat-file explicit true applies when primary omits",
+				flatState: "true",
+				expected: func(bool) bool {
+					return true
+				},
+			},
+			{
+				name:      "flat-file explicit false applies when primary omits",
+				flatState: "false",
+				expected: func(bool) bool {
+					return false
+				},
+			},
+			{
+				name:         "primary explicit true overrides flat-file false",
+				primaryState: "true",
+				flatState:    "false",
+				expected: func(bool) bool {
+					return true
+				},
+			},
+			{
+				name:         "primary explicit false overrides flat-file true",
+				primaryState: "false",
+				flatState:    "true",
+				expected: func(bool) bool {
+					return false
+				},
+			},
+		}
+
+		for _, field := range fields {
+			for idx, tc := range cases {
+				By(fmt.Sprintf("%s: %s", field.jsonName, tc.name))
+
+				confPath := filepath.Join(tmpDir, fmt.Sprintf("%s-%d.conf", field.jsonName, idx))
+				Expect(os.WriteFile(confPath, []byte(generateFlatIPAMConfWithBool(field.jsonName, tc.flatState)), 0600)).To(Succeed())
+
+				ipamconfig, _, err := LoadIPAMConfig([]byte(generateIPAMConfWithBool(confPath, field.jsonName, tc.primaryState)), "")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(field.value(ipamconfig)).To(Equal(tc.expected(field.defaultValue)))
+			}
+		}
+	})
+
+	It("uses flat-file boolean defaults for config-list primary config omissions", func() {
+		globalConf := `{
+			"kubernetes": {
+				"kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
+			},
+			"enable_overlapping_ranges": false
+		}`
+		confPath := filepath.Join(tmpDir, "whereabouts.conf")
+		Expect(os.WriteFile(confPath, []byte(globalConf), 0600)).To(Succeed())
+
+		conf := fmt.Sprintf(`{
+			"cniVersion": "0.3.1",
+			"name": "mynet",
+			"plugins": [{
+				"type": "ipvlan",
+				"master": "foo0",
+				"ipam": {
+					"configuration_path": %q,
+					"type": "whereabouts",
+					"range": "192.168.2.230/24"
+				}
+			}]
+		}`, confPath)
+
+		ipamconfig, err := LoadIPAMConfiguration([]byte(conf), "")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ipamconfig.OverlappingRanges).To(BeFalse())
+	})
+
 	It("can load a config list", func() {
 		conf := `{
         "cniVersion": "0.3.0",
@@ -829,4 +952,36 @@ func generateIPAMConfWithoutOverlappingRanges() string {
 			"enable_overlapping_ranges": false
 		}
 	}`
+}
+
+func generateIPAMConfWithBool(confPath, fieldName, state string) string {
+	return fmt.Sprintf(`{
+		"cniVersion": "0.3.1",
+		"name": "mynet",
+		"type": "ipvlan",
+		"master": "foo0",
+		"ipam": {
+			"range": "192.168.2.230/24",
+			"configuration_path": %q,
+			"type": "whereabouts",
+			"kubernetes": {
+				"kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
+			}%s
+		}
+	}`, confPath, boolJSONField(fieldName, state))
+}
+
+func generateFlatIPAMConfWithBool(fieldName, state string) string {
+	return fmt.Sprintf(`{
+		"kubernetes": {
+			"kubeconfig": "/etc/cni/net.d/whereabouts.d/whereabouts.kubeconfig"
+		}%s
+	}`, boolJSONField(fieldName, state))
+}
+
+func boolJSONField(fieldName, state string) string {
+	if state == "" {
+		return ""
+	}
+	return fmt.Sprintf(",\n%q: %s", fieldName, state)
 }

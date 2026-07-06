@@ -153,6 +153,21 @@ var _ = Describe("IPPoolReconciler", func() {
 	})
 
 	Context("when service CIDRs are configured", func() {
+		expectServiceCIDROverlapEvent := func(eventCh <-chan string, poolRange, serviceCIDR string) {
+			var event string
+			Eventually(eventCh).Should(Receive(&event))
+			Expect(event).To(ContainSubstring("Warning ServiceCIDROverlap"))
+			Expect(event).To(ContainSubstring(poolRange))
+			Expect(event).To(ContainSubstring(serviceCIDR))
+		}
+
+		updatePoolRange := func(cidr string) {
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			updated.Spec.Range = cidr
+			Expect(reconciler.client.Update(ctx, &updated)).To(Succeed())
+		}
+
 		It("should emit a warning event when the pool range overlaps a service CIDR", func() {
 			pool := poolWithFinalizer(poolName, poolNamespace, "10.96.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
 			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
@@ -160,11 +175,64 @@ var _ = Describe("IPPoolReconciler", func() {
 			_, err := reconciler.Reconcile(ctx, req)
 			Expect(err).NotTo(HaveOccurred())
 
-			var event string
-			Eventually(eventCh).Should(Receive(&event))
-			Expect(event).To(ContainSubstring("Warning ServiceCIDROverlap"))
-			Expect(event).To(ContainSubstring("10.96.1.0/24"))
-			Expect(event).To(ContainSubstring("10.96.0.0/12"))
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/12")
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Annotations).To(HaveKeyWithValue(serviceCIDROverlapAnnotation, serviceCIDROverlapKey("10.96.1.0/24", "10.96.0.0/12")))
+		})
+
+		It("should suppress duplicate warning events for the same overlap across reconciles", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "10.96.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/12")
+
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Consistently(eventCh).ShouldNot(Receive())
+		})
+
+		It("should emit a new warning event when the service CIDR overlap key changes", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "10.96.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/16"}, pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/16")
+
+			reconciler.serviceCIDRs = []string{"10.96.0.0/12"}
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/12")
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Annotations).To(HaveKeyWithValue(serviceCIDROverlapAnnotation, serviceCIDROverlapKey("10.96.1.0/24", "10.96.0.0/12")))
+		})
+
+		It("should clear the overlap marker when overlap resolves and emit again for a future overlap", func() {
+			pool := poolWithFinalizer(poolName, poolNamespace, "10.96.1.0/24", map[string]whereaboutsv1alpha1.IPAllocation{})
+			eventCh := buildReconcilerWithServiceCIDRs([]string{"10.96.0.0/12"}, pool)
+
+			_, err := reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/12")
+
+			updatePoolRange("10.244.0.0/24")
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			Consistently(eventCh).ShouldNot(Receive())
+
+			var updated whereaboutsv1alpha1.IPPool
+			Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+			Expect(updated.Annotations).NotTo(HaveKey(serviceCIDROverlapAnnotation))
+
+			updatePoolRange("10.96.1.0/24")
+			_, err = reconciler.Reconcile(ctx, req)
+			Expect(err).NotTo(HaveOccurred())
+			expectServiceCIDROverlapEvent(eventCh, "10.96.1.0/24", "10.96.0.0/12")
 		})
 
 		It("should not emit a warning event when the pool range does not overlap a service CIDR", func() {

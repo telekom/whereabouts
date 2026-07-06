@@ -165,6 +165,10 @@ const (
 	// cleaned up before an IPPool is deleted.
 	ippoolFinalizer = "whereabouts.cni.cncf.io/ippool-cleanup"
 
+	// serviceCIDROverlapAnnotation stores the last pool/service CIDR overlap
+	// key that produced a warning event.
+	serviceCIDROverlapAnnotation = "whereabouts.cni.cncf.io/service-cidr-overlap"
+
 	// retryRequeueInterval is the interval to retry when transient errors
 	// occur (e.g. overlapping reservation cleanup failure).
 	retryRequeueInterval = 5 * time.Second
@@ -254,8 +258,6 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	r.recordServiceCIDROverlap(ctx, &pool)
-
 	// Ensure finalizer is present on active pools.
 	if !controllerutil.ContainsFinalizer(&pool, ippoolFinalizer) {
 		controllerutil.AddFinalizer(&pool, ippoolFinalizer)
@@ -272,6 +274,8 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("creating patch helper: %w", err)
 	}
 
+	overlapMarkerChanged := r.recordServiceCIDROverlap(ctx, &pool)
+
 	markReconciling(&pool, "checking allocations for orphaned entries")
 
 	if len(pool.Spec.Allocations) == 0 {
@@ -279,6 +283,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		recordIPPoolMetrics(pool.Name, pool.Status.TotalIPs, pool.Status.UsedIPs, pool.Status.FreeIPs)
 		markReady(&pool, ReasonReconciled, "no allocations to reconcile")
 		if err := patchHelper.Patch(ctx, &pool); err != nil {
+			if overlapMarkerChanged {
+				return ctrl.Result{}, fmt.Errorf("patching pool after service CIDR overlap marker update: %w", err)
+			}
 			logger.Error(err, "failed to patch status")
 		}
 		return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
@@ -402,6 +409,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 				// so controller-runtime retries quickly via exponential backoff.
 				return ctrl.Result{}, fmt.Errorf("patching pool after orphan cleanup: %w", err)
 			}
+			if overlapMarkerChanged {
+				return ctrl.Result{}, fmt.Errorf("patching pool after service CIDR overlap marker update: %w", err)
+			}
 			// Status-only patch failure is non-critical.
 			logger.Error(err, "failed to patch status")
 		}
@@ -425,6 +435,9 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			// pool-exhaustion recovery test to time out.
 			return ctrl.Result{}, fmt.Errorf("patching pool after orphan cleanup: %w", err)
 		}
+		if overlapMarkerChanged {
+			return ctrl.Result{}, fmt.Errorf("patching pool after service CIDR overlap marker update: %w", err)
+		}
 		// Status-only patch failures are non-critical: IP management is unaffected.
 		logger.Error(err, "failed to patch status")
 	}
@@ -432,25 +445,52 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{RequeueAfter: r.reconcileInterval}, nil
 }
 
-func (r *IPPoolReconciler) recordServiceCIDROverlap(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) {
+func (r *IPPoolReconciler) recordServiceCIDROverlap(ctx context.Context, pool *whereaboutsv1alpha1.IPPool) bool {
+	logger := log.FromContext(ctx)
 	if len(r.serviceCIDRs) == 0 || strings.TrimSpace(pool.Spec.Range) == "" {
-		return
+		return clearServiceCIDROverlapAnnotation(pool)
 	}
 
 	overlapping, found, err := iphelpers.CIDROverlapsAny(pool.Spec.Range, r.serviceCIDRs)
 	if err != nil {
-		log.FromContext(ctx).V(1).Info("failed to check service CIDR overlap",
+		logger.V(1).Info("failed to check service CIDR overlap",
 			"pool", pool.Name, "range", pool.Spec.Range, "error", err)
-		return
+		return clearServiceCIDROverlapAnnotation(pool)
 	}
 	if !found {
-		return
+		return clearServiceCIDROverlapAnnotation(pool)
 	}
 
-	log.FromContext(ctx).Info("IPPool range overlaps Kubernetes service CIDR",
+	overlapKey := serviceCIDROverlapKey(pool.Spec.Range, overlapping)
+	if pool.Annotations != nil && pool.Annotations[serviceCIDROverlapAnnotation] == overlapKey {
+		return false
+	}
+
+	if pool.Annotations == nil {
+		pool.Annotations = map[string]string{}
+	}
+	pool.Annotations[serviceCIDROverlapAnnotation] = overlapKey
+
+	logger.Info("IPPool range overlaps Kubernetes service CIDR",
 		"pool", pool.Name, "range", pool.Spec.Range, "serviceCIDR", overlapping)
 	r.recorder.Eventf(pool, nil, corev1.EventTypeWarning, "ServiceCIDROverlap", "Reconcile",
 		"IPPool range %s overlaps Kubernetes service CIDR %s", pool.Spec.Range, overlapping)
+	return true
+}
+
+func serviceCIDROverlapKey(poolRange, serviceCIDR string) string {
+	return strings.TrimSpace(poolRange) + "|" + strings.TrimSpace(serviceCIDR)
+}
+
+func clearServiceCIDROverlapAnnotation(pool *whereaboutsv1alpha1.IPPool) bool {
+	if pool.Annotations == nil {
+		return false
+	}
+	if _, ok := pool.Annotations[serviceCIDROverlapAnnotation]; !ok {
+		return false
+	}
+	delete(pool.Annotations, serviceCIDROverlapAnnotation)
+	return true
 }
 
 // removeAllocations removes the specified allocation keys from the IPPool

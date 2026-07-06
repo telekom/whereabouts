@@ -13,6 +13,7 @@ import (
 	cniversion "github.com/containernetworking/cni/pkg/version"
 
 	"github.com/telekom/whereabouts/pkg/config"
+	"github.com/telekom/whereabouts/pkg/iphelpers"
 	"github.com/telekom/whereabouts/pkg/logging"
 	"github.com/telekom/whereabouts/pkg/storage"
 	"github.com/telekom/whereabouts/pkg/storage/kubernetes"
@@ -318,12 +319,43 @@ func validateStaticAddressesOutsideManagedRanges(addresses []types.Address, rang
 			if err != nil {
 				return fmt.Errorf("invalid managed range %q: %w", ipRange.Range, err)
 			}
-			if ipNet.Contains(address.Address.IP) {
+			overlaps, err := staticAddressInManagedRange(address.Address.IP, *ipNet, ipRange)
+			if err != nil {
+				return fmt.Errorf("invalid managed range %q: %w", ipRange.Range, err)
+			}
+			if overlaps {
 				return fmt.Errorf("static address %s overlaps managed range %s", address.Address.String(), ipRange.Range)
 			}
 		}
 	}
 	return nil
+}
+
+func staticAddressInManagedRange(ip net.IP, ipNet net.IPNet, ipRange *types.RangeConfiguration) (bool, error) {
+	if !ipNet.Contains(ip) {
+		return false, nil
+	}
+	firstIP, lastIP, err := effectiveManagedRange(ipNet, ipRange.RangeStart, ipRange.RangeEnd, ipRange.L3)
+	if err != nil {
+		return false, err
+	}
+	return iphelpers.IsIPInRange(ip, firstIP, lastIP)
+}
+
+func effectiveManagedRange(ipNet net.IPNet, rangeStart net.IP, rangeEnd net.IP, l3 bool) (firstIP, lastIP net.IP, err error) {
+	if !l3 {
+		return iphelpers.GetIPRange(ipNet, rangeStart, rangeEnd)
+	}
+
+	firstIP = iphelpers.NetworkIP(ipNet)
+	lastIP = iphelpers.SubnetBroadcastIP(ipNet)
+	if rangeStart != nil && ipNet.Contains(rangeStart) && iphelpers.CompareIPs(rangeStart, firstIP) >= 0 {
+		firstIP = rangeStart
+	}
+	if rangeEnd != nil && ipNet.Contains(rangeEnd) && iphelpers.CompareIPs(rangeEnd, firstIP) >= 0 && iphelpers.CompareIPs(rangeEnd, lastIP) <= 0 {
+		lastIP = rangeEnd
+	}
+	return firstIP, lastIP, nil
 }
 
 func cmdDel(client *kubernetes.KubernetesIPAM) error {

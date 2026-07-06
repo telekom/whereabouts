@@ -360,7 +360,7 @@ func (r *IPPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// your CNI does not populate the network-status annotation.
 		if r.verifyNetworkStatus {
 			poolIP := allocationKeyToIP(&pool, key)
-			if poolIP != nil && !isPodUsingIP(&pod, poolIP) {
+			if poolIP != nil && !isPodUsingIP(&pod, poolIP, alloc.IfName) {
 				logger.V(1).Info("IP not found on pod, marking allocation orphaned",
 					"key", key, "podRef", alloc.PodRef, "ip", poolIP)
 				orphanedAllocs[key] = alloc
@@ -699,8 +699,9 @@ func isPodLostToNodeFailure(status corev1.PodStatus) bool {
 }
 
 // isPodUsingIP checks whether the pod's Multus network-status annotation
-// contains the given IP address. Uses net.IP.Equal for proper IPv6 comparison.
-func isPodUsingIP(pod *corev1.Pod, ip net.IP) bool {
+// contains the given IP address for the allocated interface. Uses net.IP.Equal
+// for proper IPv6 comparison.
+func isPodUsingIP(pod *corev1.Pod, ip net.IP, ifName string) bool {
 	annotation, ok := pod.Annotations[nadv1.NetworkStatusAnnot]
 	if !ok || annotation == "" {
 		// No annotation — cannot confirm; assume still valid to avoid
@@ -714,7 +715,12 @@ func isPodUsingIP(pod *corev1.Pod, ip net.IP) bool {
 		return true
 	}
 
+	allocatedIfName := strings.TrimSpace(ifName)
 	for i := range statuses {
+		statusIfName := strings.TrimSpace(statuses[i].Interface)
+		if allocatedIfName != "" && statusIfName != "" && statusIfName != allocatedIfName {
+			continue
+		}
 		for _, ipStr := range statuses[i].IPs {
 			podIP := net.ParseIP(ipStr)
 			if podIP != nil && podIP.Equal(ip) {

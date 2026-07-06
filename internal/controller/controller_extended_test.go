@@ -265,7 +265,7 @@ var _ = Describe("isPodUsingIP", func() {
 		pod := &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns true when annotation is empty", func() {
@@ -275,7 +275,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: ""},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns true when annotation is malformed JSON", func() {
@@ -285,7 +285,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: "not-json"},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns true when IP matches a non-default network", func() {
@@ -299,7 +299,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns true when IP matches a default network", func() {
@@ -313,7 +313,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns true when IP is only on the default network", func() {
@@ -326,7 +326,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
 	It("returns false when IP is not in any network-status entry", func() {
@@ -340,7 +340,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeFalse())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeFalse())
 	})
 
 	It("handles IPv6 comparison using net.IP.Equal", func() {
@@ -354,7 +354,7 @@ var _ = Describe("isPodUsingIP", func() {
 			},
 		}
 		// Use full-form IPv6 to test Equal comparison.
-		Expect(isPodUsingIP(pod, net.ParseIP("fd00:0000:0000:0000:0000:0000:0000:0001"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("fd00:0000:0000:0000:0000:0000:0000:0001"), "")).To(BeTrue())
 	})
 
 	It("returns false when there are non-default networks but none match", func() {
@@ -368,7 +368,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeFalse())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeFalse())
 	})
 
 	It("returns false when annotation is empty array", func() {
@@ -378,7 +378,7 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: "[]"},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeFalse())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeFalse())
 	})
 
 	It("handles unparseable IP in annotation gracefully", func() {
@@ -391,7 +391,60 @@ var _ = Describe("isPodUsingIP", func() {
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"))).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
+	})
+
+	It("returns true when IP and interface both match", func() {
+		statuses := []nadv1.NetworkStatus{
+			{Name: "default/net1", Interface: "net1", Default: false, IPs: []string{"10.0.0.1"}},
+			{Name: "default/net2", Interface: "net2", Default: false, IPs: []string{"10.0.0.1"}},
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "net1")).To(BeTrue())
+	})
+
+	It("returns false when IP matches only a different interface", func() {
+		statuses := []nadv1.NetworkStatus{
+			{Name: "default/net1", Interface: "net1", Default: false, IPs: []string{"10.0.0.1"}},
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "net2")).To(BeFalse())
+	})
+
+	It("keeps IP-only matching when the network-status interface is absent", func() {
+		statuses := []nadv1.NetworkStatus{
+			{Name: "default/net1", Default: false, IPs: []string{"10.0.0.1"}},
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "net1")).To(BeTrue())
+	})
+
+	It("keeps IP-only matching when the allocation interface is absent", func() {
+		statuses := []nadv1.NetworkStatus{
+			{Name: "default/net1", Interface: "net1", Default: false, IPs: []string{"10.0.0.1"}},
+		}
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: makeNetworkStatusAnnotation(statuses)},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 })
 
@@ -570,6 +623,52 @@ var _ = Describe("IPPoolReconciler extended", func() {
 				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
 				Expect(updated.Spec.Allocations).To(HaveLen(1))
 				Expect(updated.Spec.Allocations).To(HaveKey("1"))
+			})
+
+			It("should remove the allocation when the IP is only on another interface", func() {
+				statuses := []nadv1.NetworkStatus{
+					{Name: "default/net2", Interface: "net2", Default: false, IPs: []string{"10.0.0.1"}},
+				}
+				statusJSON, _ := json.Marshal(statuses)
+
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "wrong-interface-pod",
+						Namespace: "default",
+						Annotations: map[string]string{
+							nadv1.NetworkStatusAnnot: string(statusJSON),
+						},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       poolName,
+						Namespace:  poolNamespace,
+						Finalizers: []string{ippoolFinalizer},
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: poolRange,
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							"1": {
+								ContainerID: "abc123",
+								PodRef:      "default/wrong-interface-pod",
+								IfName:      "net1",
+							},
+						},
+					},
+				}
+				buildReconcilerWithFlags(false, false, true, pool, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(BeEmpty())
 			})
 		})
 

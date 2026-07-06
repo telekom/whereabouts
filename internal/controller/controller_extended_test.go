@@ -1257,7 +1257,7 @@ var _ = Describe("NodeSliceReconciler extended", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
-		It("should fail when NADs share network name but differ in range", func() {
+		It("should fail when same-namespace NADs share network name but differ in range", func() {
 			nad1 := &nadv1.NetworkAttachmentDefinition{
 				ObjectMeta: metav1.ObjectMeta{Name: "nad1", Namespace: nadNamespace, UID: "uid-1"},
 				Spec: nadv1.NetworkAttachmentDefinitionSpec{
@@ -1281,6 +1281,56 @@ var _ = Describe("NodeSliceReconciler extended", func() {
 			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("mismatched"))
+		})
+
+		It("should ignore different-namespace NADs that share network name but differ in range", func() {
+			nad1 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad1", Namespace: nadNamespace, UID: "uid-1"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/24"),
+				},
+			}
+			nad2 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad2", Namespace: "other-namespace", UID: "uid-2"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.1.0.0/16", "/24"),
+				},
+			}
+			buildReconciler(nad1, nad2)
+
+			conf := &nadIPAMConfig{
+				Name:          "testnet",
+				NetworkName:   "shared-net",
+				Range:         "10.0.0.0/16",
+				NodeSliceSize: "/24",
+			}
+			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should ignore different-namespace NADs that share network name but differ in node_slice_size", func() {
+			nad1 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad1", Namespace: nadNamespace, UID: "uid-1"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/24"),
+				},
+			}
+			nad2 := &nadv1.NetworkAttachmentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "nad2", Namespace: "other-namespace", UID: "uid-2"},
+				Spec: nadv1.NetworkAttachmentDefinitionSpec{
+					Config: makeNADConfig("shared-net", "10.0.0.0/16", "/25"),
+				},
+			}
+			buildReconciler(nad1, nad2)
+
+			conf := &nadIPAMConfig{
+				Name:          "testnet",
+				NetworkName:   "shared-net",
+				Range:         "10.0.0.0/16",
+				NodeSliceSize: "/24",
+			}
+			err := reconciler.checkMultiNADMismatch(ctx, nad1, conf)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should not compare NADs with different network names", func() {

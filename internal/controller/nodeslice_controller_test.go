@@ -734,6 +734,61 @@ var _ = Describe("NodeSliceReconciler", func() {
 			Expect(conditions[fluxmeta.ReadyCondition].Status).To(Equal(metav1.ConditionTrue))
 			Expect(conditions[fluxmeta.ReadyCondition].Reason).To(Equal(ReasonReconciled))
 		})
+
+		It("should clear a previous PoolFull stalled condition when current nodes are assigned", func() {
+			pool := &whereaboutsv1alpha1.NodeSlicePool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ready-again",
+					Namespace: nadNamespace,
+				},
+				Spec: whereaboutsv1alpha1.NodeSlicePoolSpec{
+					Range:     "10.0.0.0/24",
+					SliceSize: "/26",
+				},
+				Status: whereaboutsv1alpha1.NodeSlicePoolStatus{
+					Allocations: []whereaboutsv1alpha1.NodeSliceAllocation{
+						{SliceRange: "10.0.0.0/26", NodeName: "node-a"},
+						{SliceRange: "10.0.0.64/26", NodeName: "node-b"},
+					},
+					Conditions: []metav1.Condition{
+						{
+							Type:    fluxmeta.StalledCondition,
+							Status:  metav1.ConditionTrue,
+							Reason:  ReasonPoolFull,
+							Message: "no available IP slice for node node-c",
+						},
+						{
+							Type:    fluxmeta.ReadyCondition,
+							Status:  metav1.ConditionFalse,
+							Reason:  ReasonPoolFull,
+							Message: "no available IP slice for node node-c",
+						},
+					},
+				},
+			}
+			buildReconciler(pool)
+			wantAllocations := append([]whereaboutsv1alpha1.NodeSliceAllocation(nil), pool.Status.Allocations...)
+
+			result, err := reconciler.ensureNodeAssignments(ctx, pool, []string{"node-a", "node-b"}, "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(BeZero())
+
+			var updated whereaboutsv1alpha1.NodeSlicePool
+			err = reconciler.client.Get(ctx, types.NamespacedName{Namespace: nadNamespace, Name: "ready-again"}, &updated)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(updated.Status.Allocations).To(Equal(wantAllocations))
+			Expect(updated.Status.AssignedSlices).To(Equal(int32(2)))
+			Expect(updated.Status.FreeSlices).To(Equal(int32(0)))
+			conditions := map[string]metav1.Condition{}
+			for _, condition := range updated.Status.Conditions {
+				conditions[condition.Type] = condition
+			}
+			Expect(conditions[fluxmeta.StalledCondition].Status).To(Equal(metav1.ConditionFalse))
+			Expect(conditions[fluxmeta.StalledCondition].Reason).To(Equal(ReasonReconciled))
+			Expect(conditions[fluxmeta.ReadyCondition].Status).To(Equal(metav1.ConditionTrue))
+			Expect(conditions[fluxmeta.ReadyCondition].Reason).To(Equal(ReasonReconciled))
+		})
 	})
 
 	Context("when the NAD range changes (spec changed)", func() {

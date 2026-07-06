@@ -877,6 +877,76 @@ func TestMultiRangeRollbackOnFailure(t *testing.T) {
 	}
 }
 
+func TestMultiRangeRollbackKeepsReusedFirstRangeAllocation(t *testing.T) {
+	pool1 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.4.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.4.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "default/pod1", ContainerID: "old-container", IfName: "eth0"},
+			},
+		},
+	}
+	pool2 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.5.0.0-30",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.5.0.0/30",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "ns/existing1", ContainerID: "x1", IfName: "eth0"},
+				"2": {PodRef: "ns/existing2", ContainerID: "x2", IfName: "eth0"},
+			},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool1, pool2)
+	k8sClient := fake.NewClientset()
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "new-container",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:      "pod1",
+		PodNamespace: "default",
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.4.0.0/24"},
+			{Range: "10.5.0.0/30"},
+		},
+	}
+
+	_, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected error from second range exhaustion")
+	}
+
+	updatedPool, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(
+		context.Background(), "10.4.0.0-24", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get pool1: %v", err)
+	}
+	if len(updatedPool.Spec.Allocations) != 1 {
+		t.Fatalf("expected reused first-range allocation to remain, got %d allocations", len(updatedPool.Spec.Allocations))
+	}
+	allocation, ok := updatedPool.Spec.Allocations["1"]
+	if !ok {
+		t.Fatalf("expected reused first-range allocation at offset 1 to remain: %#v", updatedPool.Spec.Allocations)
+	}
+	if allocation.PodRef != "default/pod1" || allocation.IfName != "eth0" || allocation.ContainerID != "new-container" {
+		t.Fatalf("unexpected reused allocation after failed ADD: %+v", allocation)
+	}
+}
+
 func TestMultiRangeRollbackOnFailureRemovesOverlappingReservation(t *testing.T) {
 	pool1 := &whereaboutsv1alpha1.IPPool{
 		ObjectMeta: metav1.ObjectMeta{
@@ -946,6 +1016,83 @@ func TestMultiRangeRollbackOnFailureRemovesOverlappingReservation(t *testing.T) 
 	}
 	if len(reservations.Items) != 0 {
 		t.Fatalf("expected overlapping reservations to be rolled back, got %d", len(reservations.Items))
+	}
+}
+
+func TestMultiRangeRollbackRemovesORIPCreatedForReusedAllocation(t *testing.T) {
+	pool1 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.6.0.0-24",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.6.0.0/24",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "default/pod1", ContainerID: "c1", IfName: "eth0"},
+			},
+		},
+	}
+	pool2 := &whereaboutsv1alpha1.IPPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "10.7.0.0-30",
+			Namespace:       "default",
+			ResourceVersion: "1",
+		},
+		Spec: whereaboutsv1alpha1.IPPoolSpec{
+			Range: "10.7.0.0/30",
+			Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+				"1": {PodRef: "ns/existing1", ContainerID: "x1", IfName: "eth0"},
+				"2": {PodRef: "ns/existing2", ContainerID: "x2", IfName: "eth0"},
+			},
+		},
+	}
+
+	wbClient := wbfake.NewClientset(pool1, pool2)
+	k8sClient := fake.NewClientset()
+
+	ipam := &KubernetesIPAM{
+		Client:      *NewKubernetesClient(wbClient, k8sClient),
+		Namespace:   "default",
+		ContainerID: "c1",
+		IfName:      "eth0",
+		Config:      types.IPAMConfig{},
+	}
+	conf := types.IPAMConfig{
+		PodName:           "pod1",
+		PodNamespace:      "default",
+		PodUID:            "pod-uid-1",
+		OverlappingRanges: true,
+		IPRanges: []types.RangeConfiguration{
+			{Range: "10.6.0.0/24"},
+			{Range: "10.7.0.0/30"},
+		},
+	}
+
+	_, err := IPManagementKubernetesUpdate(context.Background(), types.Allocate, ipam, conf)
+	if err == nil {
+		t.Fatal("expected error from second range exhaustion")
+	}
+
+	updatedPool, err := wbClient.WhereaboutsV1alpha1().IPPools("default").Get(
+		context.Background(), "10.6.0.0-24", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get pool1: %v", err)
+	}
+	if len(updatedPool.Spec.Allocations) != 1 {
+		t.Fatalf("expected reused first-range allocation to remain, got %d allocations", len(updatedPool.Spec.Allocations))
+	}
+	if _, ok := updatedPool.Spec.Allocations["1"]; !ok {
+		t.Fatalf("expected reused first-range allocation at offset 1 to remain: %#v", updatedPool.Spec.Allocations)
+	}
+
+	reservations, err := wbClient.WhereaboutsV1alpha1().OverlappingRangeIPReservations("default").List(
+		context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("failed to list overlapping reservations: %v", err)
+	}
+	if len(reservations.Items) != 0 {
+		t.Fatalf("expected ORIP created by failed ADD to be rolled back, got %d", len(reservations.Items))
 	}
 }
 

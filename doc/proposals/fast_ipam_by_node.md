@@ -17,11 +17,19 @@
 
 ## Introduction
 
-Whereabouts currently uses a single lease per cluster named "whereabouts" for locking for all allocation and deallocation
+Whereabouts originally used a single lease per cluster named "whereabouts" for locking for all allocation and deallocation
 of IPs across the entire cluster running whereabouts. This causes issues with performance and reliability at scale. 
 Even at 256 nodes, if you have 10 network-attachment-definitions per pod and run a pod on each node there will be so much lease contention that kubelet times
 out before whereabouts can assign all 10 IPs per pod. This would only get worse at higher scale and whereabouts should be able to support
 10+ network-attachment-definition per pod at the kubernetes supported scale of 5,000 nodes.
+
+## Status
+
+Fast IPAM is implemented as an experimental mode. It is enabled by setting
+`node_slice_size` in a top-level IPAM `range`; there is no separate
+`fast_ipam` flag. The current implementation rejects `node_slice_size` when it
+is combined with `ipRanges`, so multi-range and dual-stack configurations
+should continue to use standard IPAM.
 
 ### Goals
 
@@ -42,37 +50,44 @@ out before whereabouts can assign all 10 IPs per pod. This would only get worse 
 In order to make iterative improvements and work towards this feature in pieces we have laid out the implementation in phases.
 
 Initial phase:
-[] Fast ranges base functionality
+[x] Fast ranges base functionality
 
 Feature parity phase:
 [ ] Range start, range-end function
 [ ] Live changes to range (from regular to fast)
-[ ] Multiple ranges
+[ ] Multiple ranges / dual-stack Fast IPAM
 
 Optimization phase:
 [ ] Dynamic range slice rebalancing
 
 ## Design
 
-The IPAM configuration format would be updated to include enablement of this feature and configurations for the feature.
+The IPAM configuration format includes `node_slice_size` to enable and configure
+this feature.
 
-We will create a new CRD `NodeSlicePool` which will be used to manage the slices of the network ranges that nodes
-are assigned to. A controller where reconcile these NodeSlicePools based on cluster nodes and network-attachment-definitions.
+Fast IPAM uses the `NodeSlicePool` CRD to manage the slices of the network
+ranges that nodes are assigned to. A controller-runtime reconciler reconciles
+these NodeSlicePools based on cluster Nodes and NetworkAttachmentDefinitions.
 
-Whereabouts binary will be able to tell this feature is enabled and when creating `IPPools` it will check the `NodeSlicePool` to get the range of the current node.
-It will set this on existing IPPools object and use a lease per IPPool. There will be an `IPPool` and `Lease` per network per node.
+Whereabouts enables this feature when `node_slice_size` is present. When
+creating `IPPools`, it checks the `NodeSlicePool` to get the range for the
+current node. It will set this on existing IPPool objects and use a lease per
+IPPool. There will be an `IPPool` and `Lease` per network per node.
 Where a network is defined by network name i.e. you can have multiple `network-attachment-definitions` with a shared network name and this will result in
 a shared `NodeSlicePool`, `IPPool` and `Lease` per node for these `network-attachment-definitions`.
 
 i.e. we have nad1 and nad2 both with network name `test-network`. When a node, `trusted-otter` joins the cluster this will result in
-`NodeSlicePool`, `IPPool` and `Lease` objects named `test-network-trusted-otter`. If these are seperate network you would just not set the network name
-or set the network-name differently per `network-attachment-defintion`.
+`NodeSlicePool` named `test-network` and per-node `IPPool` / `Lease` objects
+named with the network name, node name, and normalized slice range, for example
+`test-network-trusted-otter-192-168-0-0-24`. If these are separate networks you
+would not set the network name or would set `network_name` differently per
+`NetworkAttachmentDefinition`.
 
 ![node-slice-diagram](images/fast_ipam_by_node.png)
 
 ### Changes in IPAM Config
 
-This will lead to change in IPAM config something as follows:
+The implemented IPAM config uses `node_slice_size` as the feature switch:
 
 <table>
 <tr>
@@ -110,7 +125,6 @@ This will lead to change in IPAM config something as follows:
       "ipam": {
         "type": "whereabouts",
         "range": "192.168.2.225/8"
-+       "fast_ipam": true,
 +       "node_slice_size": "/22"
       }
 }
@@ -129,7 +143,6 @@ This will lead to change in IPAM config something as follows:
   "ipam": {
     "type": "whereabouts",
     "range": "192.168.2.225/8",
-    "fast_ipam": true,
     "node_slice_size": "/22"
   }
 }
@@ -143,75 +156,41 @@ This will lead to change in IPAM config something as follows:
 
 #### whereabouts/pkg/types/types.go
 
-```diff
- type IPAMConfig struct {
-      Name                string
-      Type                string               `json:"type"`
-      Routes              []*cnitypes.Route    `json:"routes"`
-      Datastore           string               `json:"datastore"`
-      IPRanges            []RangeConfiguration `json:"ipRanges"`
-+     NodeSliceSize       string               `json:"node_slice_size"`
-      Addresses           []Address            `json:"addresses,omitempty"`
-      OmitRanges          []string             `json:"exclude,omitempty"`
-      DNS                 cnitypes.DNS         `json:"dns"`
-      Range               string               `json:"range"`
-      RangeStart          net.IP               `json:"range_start,omitempty"`
-      RangeEnd            net.IP               `json:"range_end,omitempty"`
-      GatewayStr          string               `json:"gateway"`
-      EtcdHost            string               `json:"etcd_host,omitempty"`
-      EtcdUsername        string               `json:"etcd_username,omitempty"`
-      EtcdPassword        string               `json:"etcd_password,omitempty"`
-      EtcdKeyFile         string               `json:"etcd_key_file,omitempty"`
-      EtcdCertFile        string               `json:"etcd_cert_file,omitempty"`
-      EtcdCACertFile      string               `json:"etcd_ca_cert_file,omitempty"`
-      LeaderLeaseDuration int                  `json:"leader_lease_duration,omitempty"`
-      LeaderRenewDeadline int                  `json:"leader_renew_deadline,omitempty"`
-      LeaderRetryPeriod   int                  `json:"leader_retry_period,omitempty"`
-      LogFile             string               `json:"log_file"`
-      LogLevel            string               `json:"log_level"`
-      OverlappingRanges   bool                 `json:"enable_overlapping_ranges,omitempty"`
-      SleepForRace        int                  `json:"sleep_for_race,omitempty"`
-      Gateway             net.IP
-      Kubernetes          KubernetesConfig     `json:"kubernetes,omitempty"`
-      ConfigurationPath   string               `json:"configuration_path"`
-      PodName             string
-      PodNamespace        string
- }
+The current `IPAMConfig` includes:
+
+```go
+// NodeSliceSize sets the prefix length (e.g. "/28" or "28") for per-node
+// IP slices. Enables the experimental Fast IPAM feature when non-empty.
+NodeSliceSize string `json:"node_slice_size"`
 ```
 
-```diff
+```go
 type PoolIdentifier struct {
-	IpRange     string
+	IPRange     string
 	NetworkName string
-+	NodeName    string # this will signal that fast node slicing is enabled
+	NodeName    string
 }
 
 func IPPoolName(poolIdentifier PoolIdentifier) string {
--	if poolIdentifier.NetworkName == UnnamedNetwork {
--		return normalizeRange(poolIdentifier.IpRange)
-+	if poolIdentifier.NodeName != "" {
-+		// fast node range naming convention
-+		if poolIdentifier.NetworkName == UnnamedNetwork {
-+			return fmt.Sprintf("%v-%v", normalizeRange(poolIdentifier.IpRange), poolIdentifier.NodeName)
-+		} else {
-+			return fmt.Sprintf("%v-%v", poolIdentifier.NetworkName, poolIdentifier.NodeName)
-+		}
-	} else {
--		return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IpRange))
-+		// default naming convention
-+		if poolIdentifier.NetworkName == UnnamedNetwork {
-+			return normalizeRange(poolIdentifier.IpRange)
-+		} else {
-+			return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IpRange))
-+		}
+	if poolIdentifier.NodeName != "" {
+		// fast node range naming convention
+		if poolIdentifier.NetworkName == UnnamedNetwork {
+			return fmt.Sprintf("%v-%v", poolIdentifier.NodeName, normalizeRange(poolIdentifier.IPRange))
+		}
+		return fmt.Sprintf("%v-%v-%v", poolIdentifier.NetworkName, poolIdentifier.NodeName, normalizeRange(poolIdentifier.IPRange))
 	}
-}
 
+	// default naming convention
+	if poolIdentifier.NetworkName == UnnamedNetwork {
+		return normalizeRange(poolIdentifier.IPRange)
+	}
+	return fmt.Sprintf("%s-%s", poolIdentifier.NetworkName, normalizeRange(poolIdentifier.IPRange))
+}
 ```
 
-Additional changes will be required within whereabouts to use the NodeSlice to find the `Range` that the node its running
-on is assigned to. From here it can use the range on the IPPool with current code. Another change to set the IPPoolName and 
-Lease name as described above will be required. Finally, a new controller will be introduced to assign nodes to NodeSlices.
+Whereabouts now uses the NodeSlicePool to find the slice range assigned to the
+current node. `EffectivePoolIdentifier` then switches the IPPool and Lease name
+to the node-specific slice identifier before allocation.
 
 ### NodeSlicePool CRD
 
@@ -227,7 +206,11 @@ type NodeSlicePoolSpec struct {
 
 // NodeSlicePoolStatus defines the desired state of NodeSlicePool
 type NodeSlicePoolStatus struct {
-	Allocations []NodeSliceAllocation `json:"allocations"`
+	Allocations []NodeSliceAllocation `json:"allocations,omitempty"`
+	TotalSlices int32 `json:"totalSlices,omitempty"`
+	AssignedSlices int32 `json:"assignedSlices,omitempty"`
+	FreeSlices int32 `json:"freeSlices,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 type NodeSliceAllocation struct {
@@ -264,8 +247,12 @@ type NodeSlicePoolList struct {
 
 ### Backward Compatibility
 
-This feature will only change the behavior of whereabouts if the enabled flag is on. Otherwise 
-whereabouts will work the same for any IPAM config without the `node_slice_size` defined.
+This feature only changes Whereabouts behavior when `node_slice_size` is set.
+Otherwise Whereabouts works the same for IPAM configs without
+`node_slice_size` defined.
+
+`node_slice_size` currently requires a single top-level `range`. It cannot be
+combined with `ipRanges`.
 
 ## Alternative Design
 
@@ -277,10 +264,9 @@ and because it will run as a singleton so it does not need to lock as long as it
 
 ### Summary
 
-Currently, we have above two approaches for supporting fast IPAM through node slice assignment.
-Both approaches would require the same `IPAMConfig` and the new `NodeSlicePool` CRD. The first approach would also 
-require an additional controller to run in the cluster. The first approach is preferred because controller reconciliation is
-less likely to have bugs.
+The controller-based design is implemented in the Whereabouts operator. The
+operator reconciles NodeSlicePools and the CNI binary consumes the assigned
+slice for allocations on the current node.
 
 ### Discussions and Decisions
 

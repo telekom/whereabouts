@@ -342,24 +342,23 @@ func (r *NodeSliceReconciler) ensureNodeAssignments(ctx context.Context, pool *w
 
 	// Assign unassigned nodes to empty slots.
 	assignedNodes := make(map[string]struct{})
-	for _, a := range allocations {
-		if a.NodeName != "" {
-			assignedNodes[a.NodeName] = struct{}{}
+	freeSlots := make([]int, 0)
+	for i := range allocations {
+		if allocations[i].NodeName != "" {
+			assignedNodes[allocations[i].NodeName] = struct{}{}
+		} else {
+			freeSlots = append(freeSlots, i)
 		}
 	}
 	poolFull := false
+	nextFreeSlot := 0
 	for _, nodeName := range nodes {
 		if _, assigned := assignedNodes[nodeName]; !assigned {
-			slotFound := false
-			for i := range allocations {
-				if allocations[i].NodeName == "" {
-					allocations[i].NodeName = nodeName
-					assignedNodes[nodeName] = struct{}{}
-					slotFound = true
-					break
-				}
-			}
-			if !slotFound {
+			if nextFreeSlot < len(freeSlots) {
+				allocations[freeSlots[nextFreeSlot]].NodeName = nodeName
+				assignedNodes[nodeName] = struct{}{}
+				nextFreeSlot++
+			} else {
 				if staleIPPoolBlocking {
 					logger.Info("no available slot for node while stale per-node IPPool cleanup is pending",
 						"pool", pool.Name, "node", nodeName)

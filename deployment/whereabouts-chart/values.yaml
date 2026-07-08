@@ -69,6 +69,7 @@ operator:
   nodeSelector: {}
   tolerations: []
   priorityClassName: ""
+<<<<<<< HEAD
   resources:
     requests:
       cpu: 100m
@@ -90,3 +91,15 @@ operator:
 webhook:
   # failurePolicy for the ValidatingWebhookConfiguration (Fail or Ignore).
   failurePolicy: Ignore
+=======
+
+reconciler:
+  logLevel: debug
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "50Mi"
+    limits:
+      cpu: "100m"
+      memory: "50Mi"
+>>>>>>> upstream/master

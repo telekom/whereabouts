@@ -26,7 +26,7 @@ require (
 	github.com/open-policy-agent/cert-controller v0.16.0
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/structured-merge-diff/v6 v6.4.0
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.2
 )
 
 require (

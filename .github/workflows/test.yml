@@ -64,6 +64,7 @@ jobs:
 
     - name: Send coverage
       uses: shogo82148/actions-goveralls@9606dbc5ac5cf888a0e9ef901515c3cd516a2790 # v1.11.0
+      continue-on-error: true # coveralls.io occasionally returns 504s; don't fail the build over a reporting outage
       with:
         path-to-profile: coverage.out
 

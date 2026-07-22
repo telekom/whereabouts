@@ -123,6 +123,7 @@ trap "rm -f /tmp/whereabouts-img.tar" EXIT
 "$OCI_BIN" save -o /tmp/whereabouts-img.tar "$IMG_NAME"
 kind load image-archive --name "$KIND_CLUSTER_NAME" /tmp/whereabouts-img.tar
 
+<<<<<<< HEAD
 echo "## install CRDs"
 for crd in "$ROOT/config/crd/bases/whereabouts.cni.cncf.io_"*.yaml; do
   retry kubectl apply -f "$crd"
@@ -142,4 +143,17 @@ retry kubectl apply -f "$rendered_manifest"
 popd
 retry kubectl wait -n kube-system --for=condition=ready -l name=whereabouts pod --timeout=$TIMEOUT_K8
 retry kubectl wait -n kube-system --for=condition=ready -l control-plane=controller-manager pod --timeout=$TIMEOUT_K8
+=======
+echo "## install whereabouts"
+for file in "daemonset-install.yaml" "whereabouts.cni.cncf.io_ippools.yaml" "whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml" "whereabouts.cni.cncf.io_nodeslicepools.yaml" "reconciler-deployment.yaml"; do
+  # insert 'imagePullPolicy: Never' under the container 'image' so it is certain that the image used
+  # by the daemonset is the one loaded into KinD and not one pulled from a repo
+  sed '/        image:/a\        imagePullPolicy: Never' "$ROOT/doc/crds/$file" | retry kubectl apply -f -
+done
+# deployment has an extra tab for the sed so doing out of the loop
+sed '/          image:/a\          imagePullPolicy: Never' "$ROOT/doc/crds/node-slice-controller.yaml" | retry kubectl apply -f -
+retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts pod --timeout=$TIMEOUT_K8
+retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-controller pod --timeout=$TIMEOUT_K8
+retry kubectl wait -n kube-system --for=condition=ready -l app=whereabouts-reconciler pod --timeout=$TIMEOUT_K8
+>>>>>>> upstream/master
 echo "## done"

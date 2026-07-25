@@ -18,6 +18,7 @@ RUN VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VER
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts-operator ./cmd/operator/ && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/install-cni ./cmd/install-cni/
 
+<<<<<<< HEAD
 FROM gcr.io/distroless/static:nonroot@sha256:d29e660cc75a5b6b1334e03c5c81ccf9bc0884a002c6000dbf0fb96034814478
 LABEL org.opencontainers.image.source=https://github.com/telekom/whereabouts
 WORKDIR /
@@ -27,3 +28,15 @@ COPY --from=builder /go/src/github.com/telekom/whereabouts/bin/install-cni .
 # Default to non-root; the DaemonSet overrides this via securityContext.
 USER 65532:65532
 CMD ["/install-cni"]
+=======
+FROM alpine:3.24.1
+LABEL org.opencontainers.image.source=https://github.com/k8snetworkplumbingwg/whereabouts
+COPY --from=0 /go/src/github.com/k8snetworkplumbingwg/whereabouts/bin/whereabouts .
+COPY --from=0 /go/src/github.com/k8snetworkplumbingwg/whereabouts/bin/ip-control-loop .
+COPY --from=0 /go/src/github.com/k8snetworkplumbingwg/whereabouts/bin/ip-reconciler .
+COPY --from=0 /go/src/github.com/k8snetworkplumbingwg/whereabouts/bin/node-slice-controller .
+COPY script/install-cni.sh .
+COPY script/lib.sh .
+COPY script/token-watcher.sh .
+CMD ["/install-cni.sh"]
+>>>>>>> upstream/master

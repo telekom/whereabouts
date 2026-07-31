@@ -62,14 +62,22 @@ spec:
           - name: cnibin
             mountPath: {{ $cniBinDir | quote }}
           - name: cni-net-dir
+<<<<<<< HEAD
             mountPath: {{ $cniConfDir | quote }}
+=======
+            mountPath: /host/etc/cni/net.d
+>>>>>>> upstream/master
       volumes:
         - name: cnibin
           hostPath:
             path: {{ .Values.cniConf.binDir | quote }}
         - name: cni-net-dir
           hostPath:
+<<<<<<< HEAD
             path: {{ .Values.cniConf.confDir | quote }}
+=======
+            path: {{ .Values.cniConf.confDir }}
+>>>>>>> upstream/master
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

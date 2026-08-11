@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AssignmentError` message is now actionable, suggesting pool exhaustion checks.
 
 ### Changed
+- Updated all safe direct and indirect Go modules to current releases. The
+  legacy `github.com/imdario/mergo` path is pinned to its latest compatible
+  release (`v0.3.16`) because v1 moved to `dario.cat/mergo`, which is already
+  used separately.
 - `ReconcilerCronExpression` field in `IPAMConfig` is marked deprecated; the
   operator now uses `--reconcile-interval` instead.
 - Helm webhook ClusterRole secrets access is now scoped to the specific webhook

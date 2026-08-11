@@ -1071,3 +1071,4 @@ sigs.k8s.io/yaml
 # sigs.k8s.io/knftables => sigs.k8s.io/knftables v0.0.22
 # sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 # github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+# golang.org/x/crypto => golang.org/x/crypto v0.55.0

@@ -241,3 +241,5 @@ replace sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-dif
 // v1+ moved to dario.cat/mergo, which is already required separately.
 // Keep the legacy import path on its latest compatible release.
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+
+replace golang.org/x/crypto => golang.org/x/crypto v0.55.0

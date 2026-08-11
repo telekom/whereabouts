@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.dockerignore` to reduce Docker build context size.
 
 ### Fixed
+- Empty or whitespace-only Multus `network-status` annotations no longer keep
+  stale IPPool allocations marked as in use when verification is enabled.
 - `denormalizeIPName` infinite loop when the last segment of a normalized IPPool
   name contained no dash separator.
 - `GetVersion()` no longer panics when the build-time `Version` variable is empty;

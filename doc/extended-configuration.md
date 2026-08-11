@@ -499,7 +499,10 @@ orphaned and removed.
 
 This check is enabled by default and provides an additional layer of orphan
 detection: even if the pod exists and is running, a missing IP in the
-network-status annotation indicates a stale allocation.
+network-status annotation indicates a stale allocation. A present annotation
+whose value is empty or whitespace-only is treated as containing no IPs. If
+the annotation is absent or malformed, the allocation is retained because the
+operator cannot safely verify it.
 
 **If your CNI does not populate the `network-status` annotation** (e.g. when
 not using Multus, or using a custom meta-plugin), disable this check:

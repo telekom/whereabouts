@@ -743,10 +743,13 @@ func isPodLostToNodeFailure(status corev1.PodStatus) bool {
 // for proper IPv6 comparison.
 func isPodUsingIP(pod *corev1.Pod, ip net.IP, ifName string) bool {
 	annotation, ok := pod.Annotations[nadv1.NetworkStatusAnnot]
-	if !ok || annotation == "" {
+	if !ok {
 		// No annotation — cannot confirm; assume still valid to avoid
 		// false-positive cleanup.
 		return true
+	}
+	if strings.TrimSpace(annotation) == "" {
+		return false
 	}
 
 	var statuses []nadv1.NetworkStatus

@@ -103,7 +103,7 @@ func TestChartReleaseWorkflowSignsAndAttestsChart(t *testing.T) {
 		"sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6",
 		"id: push-chart",
 		"cosign sign --yes \"${{ steps.push-chart.outputs.chart_ref }}@${{ steps.push-chart.outputs.chart_digest }}\"",
-		"actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373",
+		"actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 		"subject-name: ${{ steps.push-chart.outputs.chart_ref }}",
 		"subject-digest: ${{ steps.push-chart.outputs.chart_digest }}",
 		"push-to-registry: true",

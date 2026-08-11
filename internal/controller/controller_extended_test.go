@@ -268,14 +268,24 @@ var _ = Describe("isPodUsingIP", func() {
 		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
 	})
 
-	It("returns true when annotation is empty", func() {
+	It("returns false when annotation is empty", func() {
 		pod := &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        "pod1",
 				Annotations: map[string]string{nadv1.NetworkStatusAnnot: ""},
 			},
 		}
-		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeTrue())
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeFalse())
+	})
+
+	It("returns false when annotation contains only whitespace", func() {
+		pod := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pod1",
+				Annotations: map[string]string{nadv1.NetworkStatusAnnot: " \n\t "},
+			},
+		}
+		Expect(isPodUsingIP(pod, net.ParseIP("10.0.0.1"), "")).To(BeFalse())
 	})
 
 	It("returns true when annotation is malformed JSON", func() {
@@ -531,6 +541,47 @@ var _ = Describe("IPPoolReconciler extended", func() {
 
 	Context("when a pod is running but IP not in network-status annotation", func() {
 		Context("with verifyNetworkStatus enabled", func() {
+			It("should remove the allocation when network-status is empty", func() {
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "empty-status-pod",
+						Namespace: "default",
+						Annotations: map[string]string{
+							nadv1.NetworkStatusAnnot: "",
+						},
+					},
+					Status: corev1.PodStatus{
+						Phase: corev1.PodRunning,
+					},
+				}
+				pool := &whereaboutsv1alpha1.IPPool{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       poolName,
+						Namespace:  poolNamespace,
+						Finalizers: []string{ippoolFinalizer},
+					},
+					Spec: whereaboutsv1alpha1.IPPoolSpec{
+						Range: poolRange,
+						Allocations: map[string]whereaboutsv1alpha1.IPAllocation{
+							"1": {
+								ContainerID: "abc123",
+								PodRef:      "default/empty-status-pod",
+								IfName:      "eth0",
+							},
+						},
+					},
+				}
+				buildReconcilerWithFlags(false, false, true, pool, pod)
+
+				result, err := reconciler.Reconcile(ctx, req)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(interval))
+
+				var updated whereaboutsv1alpha1.IPPool
+				Expect(reconciler.client.Get(ctx, req.NamespacedName, &updated)).To(Succeed())
+				Expect(updated.Spec.Allocations).To(BeEmpty())
+			})
+
 			It("should remove the orphaned allocation", func() {
 				statuses := []nadv1.NetworkStatus{
 					{Name: "default/net1", Default: false, IPs: []string{"10.0.0.99"}},

@@ -63,7 +63,12 @@ jobs:
         run: |
           # One stable branch. A dated branch name created a new orphan branch on
           # every run, so the fork collects one dead branch per day.
-          SYNC_BRANCH="upstream-sync"
+          #
+          # The name must not be "upstream-sync". Git cannot hold a ref file at
+          # refs/heads/upstream-sync while refs/heads/upstream-sync/<date> exists
+          # as a directory, and the old dated branches are still there. The push
+          # is rejected with "directory file conflict".
+          SYNC_BRANCH="chore/upstream-sync"
 
           # An open sync PR is refreshed in place instead of being duplicated.
           EXISTING_PR=$(gh pr list --repo "$GH_REPO" --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)

@@ -61,21 +61,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          SYNC_BRANCH="upstream-sync/$(date +%Y-%m-%d)"
+          # One stable branch. A dated branch name created a new orphan branch on
+          # every run, so the fork collects one dead branch per day.
+          SYNC_BRANCH="upstream-sync"
 
-          # Check if a sync PR already exists
-          EXISTING_PR=$(gh pr list --repo "$GH_REPO" --head "$SYNC_BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
-          if [ -n "$EXISTING_PR" ]; then
-            echo "Sync PR #$EXISTING_PR already exists, skipping"
-            exit 0
+          # An open sync PR is refreshed in place instead of being duplicated.
+          EXISTING_PR=$(gh pr list --repo "$GH_REPO" --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ "$EXISTING_PR" = "null" ]; then
+            EXISTING_PR=""
           fi
 
-          # Clean up any stale local/remote branch from a previous failed run
-          git branch -D "$SYNC_BRANCH" 2>/dev/null || true
-          git push origin --delete "$SYNC_BRANCH" 2>/dev/null || true
-
-          # Create sync branch from main
-          git checkout -b "$SYNC_BRANCH" origin/main
+          # Rebuild the sync branch from the current default branch.
+          git checkout -B "$SYNC_BRANCH" origin/main
 
           # Merge upstream (allow conflicts — they'll be flagged in the PR).
           # --no-ff ensures a merge commit is always created even for fast-forwards,
@@ -113,7 +110,8 @@ jobs:
             # Capture conflicting files BEFORE staging (git diff --diff-filter=U only
             # shows unmerged paths; after git add -A they become staged and disappear
             # from the unstaged diff).
-            CONFLICTS=$(git diff --name-only --diff-filter=U | tr '\n' ' ')
+            CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+            CONFLICTS=$(printf '%s' "$CONFLICT_FILES" | tr '\n' ' ')
             git add -A
             # Strip upstream workflow changes from the conflict commit too.
             UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | tr '\n' ' ')
@@ -129,7 +127,11 @@ jobs:
             git commit --no-edit
             # After stripping workflow files, check whether any real conflicts remain.
             REMAINING_CONFLICTS=$(git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')
-            if [ -z "$REMAINING_CONFLICTS" ] && [ -z "$(echo "$CONFLICTS" | tr -d ' '| grep -v '^\.github/workflows/')" ]; then
+            # Filter the newline separated list. The previous version squashed the
+            # list into one line with tr -d ' ', so a single leading workflow path
+            # hid every other conflict and the PR claimed a clean merge.
+            NON_WORKFLOW_CONFLICTS=$(printf '%s\n' "$CONFLICT_FILES" | grep -v '^[[:space:]]*$' | grep -v '^\.github/workflows/' || true)
+            if [ -z "$REMAINING_CONFLICTS" ] && [ -z "$NON_WORKFLOW_CONFLICTS" ]; then
               BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
             else
               BODY=$(printf '⚠️ Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR has **merge conflicts** that need manual resolution.\n\n**${{ steps.check.outputs.behind }}** new upstream commit(s) detected.\n\n**Conflicting files:** `%s`\n\nTo resolve locally:\n```bash\ngit fetch upstream\ngit merge upstream/master\n# Resolve conflicts, then:\ngit add . && git commit\n```%s' "$CONFLICTS" "$WORKFLOW_NOTE")
@@ -138,10 +140,41 @@ jobs:
 
           git push origin "$SYNC_BRANCH" --force
 
-          gh pr create \
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Sync PR #$EXISTING_PR is open and now points at the refreshed branch"
+            exit 0
+          fi
+
+          # GitHub Actions may be barred from opening pull requests by the repository
+          # or organisation setting "Allow GitHub Actions to create and approve pull
+          # requests". The sync branch is already pushed, so no work is lost. Report
+          # the manual step through a single tracking issue and keep the run green.
+          # A workflow that is red every day trains people to ignore it, which is how
+          # a fork drifts unnoticed.
+          report_manual_pr_needed() {
+            ISSUE_TITLE="upstream-sync: manual pull request required"
+            EXISTING_ISSUE=$(gh issue list --repo "$GH_REPO" --state open --search "in:title \"$ISSUE_TITLE\"" --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
+            if [ "$EXISTING_ISSUE" = "null" ]; then
+              EXISTING_ISSUE=""
+            fi
+            if [ -n "$EXISTING_ISSUE" ]; then
+              echo "Tracking issue #$EXISTING_ISSUE is already open, skipping duplicate"
+              return
+            fi
+            gh issue create \
+              --repo "$GH_REPO" \
+              --title "$ISSUE_TITLE" \
+              --body "$(printf 'The upstream sync pushed branch `%s` but could not open a pull request.\n\nGitHub Actions is not permitted to create pull requests in this repository, so `gh pr create` fails with `GitHub Actions is not permitted to create or approve pull requests`.\n\n**Open the pull request manually:**\nhttps://github.com/%s/compare/main...%s?expand=1\n\n**Or let the workflow do it:** enable `Allow GitHub Actions to create and approve pull requests` under Settings > Actions > General, or pass a personal access token to the workflow.\n\nThe branch is rebuilt on every run, so this issue stays valid until the pull request exists.\n\n_Auto-created by the upstream-sync workflow._' "$SYNC_BRANCH" "$GH_REPO" "$SYNC_BRANCH")" \
+              --label "ci" 2>/dev/null || echo "::warning::Failed to create the manual-pull-request tracking issue"
+          }
+
+          if ! gh pr create \
             --repo "$GH_REPO" \
             --base main \
             --head "$SYNC_BRANCH" \
             --title "chore: sync upstream whereabouts $(date +%Y-%m-%d)" \
             --body "$BODY" \
-            --label "upstream-sync"
+            --label "upstream-sync"; then
+            echo "::warning::Could not open the sync pull request. Branch $SYNC_BRANCH is pushed and a tracking issue records the manual step."
+            report_manual_pr_needed
+          fi

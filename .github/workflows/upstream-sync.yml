@@ -1,9 +1,23 @@
 name: Sync from upstream
 
 on:
-  schedule:
-    # Run daily at 06:00 UTC
-    - cron: "0 6 * * *"
+  # The daily schedule is disabled. Two things must be decided before it is
+  # switched back on:
+  #
+  # 1. GitHub Actions is not permitted to create pull requests in this
+  #    repository, so the job can only push a branch and raise a tracking
+  #    issue. Enable "Allow GitHub Actions to create and approve pull
+  #    requests" under Settings > Actions > General, or give the workflow a
+  #    scoped personal access token.
+  # 2. The fork is 45 commits behind upstream and 370 ahead. Every merge
+  #    conflicts across vendor/, so no automated merge can land. Either the
+  #    fork stops vendoring, or vendor/ leaves the merge scope.
+  #
+  # Re-enable by uncommenting the two schedule lines below.
+  #
+  # schedule:
+  #   # Run daily at 06:00 UTC
+  #   - cron: "0 6 * * *"
   workflow_dispatch:
 
 permissions:

@@ -2,7 +2,7 @@ module github.com/telekom/whereabouts
 
 go 1.26.2
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	github.com/blang/semver v3.5.1+incompatible

@@ -24,7 +24,6 @@ jobs:
   govulncheck:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest
-    continue-on-error: true # upstream panic in golang.org/x/tools@v0.46.0 vs Go 1.26 (ForEachElement on *types.TypeParam)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Go

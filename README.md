@@ -64,8 +64,17 @@ Further installation options and configuration parameters can be found in the [e
 You can install the full stack (CRDs + DaemonSet + operator + webhooks) with:
 
 ```
+<<<<<<< HEAD
 git clone https://github.com/telekom/whereabouts && cd whereabouts
 make deploy
+=======
+git clone https://github.com/k8snetworkplumbingwg/whereabouts && cd whereabouts
+kubectl apply \
+    -f doc/crds/daemonset-install.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_ippools.yaml \
+    -f doc/crds/whereabouts.cni.cncf.io_overlappingrangeipreservations.yaml \
+    -f doc/crds/reconciler-deployment.yaml
+>>>>>>> upstream/master
 ```
 
 Or install components individually:

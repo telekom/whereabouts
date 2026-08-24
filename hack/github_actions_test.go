@@ -69,7 +69,7 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 	workflowText := string(workflow)
 
 	for _, want := range []string{
-		"docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e",
+		"docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c",
 		"run: bash hack/release/wait-for-release-image.sh",
 		"IMAGE_NAME: ${{ env.IMAGE_NAME }}",
 		"GITHUB_TAG: ${{ github.ref_name }}",

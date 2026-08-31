@@ -20,6 +20,10 @@ on:
   #   - cron: "0 6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: upstream-sync-${{ github.repository }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -111,17 +115,102 @@ jobs:
             git rm -r -f --ignore-unmatch .github/workflows >/dev/null 2>&1 || true
             git checkout origin/main -- .github/workflows/
           }
+          # Use the paginated issues API instead of search. Search results can be
+          # restricted or incomplete, and an unlabeled matching issue must still
+          # prevent another issue from being created.
+          find_existing_open_issue() {
+            local issue_title=$1
+            local open_issues
+            if ! open_issues=$(gh api --paginate \
+              "repos/$GH_REPO/issues?state=open&per_page=100" \
+              --header "X-GitHub-Api-Version: 2022-11-28"); then
+              return 1
+            fi
+            printf '%s\n' "$open_issues" |
+              jq -rs --arg title "$issue_title" \
+                '[.[][] | select(.pull_request == null) | select(.title == $title) | .number] | min // empty'
+          }
+          report_workflow_drift() {
+            local changed_files=$1
+            local issue_title="upstream-sync: workflow drift detected"
+            local drift_marker="<!-- upstream-sync-workflow-drift: ${changed_files} -->"
+            local body
+            body=$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n%s\n_Auto-created by upstream-sync workflow._' "$changed_files" "$drift_marker")
+            write_drift_summary() {
+              if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+                echo "::warning::GITHUB_STEP_SUMMARY is unavailable; workflow drift report follows"
+                printf '%s\n' "$body"
+                return 0
+              fi
+              if ! printf '## Workflow drift report\n\n%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"; then
+                echo "::warning::Could not write workflow drift report to GITHUB_STEP_SUMMARY; report follows"
+                printf '%s\n' "$body"
+              fi
+            }
+
+            local existing_issue
+            if ! existing_issue=$(find_existing_open_issue "$issue_title"); then
+              echo "::warning::Failed complete lookup for an existing workflow-drift issue; recording drift in the job summary to avoid duplicate issues"
+              write_drift_summary
+              return
+            fi
+
+            if [ -n "$existing_issue" ]; then
+              local existing_body
+              if ! existing_body=$(gh issue view "$existing_issue" \
+                --repo "$GH_REPO" \
+                --json body \
+                --jq '.body' 2>/dev/null); then
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue body; recording drift in the job summary to avoid duplicates"
+                write_drift_summary
+                return
+              fi
+              if printf '%s' "$existing_body" | grep -Fq "$drift_marker"; then
+                echo "Workflow-drift issue #$existing_issue already has the current drift set; skipping duplicate issue creation"
+                return
+              fi
+              local existing_comments
+              if ! existing_comments=$(gh issue view "$existing_issue" \
+                --repo "$GH_REPO" \
+                --json comments \
+                --jq '.comments[].body' 2>/dev/null); then
+                echo "::warning::Failed to read workflow-drift issue #$existing_issue comments; recording drift in the job summary to avoid duplicate comments"
+                write_drift_summary
+                return
+              fi
+              if printf '%s' "$existing_comments" | grep -Fq "$drift_marker"; then
+                echo "Workflow-drift issue #$existing_issue already has the current drift set in comments; skipping duplicate issue creation"
+                return
+              fi
+
+              echo "Workflow-drift issue #$existing_issue is already open; adding changed-file update"
+              if ! gh issue comment "$existing_issue" \
+                --repo "$GH_REPO" \
+                --body "$body" 2>/dev/null; then
+                echo "::warning::Failed to update workflow-drift issue; recording drift in the job summary"
+                write_drift_summary
+              fi
+              return
+            fi
+
+            if ! gh issue create \
+              --repo "$GH_REPO" \
+              --title "$issue_title" \
+              --body "$body" \
+              --label "ci" 2>/dev/null; then
+              echo "::warning::Failed to create workflow-drift issue; recording drift in the job summary"
+              write_drift_summary
+            fi
+          }
           if [ "$MERGE_CLEAN" = "true" ]; then
-            UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | tr '\n' ' ')
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff origin/main --name-only -- '.github/workflows/' | paste -sd ' ' -)
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
               restore_fork_workflows
               git commit --amend --no-edit
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
-              gh issue create --title "upstream-sync: workflow drift detected" \
-                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
-                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
+              report_workflow_drift "$UPSTREAM_WORKFLOW_CHANGES"
             fi
             BODY=$(printf 'Automated sync from [upstream k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts).\n\nThis PR merges **${{ steps.check.outputs.behind }}** new upstream commit(s) cleanly.\n\nPlease review the changes and merge when ready.%s' "$WORKFLOW_NOTE")
           else
@@ -133,15 +222,13 @@ jobs:
             CONFLICTS=$(printf '%s' "$CONFLICT_FILES" | tr '\n' ' ')
             git add -A
             # Strip upstream workflow changes from the conflict commit too.
-            UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | tr '\n' ' ')
+            UPSTREAM_WORKFLOW_CHANGES=$(git diff --cached --name-only -- '.github/workflows/' | paste -sd ' ' -)
             if [ -n "$UPSTREAM_WORKFLOW_CHANGES" ]; then
               echo "Upstream introduced workflow changes — restoring fork's .github/workflows/ to avoid push rejection:"
               echo "  $UPSTREAM_WORKFLOW_CHANGES"
               restore_fork_workflows
               WORKFLOW_NOTE=$(printf '\n\n_Upstream changes to `.github/workflows/` (%s) were excluded from this PR. `GITHUB_TOKEN` cannot push workflow file modifications. Review the upstream diff and apply any relevant CI changes manually._' "$UPSTREAM_WORKFLOW_CHANGES")
-              gh issue create --title "upstream-sync: workflow drift detected" \
-                --body "$(printf 'The automated upstream sync detected workflow file changes that were excluded (GITHUB_TOKEN lacks workflow scope).\n\n**Changed files:** `%s`\n\nReview the upstream diff and apply relevant CI/security workflow fixes manually:\n```bash\ngit diff origin/main..upstream/master -- .github/workflows/\n```\n\n_Auto-created by upstream-sync workflow._' "$UPSTREAM_WORKFLOW_CHANGES")" \
-                --label "ci" 2>/dev/null || echo "::warning::Failed to create workflow-drift issue"
+              report_workflow_drift "$UPSTREAM_WORKFLOW_CHANGES"
             fi
             git commit --no-edit
             # After stripping workflow files, check whether any real conflicts remain.
@@ -171,18 +258,19 @@ jobs:
           # A workflow that is red every day trains people to ignore it, which is how
           # a fork drifts unnoticed.
           report_manual_pr_needed() {
-            ISSUE_TITLE="upstream-sync: manual pull request required"
-            EXISTING_ISSUE=$(gh issue list --repo "$GH_REPO" --state open --search "in:title \"$ISSUE_TITLE\"" --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
-            if [ "$EXISTING_ISSUE" = "null" ]; then
-              EXISTING_ISSUE=""
+            local issue_title="upstream-sync: manual pull request required"
+            local existing_issue
+            if ! existing_issue=$(find_existing_open_issue "$issue_title"); then
+              echo "::warning::Failed complete lookup for the manual-pull-request tracking issue; skipping issue creation to avoid duplicates"
+              return
             fi
-            if [ -n "$EXISTING_ISSUE" ]; then
-              echo "Tracking issue #$EXISTING_ISSUE is already open, skipping duplicate"
+            if [ -n "$existing_issue" ]; then
+              echo "Tracking issue #$existing_issue is already open, skipping duplicate"
               return
             fi
             gh issue create \
               --repo "$GH_REPO" \
-              --title "$ISSUE_TITLE" \
+              --title "$issue_title" \
               --body "$(printf 'The upstream sync pushed branch `%s` but could not open a pull request.\n\nGitHub Actions is not permitted to create pull requests in this repository, so `gh pr create` fails with `GitHub Actions is not permitted to create or approve pull requests`.\n\n**Open the pull request manually:**\nhttps://github.com/%s/compare/main...%s?expand=1\n\n**Or let the workflow do it:** enable `Allow GitHub Actions to create and approve pull requests` under Settings > Actions > General, or pass a personal access token to the workflow.\n\nThe branch is rebuilt on every run, so this issue stays valid until the pull request exists.\n\n_Auto-created by the upstream-sync workflow._' "$SYNC_BRANCH" "$GH_REPO" "$SYNC_BRANCH")" \
               --label "ci" 2>/dev/null || echo "::warning::Failed to create the manual-pull-request tracking issue"
           }

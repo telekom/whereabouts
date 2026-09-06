@@ -45,7 +45,7 @@ github.com/evanphx/json-patch/v5/internal/json
 # github.com/fluxcd/pkg/apis/meta v1.31.0
 ## explicit; go 1.26.0
 github.com/fluxcd/pkg/apis/meta
-# github.com/fluxcd/pkg/runtime v0.111.0
+# github.com/fluxcd/pkg/runtime v0.112.0
 ## explicit; go 1.26.0
 github.com/fluxcd/pkg/runtime/conditions
 # github.com/fsnotify/fsnotify v1.10.1
@@ -185,7 +185,7 @@ github.com/onsi/ginkgo/v2/internal/reporters
 github.com/onsi/ginkgo/v2/internal/testingtproxy
 github.com/onsi/ginkgo/v2/reporters
 github.com/onsi/ginkgo/v2/types
-# github.com/onsi/gomega v1.42.1
+# github.com/onsi/gomega v1.43.0
 ## explicit; go 1.25.0
 github.com/onsi/gomega
 github.com/onsi/gomega/format
@@ -218,8 +218,8 @@ github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_golang/prometheus/promhttp/internal
-# github.com/prometheus/client_model v0.6.2
-## explicit; go 1.22.0
+# github.com/prometheus/client_model v0.6.3
+## explicit; go 1.23
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.70.1
 ## explicit; go 1.25.0

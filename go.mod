@@ -22,7 +22,7 @@ require (
 
 require (
 	github.com/gaissmai/extnetip v1.3.2
-	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/ginkgo/v2 v2.32.2
 	github.com/open-policy-agent/cert-controller v0.16.0
 	github.com/spf13/cobra v1.10.2
 	sigs.k8s.io/controller-runtime v0.25.0

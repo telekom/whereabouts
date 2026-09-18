@@ -3,6 +3,8 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
+    allow:
+      - dependency-type: all
     schedule:
       interval: weekly
     groups:
@@ -21,12 +23,23 @@ updates:
       - "dependencies"
       - "go"
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /hack
+      - /yamls
     schedule:
       interval: weekly
     labels:
       - "dependencies"
       - "docker"
+  - package-ecosystem: helm
+    directory: /deployment/whereabouts-chart
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: ghcr.io/telekom/whereabouts
+    labels:
+      - "dependencies"
   - package-ecosystem: github-actions
     directory: /
     schedule:

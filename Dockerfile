@@ -18,7 +18,7 @@ RUN VERSION_LDFLAGS="-X github.com/telekom/whereabouts/pkg/version.Version=${VER
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/whereabouts-operator ./cmd/operator/ && \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w ${VERSION_LDFLAGS}" -o bin/install-cni ./cmd/install-cni/
 
-FROM gcr.io/distroless/static:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7
+FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 LABEL org.opencontainers.image.source=https://github.com/telekom/whereabouts
 WORKDIR /
 COPY --from=builder /go/src/github.com/telekom/whereabouts/bin/whereabouts .

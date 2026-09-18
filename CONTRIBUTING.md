@@ -44,6 +44,18 @@ make generate-api         # Regenerate deepcopy + manifests
 make update-deps  # go mod tidy && go mod vendor && go mod verify
 ```
 
+Dependabot tracks direct and indirect Go modules (including the vendor refresh),
+workflow actions, root Dockerfile bases, Kubernetes image references in `hack/`
+and `yamls/`, and the chart in `deployment/whereabouts-chart/`.
+The chart's own `ghcr.io/telekom/whereabouts` image is intentionally excluded:
+its version belongs to the release process, as do `controller:latest`
+deployment placeholders.
+
+Dependabot does not update arbitrary tool versions, checksums, shell-script
+image references, or package pins inside Dockerfile `RUN` instructions.
+Maintain these together with their consumers and validate the relevant build
+and integration jobs.
+
 ## Code Conventions
 
 ### Error Handling

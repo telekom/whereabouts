@@ -17,7 +17,7 @@ require (
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
 	k8s.io/code-generator v0.37.0
-	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
+	k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098
 )
 
 require (
@@ -31,8 +31,8 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2
-	github.com/fluxcd/pkg/apis/meta v1.31.0
-	github.com/fluxcd/pkg/runtime v0.112.0
+	github.com/fluxcd/pkg/apis/meta v1.32.0
+	github.com/fluxcd/pkg/runtime v0.113.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
 	go.uber.org/zap v1.28.0

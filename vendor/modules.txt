@@ -42,10 +42,10 @@ github.com/emicklei/go-restful/v3/log
 ## explicit; go 1.18
 github.com/evanphx/json-patch/v5
 github.com/evanphx/json-patch/v5/internal/json
-# github.com/fluxcd/pkg/apis/meta v1.31.0
+# github.com/fluxcd/pkg/apis/meta v1.32.0
 ## explicit; go 1.26.0
 github.com/fluxcd/pkg/apis/meta
-# github.com/fluxcd/pkg/runtime v0.112.0
+# github.com/fluxcd/pkg/runtime v0.113.0
 ## explicit; go 1.26.0
 github.com/fluxcd/pkg/runtime/conditions
 # github.com/fsnotify/fsnotify v1.10.1
@@ -921,7 +921,7 @@ k8s.io/klog/v2/internal/verbosity
 k8s.io/klog/v2/textlogger
 # k8s.io/kube-aggregator v0.37.0
 ## explicit; go 1.26.0
-# k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
+# k8s.io/kube-openapi v0.0.0-20260821135717-be32def86098
 ## explicit; go 1.25.0
 k8s.io/kube-openapi/cmd/openapi-gen
 k8s.io/kube-openapi/cmd/openapi-gen/args

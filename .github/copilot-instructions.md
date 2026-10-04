@@ -2,6 +2,18 @@
 
 This is a fork of [k8snetworkplumbingwg/whereabouts](https://github.com/k8snetworkplumbingwg/whereabouts), maintained by the Deutsche Telekom T-CAAS team. It is a Kubernetes IPAM CNI plugin that assigns IP addresses cluster-wide using CRDs.
 
+## Reuse upstream libraries
+
+Before writing a helper, check in order: Go standard library → Kubernetes
+libraries (`k8s.io/*`, controller-runtime) → Flux (`github.com/fluxcd/pkg`) →
+other well-known upstream libraries → available `telekom/t-caas-go-library`
+packages → custom code only when no suitable upstream fits. See
+[`AGENTS.md`](../AGENTS.md) for the Whereabouts-specific import table, shared
+packages, and migration candidates. The library repository is currently
+private and planned to become public. Convenience wrappers belong in the
+shared library only when the same glue demonstrably repeats across multiple
+repositories.
+
 ## Architecture Overview
 
 - **CNI entry point** ([cmd/whereabouts/main.go](cmd/whereabouts/main.go)): Implements ADD/DEL/CHECK via `skel.PluginMainFuncs`. ADD allocates the lowest available IP; DEL releases it.

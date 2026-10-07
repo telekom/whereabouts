@@ -1,6 +1,6 @@
 on: 
   pull_request:
-    branches: [main]
+    branches: [main, test/certpatch-characterization]
     paths-ignore:
       - "**/*.md"
       - "doc/*.{json,png,svg}"
@@ -152,6 +152,10 @@ jobs:
             go test -v ${{ matrix.test-pkg }} -timeout 1h
           fi
 
+      - name: Certificate bootstrap and multi-replica refresh
+        if: matrix.suite == 'core-lifecycle'
+        run: bash hack/e2e-cert-lifecycle.sh
+
       - name: Collect cluster diagnostics
         if: failure()
         run: hack/e2e-collect-diagnostics.sh /tmp/e2e-diagnostics
@@ -240,6 +244,10 @@ jobs:
           else
             go test -v ${{ matrix.test-pkg }} -timeout 1h
           fi
+
+      - name: Certificate bootstrap and multi-replica refresh
+        if: matrix.suite == 'core-lifecycle'
+        run: bash hack/e2e-cert-lifecycle.sh
 
       - name: Collect cluster diagnostics
         if: failure()

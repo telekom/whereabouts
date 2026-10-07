@@ -24,6 +24,15 @@ import (
 // PatchHelper implements the "snapshot → mutate → deferred patch" pattern
 // from ClusterAPI's patch.Helper.
 //
+// Keep this helper local: NodeSlice allocations must never be published when
+// their spec patch failed, and status Update must retain optimistic resourceVersion
+// protection. Flux runtime/patch and CAPI aggregate object/status errors rather
+// than gating status on object success; library pkg/patch instead uses fresh-read
+// mutation/retry callbacks, not snapshots. An adapter would obscure these guarantees.
+// TestPatchHelperSpecFailureGatesStatus compares Flux's failure behavior;
+// TestPatchHelperWriteCounts and TestPatchHelperAPIContract pin ordering,
+// desired-status restoration and real API-server conflict protection.
+//
 // Usage:
 //
 //	helper, err := NewPatchHelper(obj, c)

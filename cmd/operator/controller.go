@@ -93,30 +93,29 @@ func newControllerCommand() *cobra.Command {
 			}
 
 			// Certificate rotation for the webhook server.
-			certReady := make(chan struct{})
 			ctx := cmd.Context()
-			if err := certrotator.Enable(ctx, mgr, certrotator.Options{
+			certReady, err := certrotator.Enable(ctx, mgr, certrotator.Options{
 				Namespace:   namespace,
 				CertDir:     certDir,
 				DNSName:     fmt.Sprintf("%s.%s.svc", webhookServiceName, namespace),
 				SecretName:  webhookSecretName,
 				WebhookName: webhookConfigName,
 				// CAOrganization defaults to "whereabouts" (see certrotator.Options).
-				IsReady: certReady,
-			}); err != nil {
+			})
+			if err != nil {
 				return err
 			}
 
 			// Register webhooks after cert bootstrap.
-			webhookSetup := webhook.NewSetup(mgr, certReady)
-			if err := mgr.Add(webhookSetup); err != nil {
+			webhookReady, err := webhook.SetupWithManager(mgr, certReady)
+			if err != nil {
 				return err
 			}
 
 			if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 				return err
 			}
-			if err := mgr.AddReadyzCheck("readyz", webhookSetup.ReadyCheck()); err != nil {
+			if err := mgr.AddReadyzCheck("readyz", webhookReady); err != nil {
 				return err
 			}
 

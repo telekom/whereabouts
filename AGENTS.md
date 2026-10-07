@@ -8,7 +8,7 @@ merged. Before adding helper code, check in this order:
 3. Flux libraries: `github.com/fluxcd/pkg`.
 4. Other well-known, maintained upstream libraries.
 5. Available packages in [`telekom/t-caas-go-library`](https://github.com/telekom/t-caas-go-library/blob/main/docs/upstream-libraries.md)
-   (public, pinned to v0.1.0 in this repository).
+   (public, pinned to v0.1.0, including its released lifecycle helpers).
 6. Custom code only when no suitable upstream fits.
 
 These recommendations are not dependencies added by this document. Check
@@ -59,7 +59,7 @@ These are review candidates, not changes in this documentation update:
   `netip.Addr.Compare`'s family-first order.
 - `internal/webhook/metrics.go`: prefer direct Prometheus `CounterVec` APIs;
   preserve labels and zero-value series.
-- `internal/webhook/certrotator/` and webhook setup: use shared
+- `internal/webhook/certrotator/` and webhook setup: use the public v0.1.0
   `pkg/certrotation` lifecycle helpers around cert-controller. Keep the
   single-consumer Secret bootstrap local; gate readiness on completed webhook
   registration, not just certificate provisioning. Preserve all-replica

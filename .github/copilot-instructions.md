@@ -20,7 +20,7 @@ repositories.
 - **Allocation engine** (`pkg/allocate/`): `AssignIP` / `IterateForAssignment` find the lowest free IP, skipping `.0` addresses and exclude ranges. Idempotent — existing `podRef+ifName` allocations are returned as-is.
 - **Storage layer** (`pkg/storage/`): `Store` and `IPPool` interfaces in `storage.go`; sole production implementation in `pkg/storage/kubernetes/` using IPPool CRDs with JSON Patch + optimistic locking (up to 100 retries).
 - **Config** (`pkg/config/`): Merges inline IPAM JSON → flat file (`whereabouts.conf`) → defaults using `mergo.Merge`. JSON tags are **snake_case** (`range_start`, `enable_overlapping_ranges`).
-- **Operator** (`cmd/operator/`): Cobra-based entry point with `controller` subcommand. Built on controller-runtime v0.23. Runs reconcilers (leader-elected) and webhook server (all replicas) from a single Deployment.
+- **Operator** (`cmd/operator/`): Cobra-based entry point with `controller` subcommand. Built on controller-runtime (version pinned in `go.mod`). Runs reconcilers (leader-elected) and webhook server (all replicas) from a single Deployment.
 - **Reconcilers** (`internal/controller/`): `IPPoolReconciler` (orphaned allocation cleanup), `NodeSliceReconciler` (NAD+Node → NodeSlicePool), `OverlappingRangeReconciler` (orphaned reservation cleanup).
 - **Webhooks** (`internal/webhook/`): Typed `admission.Validator[T]` implementations for IPPool, NodeSlicePool, OverlappingRangeIPReservation with matchConditions CEL bypass for CNI ServiceAccount.
 

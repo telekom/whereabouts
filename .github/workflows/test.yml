@@ -1,6 +1,6 @@
 on: 
   pull_request:
-    branches: [main, test/certpatch-characterization]
+    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "doc/*.{json,png,svg}"

@@ -353,11 +353,6 @@ func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
 	return result.AsSlice()
 }
 
-// IsIPv4 checks if an IP is v4.
-func IsIPv4(checkip net.IP) bool {
-	return checkip.To4() != nil
-}
-
 // GetIPRange returns the first and last IP in a range.
 // If either rangeStart or rangeEnd are inside the range of first usable IP to last usable IP, then use them.
 // Otherwise, they will be silently ignored and the first usable IP and/or last usable IP will be used.

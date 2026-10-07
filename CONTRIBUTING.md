@@ -14,6 +14,7 @@ Thank you for your interest in contributing to the Whereabouts IPAM CNI plugin!
    ```bash
    make test              # Full: build + vet + staticcheck + tests
    make test-skip-static  # Faster iteration (skip staticcheck)
+   make test-envtest      # IPPool/NodeSlice API-server characterization (Kubernetes 1.37.0)
    go test -v ./pkg/allocate/  # Single package
    ```
 

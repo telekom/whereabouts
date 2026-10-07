@@ -15,6 +15,7 @@
 package logging
 
 import (
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,7 +30,6 @@ func TestLogging(t *testing.T) {
 var _ = Describe("logging operations", func() {
 
 	BeforeEach(func() {
-		loggingStderr = false
 		loggingFp = nil
 		loggingLevel = PanicLevel
 	})
@@ -39,9 +39,11 @@ var _ = Describe("logging operations", func() {
 		Expect(loggingFp).To(BeNil())
 	})
 
-	It("Check file setter with empty", func() {
-		SetLogFile("/tmp/foobar.logging")
+	It("opens a log file in an allowed directory", func() {
+		SetLogFile(filepath.Join(GinkgoT().TempDir(), "foobar.logging"))
 		Expect(loggingFp).NotTo(BeNil())
+		Expect(loggingFp.Close()).To(Succeed())
+		loggingFp = nil
 	})
 
 	It("Check loglevel setter", func() {
@@ -61,9 +63,4 @@ var _ = Describe("logging operations", func() {
 		Expect(loggingLevel).To(Equal(currentLevel))
 	})
 
-	It("Check log to stderr setter with invalid level", func() {
-		currentVal := loggingStderr
-		SetLogStderr(!currentVal)
-		Expect(loggingStderr).NotTo(Equal(currentVal))
-	})
 })

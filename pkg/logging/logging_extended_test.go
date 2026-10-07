@@ -11,7 +11,7 @@ import (
 )
 
 // These tests extend the existing logging_test.go to cover output verification,
-// level filtering, Errorf return value, Panicf behavior, and thread safety.
+// level filtering, Errorf return value, and thread safety.
 
 var _ = Describe("logging output verification", func() {
 	var (
@@ -25,7 +25,6 @@ var _ = Describe("logging output verification", func() {
 
 		// Reset logging state
 		mu.Lock()
-		loggingStderr = false
 		loggingFp = nil
 		loggingLevel = DebugLevel
 		mu.Unlock()
@@ -137,23 +136,6 @@ var _ = Describe("logging output verification", func() {
 		})
 	})
 
-	Describe("Panicf", func() {
-		It("panics with the formatted message", func() {
-			Expect(func() {
-				Panicf("fatal error: %s", "crash")
-			}).To(PanicWith("fatal error: crash"))
-		})
-
-		It("writes stack trace to log", func() {
-			func() {
-				defer func() { recover() }()
-				Panicf("panic test")
-			}()
-			content := readLog()
-			Expect(content).To(ContainSubstring("Stack trace output"))
-			Expect(content).To(ContainSubstring("panic test"))
-		})
-	})
 })
 
 var _ = Describe("Level.String", func() {
@@ -173,31 +155,12 @@ var _ = Describe("Level.String", func() {
 	})
 })
 
-var _ = Describe("GetLoggingLevel", func() {
-	BeforeEach(func() {
-		mu.Lock()
-		loggingLevel = VerboseLevel
-		mu.Unlock()
-	})
-
-	It("returns the current level", func() {
-		Expect(GetLoggingLevel()).To(Equal(VerboseLevel))
-	})
-})
-
-var _ = Describe("default logging level", func() {
-	It("defaults to error-only output unless configured otherwise", func() {
-		Expect(defaultLoggingLevel).To(Equal(ErrorLevel))
-	})
-})
-
 var _ = Describe("SetLogFile", func() {
 	BeforeEach(func() {
 		mu.Lock()
 		if loggingFp != nil {
 			loggingFp.Close()
 		}
-		loggingStderr = false
 		loggingFp = nil
 		loggingLevel = DebugLevel
 		mu.Unlock()
@@ -289,7 +252,6 @@ var _ = Describe("Thread safety", func() {
 		defer os.Remove(tmpFile.Name())
 
 		mu.Lock()
-		loggingStderr = false
 		loggingFp = nil
 		loggingLevel = DebugLevel
 		mu.Unlock()

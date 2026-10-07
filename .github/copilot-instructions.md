@@ -46,7 +46,11 @@ make kind COMPUTE_NODES=3             # Custom worker count
 - Retryable errors implement `Temporary() bool` interface (checked via type assertion in retry loops)
 
 ### Logging
-- Use `logging.Debugf` / `logging.Verbosef` / `logging.Errorf` from `pkg/logging/` — no third-party loggers
+- CNI code uses `logging.Debugf` / `logging.Verbosef` / `logging.Errorf` from
+  `pkg/logging/` to preserve its timestamped `[level]` output and validated
+  append-only log files. Stderr output is always enabled; stdout is reserved
+  for CNI results. Switching directly to `slog.TextHandler` changes this format.
+- Operator code uses controller-runtime's context-aware `logr` logging.
 - `logging.Errorf` returns `error` — it's dual-purpose (log + return)
 
 ### Testing

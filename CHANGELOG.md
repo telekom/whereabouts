@@ -44,13 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stale IPPool allocations marked as in use when verification is enabled.
 - `denormalizeIPName` infinite loop when the last segment of a normalized IPPool
   name contained no dash separator.
-- `GetVersion()` no longer panics when the build-time `Version` variable is empty;
-  returns a zero-value `semver.Version` instead.
 - `pathExists()` in config.go now correctly returns `false` on any `os.Stat` error
   (previously returned `true` for non-`IsNotExist` errors).
 - `AssignmentError` message is now actionable, suggesting pool exhaustion checks.
 
 ### Changed
+- Removed unused `pkg/version.GetVersion` and `GetGitSHA` accessors and their
+  helper-only tests. Build-time version variables and displayed version strings
+  are unchanged; both binaries continue to use `GetFullVersionWithRuntimeInfo`.
+- Removed unused CNI logging `Panicf`, `GetLoggingLevel`, and `SetLogStderr`
+  helpers and their helper-only tests. The configured `panic` level, stderr/file
+  output, timestamps, error wrapping, and log-file validation are unchanged.
 - Updated all safe direct and indirect Go modules to current releases. The
   legacy `github.com/imdario/mergo` path is pinned to its latest compatible
   release (`v0.3.16`) because v1 moved to `dario.cat/mergo`, which is already

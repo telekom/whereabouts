@@ -21,8 +21,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // Level type.
@@ -38,11 +36,10 @@ const (
 	UnknownLevel
 )
 
-var loggingStderr bool
 var loggingFp *os.File
-var loggingLevel Level
+var loggingLevel = defaultLoggingLevel
 
-// mu guards all logging state (loggingStderr, loggingFp, loggingLevel).
+// mu guards all logging state (loggingFp, loggingLevel).
 // A full Mutex (not RWMutex) is used intentionally: SetLogFile closes
 // the previous loggingFp under the lock, so concurrent Printf callers
 // must not hold a reader lock that would let them write to a closed file.
@@ -79,9 +76,7 @@ func Printf(level Level, format string, a ...interface{}) {
 	t := time.Now()
 	line := fmt.Sprintf("%s [%s] %s\n", t.Format(defaultTimestampFormat), level, fmt.Sprintf(format, a...))
 
-	if loggingStderr {
-		fmt.Fprint(os.Stderr, line)
-	}
+	fmt.Fprint(os.Stderr, line)
 
 	if loggingFp != nil {
 		fmt.Fprint(loggingFp, line)
@@ -104,20 +99,6 @@ func Verbosef(format string, a ...interface{}) {
 func Errorf(format string, a ...interface{}) error {
 	Printf(ErrorLevel, strings.ReplaceAll(format, "%w", "%v"), a...)
 	return fmt.Errorf(format, a...)
-}
-
-// Panicf defines our printf for panic level.
-func Panicf(format string, a ...interface{}) {
-	Printf(PanicLevel, format, a...)
-	Printf(PanicLevel, "========= Stack trace output ========")
-	Printf(PanicLevel, "%+v", errors.Errorf(format, a...))
-	Printf(PanicLevel, "========= Stack trace output end ========")
-	panic(fmt.Sprintf(format, a...))
-}
-
-// GetLoggingLevel returns loggingLevel.
-func GetLoggingLevel() Level {
-	return loggingLevel
 }
 
 func getLoggingLevel(levelStr string) Level {
@@ -143,13 +124,6 @@ func SetLogLevel(levelStr string) {
 		loggingLevel = level
 		mu.Unlock()
 	}
-}
-
-// SetLogStderr enables logging to stderr.
-func SetLogStderr(enable bool) {
-	mu.Lock()
-	loggingStderr = enable
-	mu.Unlock()
 }
 
 // SetLogFile defines which log file we'll log to.
@@ -243,10 +217,4 @@ func pathWithin(path, root string) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)))
-}
-
-func init() {
-	loggingStderr = true
-	loggingFp = nil
-	loggingLevel = defaultLoggingLevel
 }

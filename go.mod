@@ -1,8 +1,6 @@
 module github.com/telekom/whereabouts
 
-go 1.26.2
-
-toolchain go1.26.6
+go 1.26.6
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -35,6 +33,7 @@ require (
 	github.com/fluxcd/pkg/runtime v0.115.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
+	github.com/telekom/t-caas-go-library v0.1.0
 	go.uber.org/zap v1.28.0
 	k8s.io/apiextensions-apiserver v0.37.1
 )
@@ -76,6 +75,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect

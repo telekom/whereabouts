@@ -8,7 +8,7 @@ merged. Before adding helper code, check in this order:
 3. Flux libraries: `github.com/fluxcd/pkg`.
 4. Other well-known, maintained upstream libraries.
 5. Available packages in [`telekom/t-caas-go-library`](https://github.com/telekom/t-caas-go-library/blob/main/docs/upstream-libraries.md)
-   (the repository is currently private and planned to become public).
+   (public, pinned to v0.1.0 in this repository).
 6. Custom code only when no suitable upstream fits.
 
 These recommendations are not dependencies added by this document. Check
@@ -34,8 +34,7 @@ The merged shared-library packages most relevant here are
 `github.com/telekom/t-caas-go-library/pkg/netutil` for checked arithmetic and
 budgeted subnet subdivision, and `github.com/telekom/t-caas-go-library/pkg/patch`
 only when its fresh-read/retry composition matches the use case. See the
-upstream library guide for availability and semantic caveats; the link alone
-may not be accessible until that repository becomes public.
+upstream library guide for availability and semantic caveats.
 
 Write convenience wrappers only when the same glue demonstrably repeats across
 multiple repositories. In that case, contribute it to
@@ -46,9 +45,10 @@ and behavior that differs from upstream local.
 
 These are review candidates, not changes in this documentation update:
 
-- `pkg/iphelpers/iphelpers.go`: use `net/netip` / `go4.org/netipx` where
-  equivalent; use shared `pkg/netutil` for checked arithmetic or bounded
-  subdivision. Preserve single-host and IPv6 endpoint behavior.
+- `pkg/iphelpers/iphelpers.go`: already uses `net/netip` and shared
+  `pkg/netutil` for checked addition and bounded subdivision. Keep unsigned
+  offsets, mapped IPv4 unmapping, host-bit rejection, and allocation endpoint
+  policy local; shared first-usable/broadcast conventions are not drop-in.
 - `e2e/client/{pod,replicaset,statefulset}.go`: consider upstream
   context-aware waits while retaining workload predicates and dependent-Pod
   deletion checks.

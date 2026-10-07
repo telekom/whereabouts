@@ -76,3 +76,31 @@ func TestBoundedSubdivisionCharacterization(t *testing.T) {
 		})
 	}
 }
+func TestOverlapCharacterization(t *testing.T) {
+	for _, tc := range []struct {
+		a, b            string
+		want, wantError bool
+	}{
+		{"10.0.0.0/24", "10.0.0.0/24", true, false},
+		{"10.0.0.0/24", "10.0.0.128/25", true, false},
+		{"10.0.0.0/25", "10.0.0.128/25", false, false},
+		{"10.0.0.1/32", "10.0.0.0/31", true, false},
+		{"255.255.255.255/32", "0.0.0.0/0", true, false},
+		{"fd00::/64", "fd00::1/128", true, false},
+		{"fd00::/127", "fd00::2/127", false, false},
+		{"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128", "::/0", true, false},
+		{"10.0.0.0/24", "fd00::/64", false, false},
+		{"10.0.0.0/24", "::ffff:10.0.0.0/120", false, false},
+		{"10.0.0.1/24", "10.0.0.128/25", true, false},
+		{"invalid", "10.0.0.0/24", false, true},
+	} {
+		t.Run(tc.a+" and "+tc.b, func(t *testing.T) {
+			for _, pair := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got, err := CIDRsOverlap(pair[0], pair[1])
+				if got != tc.want || (err != nil) != tc.wantError {
+					t.Fatalf("overlap(%q, %q) = %t, %v", pair[0], pair[1], got, err)
+				}
+			}
+		})
+	}
+}

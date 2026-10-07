@@ -28,7 +28,7 @@ version compatibility and preserve Whereabouts-specific semantics.
 | Owner references and finalizers | `sigs.k8s.io/controller-runtime/pkg/controller/controllerutil` |
 | API-server integration tests | `sigs.k8s.io/controller-runtime/pkg/envtest` |
 | Prometheus metrics | `github.com/prometheus/client_golang/prometheus` |
-| Webhook certificate rotation | `github.com/open-policy-agent/cert-controller/pkg/rotator` |
+| Webhook certificate lifecycle | `github.com/telekom/t-caas-go-library/pkg/certrotation` (cert-controller underneath) |
 
 The merged shared-library packages most relevant here are
 `github.com/telekom/t-caas-go-library/pkg/netutil` for checked arithmetic and
@@ -59,8 +59,10 @@ These are review candidates, not changes in this documentation update:
   `netip.Addr.Compare`'s family-first order.
 - `internal/webhook/metrics.go`: prefer direct Prometheus `CounterVec` APIs;
   preserve labels and zero-value series.
-- `internal/webhook/certrotator/` and webhook setup: retain the existing
-  cert-controller rotator and compare only repeated setup/readiness glue with
-  the library's optional, not-yet-merged cert-rotation proposal.
+- `internal/webhook/certrotator/` and webhook setup: use shared
+  `pkg/certrotation` lifecycle helpers around cert-controller. Keep the
+  single-consumer Secret bootstrap local; gate readiness on completed webhook
+  registration, not just certificate provisioning. Preserve all-replica
+  rotation, explicit Whereabouts CA identity/DNS and restart-on-refresh.
 - `pkg/storage/kubernetes/ipam.go`: already uses client-go leader election;
   retain its one-shot election semantics rather than adding a wrapper.

@@ -49,9 +49,14 @@ These are review candidates, not changes in this documentation update:
   `pkg/netutil` for checked addition and bounded subdivision. Keep unsigned
   offsets, mapped IPv4 unmapping, host-bit rejection, and allocation endpoint
   policy local; shared first-usable/broadcast conventions are not drop-in.
-- `e2e/client/{pod,replicaset,statefulset}.go`: consider upstream
-  context-aware waits while retaining workload predicates and dependent-Pod
-  deletion checks.
+- `e2e/client/{pod,replicaset,statefulset}.go`: already use apimachinery
+  context-aware waits. Retain workload predicates and dependent-Pod deletion
+  checks: a Running pod is not equivalent to e2e-framework's PodReady.
+  StatefulSet scaling uses client-go conflict retries with fresh reads.
+- `e2e/util/`: reuse these test helpers rather than copying them into suites.
+  Inclusive range assertions use `bytes.Compare` on 16-byte IPs to retain
+  mapped-IPv4 equivalence and legacy cross-family numeric ordering, not
+  `netip.Addr.Compare`'s family-first order.
 - `internal/webhook/metrics.go`: prefer direct Prometheus `CounterVec` APIs;
   preserve labels and zero-value series.
 - `internal/webhook/certrotator/` and webhook setup: retain the existing

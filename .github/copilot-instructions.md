@@ -54,6 +54,8 @@ make kind COMPUTE_NODES=3             # Custom worker count
 - `logging.Errorf` returns `error` — it's dual-purpose (log + return)
 
 ### Testing
+- Reuse `e2e/util` helpers. E2E waiters already use apimachinery `wait`;
+  retain their Running-pod and dependent-Pod deletion semantics.
 - **Ginkgo v2** + Gomega with dot-imports: `. "github.com/onsi/ginkgo/v2"`, `. "github.com/onsi/gomega"`
 - Suite bootstrap: `RegisterFailHandler(Fail); RunSpecs(t, "Suite Name")`
 - K8s fakes: `fake.NewClientset(...)` from `client-go/kubernetes/fake` and generated `versioned/fake`

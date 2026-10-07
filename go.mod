@@ -32,7 +32,6 @@ require (
 	github.com/fluxcd/pkg/runtime v0.115.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
-	github.com/telekom/t-caas-go-library v0.1.0
 	go.uber.org/zap v1.28.0
 	k8s.io/apiextensions-apiserver v0.37.1
 )
@@ -97,6 +96,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/telekom/t-caas-go-library v0.1.0
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect

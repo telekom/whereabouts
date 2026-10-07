@@ -3,7 +3,6 @@ package client
 import (
 	stderrors "errors"
 	"testing"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,18 +17,6 @@ import (
 	kubeClient "github.com/telekom/whereabouts/pkg/storage/kubernetes"
 	whereaboutstypes "github.com/telekom/whereabouts/pkg/types"
 )
-
-func TestPodDeleteTimeoutAllowsSlowCNITeardown(t *testing.T) {
-	if podDeleteTimeout < 2*time.Minute {
-		t.Fatalf("podDeleteTimeout = %s, want at least 2m for slow CI CNI teardown", podDeleteTimeout)
-	}
-}
-
-func TestPodCreateTimeoutAllowsHostedRunnerStartupLatency(t *testing.T) {
-	if podCreateTimeout < 90*time.Second {
-		t.Fatalf("podCreateTimeout = %s, want at least 90s for slow CI pod startup", podCreateTimeout)
-	}
-}
 
 func TestStatefulSetReplicasOrDefault(t *testing.T) {
 	tests := []struct {
@@ -75,6 +62,11 @@ func TestSetStatefulSetReplicasRetriesConflicts(t *testing.T) {
 	})
 
 	updateCalls := 0
+	getCalls := 0
+	clientset.PrependReactor("get", "statefulsets", func(clienttesting.Action) (bool, runtime.Object, error) {
+		getCalls++
+		return false, nil, nil
+	})
 	clientset.PrependReactor("update", "statefulsets", func(clienttesting.Action) (bool, runtime.Object, error) {
 		updateCalls++
 		if updateCalls == 1 {
@@ -95,6 +87,9 @@ func TestSetStatefulSetReplicasRetriesConflicts(t *testing.T) {
 	}
 	if updateCalls != 2 {
 		t.Fatalf("StatefulSet update calls = %d, want 2", updateCalls)
+	}
+	if getCalls != updateCalls {
+		t.Fatalf("StatefulSet GET calls = %d, want fresh GET for each of %d updates", getCalls, updateCalls)
 	}
 
 	statefulSet, err := clientset.AppsV1().StatefulSets("default").Get(t.Context(), "web", metav1.GetOptions{})

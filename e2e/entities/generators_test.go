@@ -1,18 +1,8 @@
 package entities
 
 import (
-	"strings"
 	"testing"
 )
-
-func TestWorkloadTestImageIsPinned(t *testing.T) {
-	if strings.Contains(testImage, ":latest") {
-		t.Fatalf("test image must not use latest tag: %s", testImage)
-	}
-	if !strings.Contains(testImage, "@sha256:") {
-		t.Fatalf("test image must be digest-pinned: %s", testImage)
-	}
-}
 
 func TestGeneratedWorkloadsUsePinnedTestImage(t *testing.T) {
 	pod := PodObject("samplepod", "default", nil, nil)

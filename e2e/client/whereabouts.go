@@ -9,9 +9,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 
 	nettypes "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	netclient "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1"
@@ -218,8 +220,7 @@ func (c *ClientInfo) updateStatefulSetReplicas(statefulSetName string, namespace
 
 func updateStatefulSetReplicas(statefulSets appsv1client.StatefulSetInterface, statefulSetName string, nextReplicas func(int32) int32) error {
 	ctx := context.Background()
-	var lastErr error
-	for range 5 {
+	return retry.RetryOnConflict(wait.Backoff{Steps: 5, Duration: 200 * time.Millisecond, Factor: 1}, func() error {
 		statefulSet, err := statefulSets.Get(ctx, statefulSetName, metav1.GetOptions{})
 		if err != nil {
 			return err
@@ -229,16 +230,8 @@ func updateStatefulSetReplicas(statefulSets appsv1client.StatefulSetInterface, s
 		statefulSet.Spec.Replicas = &newReplicas
 
 		_, err = statefulSets.Update(ctx, statefulSet, metav1.UpdateOptions{})
-		if err == nil {
-			return nil
-		}
-		if !errors.IsConflict(err) {
-			return err
-		}
-		lastErr = err
-		time.Sleep(200 * time.Millisecond)
-	}
-	return lastErr
+		return err
+	})
 }
 
 func statefulSetReplicasOrDefault(statefulSet *appsv1.StatefulSet) int32 {

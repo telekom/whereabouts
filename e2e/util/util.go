@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -231,24 +232,10 @@ func InIPRange(rangeStart, rangeEnd, ip string) error {
 	if parsedIP == nil || start == nil || end == nil {
 		return fmt.Errorf("invalid IP address in range check: start=%s end=%s ip=%s", rangeStart, rangeEnd, ip)
 	}
-	if bytesCompare(parsedIP, start) < 0 || bytesCompare(parsedIP, end) > 0 {
+	if bytes.Compare(parsedIP.To16(), start.To16()) < 0 || bytes.Compare(parsedIP.To16(), end.To16()) > 0 {
 		return fmt.Errorf("ip [%s] is NOT in range %s-%s", ip, rangeStart, rangeEnd)
 	}
 	return nil
-}
-
-func bytesCompare(a, b net.IP) int {
-	a16 := a.To16()
-	b16 := b.To16()
-	for i := range a16 {
-		if a16[i] < b16[i] {
-			return -1
-		}
-		if a16[i] > b16[i] {
-			return 1
-		}
-	}
-	return 0
 }
 
 func CreateIPRanges(ranges []string) string {

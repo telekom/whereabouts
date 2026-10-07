@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/open-policy-agent/cert-controller/pkg/rotator"
+	"github.com/telekom/t-caas-go-library/pkg/certrotation"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,24 +100,17 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) (<-chan stru
 	}
 	log.Info("TLS secret ensured", "secret", secretKey)
 
-	ready := make(chan struct{})
-	err = rotator.AddRotator(mgr, &rotator.CertRotator{
-		SecretKey:      secretKey,
-		CertDir:        opts.CertDir,
-		CAName:         "whereabouts-ca",
-		CAOrganization: caOrg(opts.CAOrganization),
-		DNSName:        opts.DNSName,
-		IsReady:        ready,
-		Webhooks: []rotator.WebhookInfo{
-			{
-				Name: opts.WebhookName,
-				Type: rotator.Validating,
-			},
-		},
+	return certrotation.AddRotator(ctx, mgr, certrotation.Config{
+		Namespace:              opts.Namespace,
+		SecretName:             opts.SecretName,
+		CertDir:                opts.CertDir,
+		CAName:                 "whereabouts-ca",
+		CAOrganization:         caOrg(opts.CAOrganization),
+		DNSName:                opts.DNSName,
+		ValidatingWebhooks:     []string{opts.WebhookName},
 		RequireLeaderElection:  false,
 		RestartOnSecretRefresh: true,
 	})
-	return ready, err
 }
 
 // caOrg returns org if non-empty, otherwise "whereabouts".

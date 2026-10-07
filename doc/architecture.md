@@ -80,8 +80,11 @@ validation for the CNI plugin's own ServiceAccount.
 
 ### TLS Certificate Rotation (`internal/webhook/certrotator/`)
 
-The operator wraps [cert-controller](https://github.com/open-policy-agent/cert-controller)
-to automatically manage webhook TLS certificates. Certificates are:
+The operator uses `github.com/telekom/t-caas-go-library/pkg/certrotation` around
+[cert-controller](https://github.com/open-policy-agent/cert-controller) to
+automatically manage webhook TLS certificates. Secret bootstrap stays local;
+certificate-gated webhook registration and readiness use the shared lifecycle
+helpers on every replica. Certificates are:
 - Created in a Kubernetes Secret (`--webhook-secret-name`)
 - Rotated before expiry without manual intervention
 - CA bundle injected into the ValidatingWebhookConfiguration

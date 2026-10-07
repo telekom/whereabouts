@@ -84,7 +84,7 @@ make kind COMPUTE_NODES=3
 - Loads IPAM configuration from stdin and creates a Kubernetes IPAM client
 
 **Operator** (`cmd/operator/`)
-- Built on controller-runtime v0.23 with Cobra
+- Built on controller-runtime (version pinned in `go.mod`) with Cobra
 - `controller` subcommand: leader-elected Deployment running reconcilers + webhook server + cert rotation
 - All replicas serve webhooks; only the leader runs reconcilers
 - Replaces the old `ip-control-loop` and `node-slice-controller` binaries
@@ -98,11 +98,11 @@ make kind COMPUTE_NODES=3
 - `IPPoolValidator`: Validates Range CIDR format, podRef "namespace/name" format in allocations
 - `NodeSlicePoolValidator`: Validates Range CIDR, SliceSize as integer 1-128
 - `OverlappingRangeValidator`: Validates podRef "namespace/name" format
-- Uses controller-runtime v0.23 typed `admission.Validator[T]` API
+- Uses controller-runtime's typed `admission.Validator[T]` API
 - Deployment manifests include matchConditions CEL bypass for CNI ServiceAccount
 
 **Cert Rotation** (`internal/webhook/certrotator/`)
-- Wraps `open-policy-agent/cert-controller` rotator for automatic TLS certificate management
+- Uses `github.com/telekom/t-caas-go-library/pkg/certrotation` around `open-policy-agent/cert-controller` for automatic TLS certificate management and certificate-gated webhook registration/readiness; Secret bootstrap stays local
 
 **IP Allocation Logic** (`pkg/allocate/`)
 - `AssignIP`: Main allocation function that assigns IPs from a range

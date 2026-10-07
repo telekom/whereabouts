@@ -148,10 +148,8 @@ func TestCancellationBeforeCertificateReady(t *testing.T) {
 	cancel()
 	result := make(chan error, 1)
 	go func() { result <- mgr.runnable.Start(ctx) }()
-	// The legacy implementation reports context.Canceled; graceful shutdown
-	// may return nil. Neither may register handlers or advertise readiness.
-	if err := waitSetup(t, result); err != nil && !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
+	if err := waitSetup(t, result); err != nil {
+		t.Fatalf("shutdown before certificate readiness must not fail manager startup: %v", err)
 	}
 	if len(server.paths) != 0 || check(nil) == nil {
 		t.Fatal("canceled bootstrap registered handlers or became ready")

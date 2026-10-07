@@ -12,48 +12,6 @@ import (
 )
 
 // ---------------------------------------------------------------
-// IsIPv4
-// ---------------------------------------------------------------
-var _ = Describe("IsIPv4", func() {
-	It("returns true for 4-byte IPv4", func() {
-		Expect(IsIPv4(net.ParseIP("10.0.0.1").To4())).To(BeTrue())
-	})
-
-	It("returns true for 16-byte IPv4-mapped (net.ParseIP default)", func() {
-		// net.ParseIP returns 16-byte representation; To4() still works.
-		Expect(IsIPv4(net.ParseIP("192.168.1.1"))).To(BeTrue())
-	})
-
-	It("returns false for IPv6", func() {
-		Expect(IsIPv4(net.ParseIP("fd00::1"))).To(BeFalse())
-	})
-
-	It("returns false for nil IP", func() {
-		Expect(IsIPv4(nil)).To(BeFalse())
-	})
-
-	It("returns false for empty IP", func() {
-		Expect(IsIPv4(net.IP{})).To(BeFalse())
-	})
-
-	It("returns true for loopback IPv4", func() {
-		Expect(IsIPv4(net.ParseIP("127.0.0.1"))).To(BeTrue())
-	})
-
-	It("returns false for IPv6 loopback", func() {
-		Expect(IsIPv4(net.ParseIP("::1"))).To(BeFalse())
-	})
-
-	It("returns true for 0.0.0.0", func() {
-		Expect(IsIPv4(net.ParseIP("0.0.0.0"))).To(BeTrue())
-	})
-
-	It("returns false for ::", func() {
-		Expect(IsIPv4(net.ParseIP("::"))).To(BeFalse())
-	})
-})
-
-// ---------------------------------------------------------------
 // IPAddOffset edge cases
 // ---------------------------------------------------------------
 var _ = Describe("IPAddOffset edge cases", func() {

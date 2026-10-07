@@ -2,7 +2,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, test/certpatch-characterization]
+    branches: [main]
 name: Build
 
 permissions:

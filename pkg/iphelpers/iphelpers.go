@@ -354,6 +354,8 @@ func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
 }
 
 // IsIPv4 checks if an IP is v4.
+//
+// Deprecated: use checkip.To4() != nil directly.
 func IsIPv4(checkip net.IP) bool {
 	return checkip.To4() != nil
 }

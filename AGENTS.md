@@ -33,7 +33,9 @@ version compatibility and preserve Whereabouts-specific semantics.
 The merged shared-library packages most relevant here are
 `github.com/telekom/t-caas-go-library/pkg/netutil` for checked arithmetic and
 budgeted subnet subdivision, and `github.com/telekom/t-caas-go-library/pkg/patch`
-only when its fresh-read/retry composition matches the use case. See the
+only when its fresh-read/retry composition matches the use case.
+`github.com/telekom/t-caas-go-library/pkg/certrotation` supplies certificate
+rotation setup and certificate-gated webhook registration/readiness. See the
 upstream library guide for availability and semantic caveats.
 
 Write convenience wrappers only when the same glue demonstrably repeats across
@@ -41,9 +43,9 @@ multiple repositories. In that case, contribute it to
 `telekom/t-caas-go-library` rather than duplicating it here. Keep IPAM policy
 and behavior that differs from upstream local.
 
-## Existing migration candidates
+## Existing integrations and remaining candidates
 
-These are review candidates, not changes in this documentation update:
+Preserve these local policies when considering further upstream adoption:
 
 - `pkg/iphelpers/iphelpers.go`: already uses `net/netip` and shared
   `pkg/netutil` for checked addition and bounded subdivision. Keep unsigned

@@ -9,8 +9,8 @@ libraries (`k8s.io/*`, controller-runtime) → Flux (`github.com/fluxcd/pkg`) �
 other well-known upstream libraries → available `telekom/t-caas-go-library`
 packages → custom code only when no suitable upstream fits. See
 [`AGENTS.md`](../AGENTS.md) for the Whereabouts-specific import table, shared
-packages, and migration candidates. The library repository is currently
-private and planned to become public. Convenience wrappers belong in the
+packages, and migration candidates. The library repository is public
+(v0.1.0). Convenience wrappers belong in the
 shared library only when the same glue demonstrably repeats across multiple
 repositories.
 
@@ -50,6 +50,8 @@ make kind COMPUTE_NODES=3             # Custom worker count
 - `logging.Errorf` returns `error` — it's dual-purpose (log + return)
 
 ### Testing
+- Reuse `e2e/util` helpers. E2E waiters already use apimachinery `wait`;
+  retain their Running-pod and dependent-Pod deletion semantics.
 - **Ginkgo v2** + Gomega with dot-imports: `. "github.com/onsi/ginkgo/v2"`, `. "github.com/onsi/gomega"`
 - Suite bootstrap: `RegisterFailHandler(Fail); RunSpecs(t, "Suite Name")`
 - K8s fakes: `fake.NewClientset(...)` from `client-go/kubernetes/fake` and generated `versioned/fake`

@@ -84,7 +84,7 @@ var _ = Describe("Whereabouts coverage", func() {
 			ips1, err := retrievers.SecondaryIfaceIPValue(pod1, "net1")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ips1).NotTo(BeEmpty())
-			Expect(inRange(ipRange, ips1[0])).To(Succeed())
+			Expect(util.InRange(ipRange, ips1[0])).To(Succeed())
 
 			By("provisioning pod-2 — should get second usable IP")
 			pod2, err := clientInfo.ProvisionPod(
@@ -98,7 +98,7 @@ var _ = Describe("Whereabouts coverage", func() {
 			ips2, err := retrievers.SecondaryIfaceIPValue(pod2, "net1")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ips2).NotTo(BeEmpty())
-			Expect(inRange(ipRange, ips2[0])).To(Succeed())
+			Expect(util.InRange(ipRange, ips2[0])).To(Succeed())
 
 			// The two allocated IPs must be distinct
 			Expect(ips1[0]).NotTo(Equal(ips2[0]))
@@ -136,7 +136,7 @@ var _ = Describe("Whereabouts coverage", func() {
 			ips4, err := retrievers.SecondaryIfaceIPValue(pod4, "net1")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ips4).NotTo(BeEmpty())
-			Expect(inRange(ipRange, ips4[0])).To(Succeed())
+			Expect(util.InRange(ipRange, ips4[0])).To(Succeed())
 			// Recycled IP must be the one that was freed
 			Expect(ips4[0]).To(Equal(ips1[0]))
 
@@ -293,7 +293,7 @@ var _ = Describe("Whereabouts coverage", func() {
 			newIPs, err := retrievers.SecondaryIfaceIPValue(newPod, "net1")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(newIPs).NotTo(BeEmpty())
-			Expect(inRange(ipRange, newIPs[0])).To(Succeed())
+			Expect(util.InRange(ipRange, newIPs[0])).To(Succeed())
 
 			existingIPs := make([]string, 0, len(preRestartIPs))
 			for _, ip := range preRestartIPs {

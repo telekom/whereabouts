@@ -116,7 +116,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				secondaryIfaceIPs, err := retrievers.SecondaryIfaceIPValue(pod, "net1")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(secondaryIfaceIPs).NotTo(BeEmpty())
-				Expect(inRange(ipv4TestRange, secondaryIfaceIPs[0])).To(Succeed())
+				Expect(util.InRange(ipv4TestRange, secondaryIfaceIPs[0])).To(Succeed())
 
 				By("verifying allocation")
 				verifyAllocations(clientInfo, ipv4TestRange, secondaryIfaceIPs[0], testNamespace, pod.Name, "net1")
@@ -133,7 +133,7 @@ var _ = Describe("Whereabouts functionality", func() {
 				pod, err = clientInfo.ProvisionPod(
 					singlePodName,
 					testNamespace,
-					podTierLabel(singlePodName),
+					util.PodTierLabel(singlePodName),
 					entities.PodNetworkSelectionElements(testNetworkName, testNetworkName, testNetworkName),
 				)
 				Expect(err).NotTo(HaveOccurred())
@@ -146,7 +146,7 @@ var _ = Describe("Whereabouts functionality", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(secondaryIfaceIPs).NotTo(BeEmpty())
 					for _, ip := range secondaryIfaceIPs {
-						Expect(inRange(ipv4TestRange, ip)).To(Succeed())
+						Expect(util.InRange(ipv4TestRange, ip)).To(Succeed())
 
 						By("verifying allocation")
 						verifyAllocations(clientInfo, ipv4TestRange, ip, testNamespace, pod.Name, ifName)
@@ -4087,28 +4087,6 @@ func allocationForPodRef(podRef string, ipPool v1alpha1.IPPool) []v1alpha1.IPAll
 	return allocations
 }
 
-func podTierLabel(podTier string) map[string]string {
-	const tier = "tier"
-	return map[string]string{tier: podTier}
-}
-
-// Returns a network attachment definition object configured by provided parameters.
-func generateNetAttachDefSpec(name, namespace, config string) *nettypes.NetworkAttachmentDefinition {
-	return &nettypes.NetworkAttachmentDefinition{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "NetworkAttachmentDefinition",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: nettypes.NetworkAttachmentDefinitionSpec{
-			Config: config,
-		},
-	}
-}
-
 func macvlanNetworkWithWhereaboutsIPAMNetwork(networkName string, namespaceName string, ipRange string, ipRanges []string, poolName string, enableOverlappingRanges bool) *nettypes.NetworkAttachmentDefinition {
 	macvlanConfig := fmt.Sprintf(`{
         "cniVersion": "0.3.0",
@@ -4128,31 +4106,8 @@ func macvlanNetworkWithWhereaboutsIPAMNetwork(networkName string, namespaceName 
             "network_name": "%s",
             "enable_overlapping_ranges": %v
         }
-    }`, ipRange, createIPRanges(ipRanges), poolName, enableOverlappingRanges)
-	return generateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
-}
-
-func inRange(cidr string, ip string) error {
-	_, cidrRange, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return err
-	}
-
-	if cidrRange.Contains(net.ParseIP(ip)) {
-		return nil
-	}
-
-	return fmt.Errorf("ip [%s] is NOT in range %s", ip, cidr)
-}
-
-func createIPRanges(ranges []string) string {
-	formattedRanges := make([]string, 0, len(ranges))
-	for _, ipRange := range ranges {
-		singleRange := fmt.Sprintf(`{"range": "%s"}`, ipRange)
-		formattedRanges = append(formattedRanges, singleRange)
-	}
-	ipRanges := "[" + strings.Join(formattedRanges[:], ",") + "]"
-	return ipRanges
+    }`, ipRange, util.CreateIPRanges(ipRanges), poolName, enableOverlappingRanges)
+	return util.GenerateNetAttachDefSpec(networkName, namespaceName, macvlanConfig)
 }
 
 func getPodRef(namespace, name string) string {

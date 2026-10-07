@@ -8,7 +8,7 @@ merged. Before adding helper code, check in this order:
 3. Flux libraries: `github.com/fluxcd/pkg`.
 4. Other well-known, maintained upstream libraries.
 5. Available packages in [`telekom/t-caas-go-library`](https://github.com/telekom/t-caas-go-library/blob/main/docs/upstream-libraries.md)
-   (the repository is currently private and planned to become public).
+   (public, v0.1.0).
 6. Custom code only when no suitable upstream fits.
 
 These recommendations are not dependencies added by this document. Check
@@ -34,8 +34,7 @@ The merged shared-library packages most relevant here are
 `github.com/telekom/t-caas-go-library/pkg/netutil` for checked arithmetic and
 budgeted subnet subdivision, and `github.com/telekom/t-caas-go-library/pkg/patch`
 only when its fresh-read/retry composition matches the use case. See the
-upstream library guide for availability and semantic caveats; the link alone
-may not be accessible until that repository becomes public.
+upstream library guide for availability and semantic caveats.
 
 Write convenience wrappers only when the same glue demonstrably repeats across
 multiple repositories. In that case, contribute it to
@@ -49,9 +48,14 @@ These are review candidates, not changes in this documentation update:
 - `pkg/iphelpers/iphelpers.go`: use `net/netip` / `go4.org/netipx` where
   equivalent; use shared `pkg/netutil` for checked arithmetic or bounded
   subdivision. Preserve single-host and IPv6 endpoint behavior.
-- `e2e/client/{pod,replicaset,statefulset}.go`: consider upstream
-  context-aware waits while retaining workload predicates and dependent-Pod
-  deletion checks.
+- `e2e/client/{pod,replicaset,statefulset}.go`: already use apimachinery
+  context-aware waits. Retain workload predicates and dependent-Pod deletion
+  checks: a Running pod is not equivalent to e2e-framework's PodReady.
+  StatefulSet scaling uses client-go conflict retries with fresh reads.
+- `e2e/util/`: reuse these test helpers rather than copying them into suites.
+  Inclusive range assertions use `bytes.Compare` on 16-byte IPs to retain
+  mapped-IPv4 equivalence and legacy cross-family numeric ordering, not
+  `netip.Addr.Compare`'s family-first order.
 - `internal/webhook/metrics.go`: prefer direct Prometheus `CounterVec` APIs;
   preserve labels and zero-value series.
 - `internal/webhook/certrotator/` and webhook setup: retain the existing

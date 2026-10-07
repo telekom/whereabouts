@@ -30,6 +30,16 @@ func NewSetup(mgr manager.Manager, certReady <-chan struct{}) *Setup {
 	return &Setup{mgr: mgr, certReady: certReady}
 }
 
+// SetupWithManager registers certificate-gated webhooks on every replica and
+// returns a readiness checker for completed registration, not just certificates.
+func SetupWithManager(mgr manager.Manager, certReady <-chan struct{}) (healthz.Checker, error) {
+	setup := NewSetup(mgr, certReady)
+	if err := mgr.Add(setup); err != nil {
+		return nil, err
+	}
+	return setup.ReadyCheck(), nil
+}
+
 // Start blocks until certs are ready, then registers webhooks.
 func (s *Setup) Start(ctx context.Context) error {
 	log := ctrl.Log.WithName("webhook-setup")

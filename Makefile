@@ -124,9 +124,9 @@ test-skip-static: build vet ## Run tests without staticcheck (faster iteration).
 		$$($(GO) list ./... | grep -v e2e | tr "\n" " ")
 
 .PHONY: test-envtest
-test-envtest: ## Characterize IPAM against a real API server (pinned Kubernetes 1.37.0).
+test-envtest: ## Characterize IPAM, snapshot patches and certificate rotation against Kubernetes 1.37.0.
 	mkdir -p $(BIN_DIR)/test-tmp
-	TMPDIR=$(BIN_DIR)/test-tmp $(GO) test -mod=vendor -p=1 -tags=integration ./pkg/storage/kubernetes ./internal/controller -run '^TestNetutil' -count=1 -timeout=5m
+	TMPDIR=$(BIN_DIR)/test-tmp $(GO) test -mod=vendor -p=1 -tags=integration ./pkg/storage/kubernetes ./internal/controller ./internal/webhook/certrotator -run '^Test(Netutil|PatchHelperAPIContract|CertificateBootstrapAPIContract)' -count=1 -timeout=5m
 
 ##@ Linting
 

@@ -34,8 +34,6 @@ type Options struct {
 	// CAOrganization is the Organization field in the generated CA certificate.
 	// Defaults to "whereabouts" if empty.
 	CAOrganization string
-	// IsReady is closed when the initial certificate has been provisioned.
-	IsReady chan struct{}
 }
 
 // Secret permissions are granted by config/rbac/webhook_secret_role.yaml so
@@ -75,7 +73,7 @@ func ensureSecret(ctx context.Context, c client.Client, key types.NamespacedName
 }
 
 // Enable adds a certificate rotator runnable to the manager.
-func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
+func Enable(ctx context.Context, mgr manager.Manager, opts Options) (<-chan struct{}, error) {
 	log := ctrl.Log.WithName("certrotator")
 	log.Info("enabling certificate rotation",
 		"namespace", opts.Namespace,
@@ -92,23 +90,24 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 	// running yet at setup time.
 	directClient, err := client.New(mgr.GetConfig(), client.Options{})
 	if err != nil {
-		return fmt.Errorf("creating direct client for secret bootstrap: %w", err)
+		return nil, fmt.Errorf("creating direct client for secret bootstrap: %w", err)
 	}
 
 	// Ensure the secret exists before the rotator starts, because
 	// cert-controller only updates existing secrets (never creates them).
 	if err := ensureSecret(ctx, directClient, secretKey); err != nil {
-		return err
+		return nil, err
 	}
 	log.Info("TLS secret ensured", "secret", secretKey)
 
-	return rotator.AddRotator(mgr, &rotator.CertRotator{
+	ready := make(chan struct{})
+	err = rotator.AddRotator(mgr, &rotator.CertRotator{
 		SecretKey:      secretKey,
 		CertDir:        opts.CertDir,
 		CAName:         "whereabouts-ca",
 		CAOrganization: caOrg(opts.CAOrganization),
 		DNSName:        opts.DNSName,
-		IsReady:        opts.IsReady,
+		IsReady:        ready,
 		Webhooks: []rotator.WebhookInfo{
 			{
 				Name: opts.WebhookName,
@@ -118,6 +117,7 @@ func Enable(ctx context.Context, mgr manager.Manager, opts Options) error {
 		RequireLeaderElection:  false,
 		RestartOnSecretRefresh: true,
 	})
+	return ready, err
 }
 
 // caOrg returns org if non-empty, otherwise "whereabouts".

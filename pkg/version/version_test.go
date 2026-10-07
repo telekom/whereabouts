@@ -13,44 +13,6 @@ func TestVersion(t *testing.T) {
 	RunSpecs(t, "Version Suite")
 }
 
-var _ = Describe("GetVersion", func() {
-	It("returns zero-value Version when Version is empty", func() {
-		origVersion := Version
-		defer func() { Version = origVersion }()
-		Version = ""
-		v := GetVersion()
-		Expect(v.Major).To(Equal(uint64(0)))
-		Expect(v.Minor).To(Equal(uint64(0)))
-		Expect(v.Patch).To(Equal(uint64(0)))
-	})
-
-	It("parses a valid semver version", func() {
-		origVersion := Version
-		defer func() { Version = origVersion }()
-		Version = "v1.2.3"
-		v := GetVersion()
-		Expect(v.Major).To(Equal(uint64(1)))
-		Expect(v.Minor).To(Equal(uint64(2)))
-		Expect(v.Patch).To(Equal(uint64(3)))
-	})
-})
-
-var _ = Describe("GetGitSHA", func() {
-	It("returns the current GitSHA value", func() {
-		origSHA := GitSHA
-		defer func() { GitSHA = origSHA }()
-		GitSHA = "abc123"
-		Expect(GetGitSHA()).To(Equal("abc123"))
-	})
-
-	It("returns empty when GitSHA is not set", func() {
-		origSHA := GitSHA
-		defer func() { GitSHA = origSHA }()
-		GitSHA = ""
-		Expect(GetGitSHA()).To(BeEmpty())
-	})
-})
-
 var _ = Describe("GetFullVersion", func() {
 	var (
 		origVersion       string

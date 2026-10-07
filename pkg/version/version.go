@@ -3,8 +3,6 @@ package version
 import (
 	"fmt"
 	"runtime"
-
-	"github.com/blang/semver"
 )
 
 // These variables are set at build-time.
@@ -20,22 +18,6 @@ var (
 	// the version in GetFullVersion.
 	ReleaseStatus = "unreleased"
 )
-
-// GetVersion parses the build-time Version string (expected format: "vMAJOR.MINOR.PATCH")
-// into a semver.Version. Returns a zero-value Version if parsing fails.
-// Panics if Version is empty — callers should use GetFullVersion() for safe
-// display purposes.
-func GetVersion() semver.Version {
-	if Version == "" {
-		return semver.Version{}
-	}
-	v, _ := semver.Parse(Version[1:])
-	return v
-}
-
-func GetGitSHA() string {
-	return GitSHA
-}
 
 // GetFullVersion returns the full version string. It will look like "<major>.<minor>.<patch>" for
 // released versions and "<major>.<minor>.<patch>-<SHA>[.dirty]" for unreleased versions.

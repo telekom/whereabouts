@@ -5,13 +5,12 @@ go 1.26.2
 toolchain go1.26.6
 
 require (
-	github.com/blang/semver v3.5.1+incompatible
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/onsi/gomega v1.44.0
-	github.com/pkg/errors v0.9.1
+	github.com/pkg/errors v0.9.1 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	k8s.io/api v0.37.1
 	k8s.io/apimachinery v0.37.1

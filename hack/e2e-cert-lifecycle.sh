@@ -11,11 +11,17 @@ if [[ "$(kubectl config current-context)" != "kind-whereabouts" ]]; then
 fi
 
 namespace=kube-system
-deployment=whereabouts-controller-manager
-secret=whereabouts-webhook-cert
-webhooks=whereabouts-validating-webhook-configuration
-selector=control-plane=controller-manager
-original_replicas=$(kubectl -n "$namespace" get deployment "$deployment" -o jsonpath='{.spec.replicas}')
+operator=$(kubectl -n "$namespace" get deployments -o json |
+  jq -ce '[.items[] | select(.spec.template.metadata.labels["control-plane"] == "controller-manager")] |
+    if length == 1 then .[0] else error("expected one isolated operator Deployment") end')
+deployment=$(jq -r '.metadata.name' <<<"$operator")
+secret=$(jq -r '.spec.template.spec.volumes[] | select(.name == "webhook-certs") | .secret.secretName' <<<"$operator")
+webhooks=$(jq -r 'first(.spec.template.spec.containers[].args[]? |
+  select(startswith("--webhook-config-name=")) | ltrimstr("--webhook-config-name=")) //
+  "whereabouts-validating-webhook-configuration"' <<<"$operator")
+container=$(jq -r '.spec.template.spec.containers[] | select(.args[0] == "controller") | .name' <<<"$operator")
+selector=$(jq -r '.spec.selector.matchLabels | to_entries | map(.key + "=" + .value) | join(",")' <<<"$operator")
+original_replicas=$(jq -r '.spec.replicas' <<<"$operator")
 trap 'kubectl -n "$namespace" scale deployment "$deployment" --replicas="$original_replicas"' EXIT
 
 kubectl -n "$namespace" scale deployment "$deployment" --replicas=0
@@ -37,7 +43,8 @@ kubectl get validatingwebhookconfiguration "$webhooks" -o json |
 old_cert=$(kubectl -n "$namespace" get secret "$secret" -o jsonpath='{.data.tls\.crt}')
 restart_count() {
   kubectl -n "$namespace" get pod -l "$selector" -o json |
-    jq '[.items[].status.containerStatuses[]?.restartCount] | add // 0'
+    jq --arg container "$container" '[.items[].status.containerStatuses[]? |
+      select(.name == $container) | .restartCount] | add // 0'
 }
 before=$(restart_count)
 # Secret watch events trigger an immediate refresh. Invalidate only the

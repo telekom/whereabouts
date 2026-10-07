@@ -9,8 +9,8 @@ libraries (`k8s.io/*`, controller-runtime) → Flux (`github.com/fluxcd/pkg`) �
 other well-known upstream libraries → available `telekom/t-caas-go-library`
 packages → custom code only when no suitable upstream fits. See
 [`AGENTS.md`](../AGENTS.md) for the Whereabouts-specific import table, shared
-packages, and migration candidates. The library repository is public
-(v0.1.0). Convenience wrappers belong in the
+packages, and migration candidates. The public library is pinned to v0.1.0.
+Convenience wrappers belong in the
 shared library only when the same glue demonstrably repeats across multiple
 repositories.
 

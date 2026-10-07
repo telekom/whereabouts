@@ -6,6 +6,7 @@ package iphelpers
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net"
 	"net/netip"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gaissmai/extnetip"
+	"github.com/telekom/t-caas-go-library/pkg/netutil"
 	netutils "k8s.io/utils/net"
 )
 
@@ -108,6 +110,7 @@ func DivideRangeBySize(inputNetwork string, sliceSizeString string) ([]string, e
 
 // DivideRangeBySizeWithLimit behaves like DivideRangeBySize, but returns an
 // error before materializing subnets if the requested split exceeds maxSubnets.
+// Nonpositive limits retain legacy unbounded behavior, up to Go's slice capacity.
 func DivideRangeBySizeWithLimit(inputNetwork string, sliceSizeString string, maxSubnets int64) ([]string, error) {
 	return divideRangeBySize(inputNetwork, sliceSizeString, maxSubnets)
 }
@@ -144,20 +147,17 @@ func divideRangeBySize(inputNetwork string, sliceSizeString string, maxSubnets i
 	if maxSubnets > 0 && numSubnets.Cmp(big.NewInt(maxSubnets)) > 0 {
 		return nil, fmt.Errorf("node slice range %s with slice size /%d creates %s slices, max supported %d", inputNetwork, sliceSize, numSubnets.String(), maxSubnets)
 	}
-	subnetSize := new(big.Int).Lsh(big.NewInt(1), uint(addrLen-sliceSize))
-
-	baseInt := netutils.BigForIP(prefix.Addr().AsSlice())
-	var result []string
-	if maxSubnets > 0 {
-		result = make([]string, 0, int(numSubnets.Int64()))
+	limit := math.MaxInt
+	if maxSubnets > 0 && maxSubnets < int64(limit) {
+		limit = int(maxSubnets)
 	}
-
-	for i := big.NewInt(0); i.Cmp(numSubnets) < 0; i.Add(i, big.NewInt(1)) {
-		offset := new(big.Int).Mul(i, subnetSize)
-		subnetBig := new(big.Int).Add(baseInt, offset)
-		subnetIP := bigIntToIP(subnetBig, prefix.Addr().Is6())
-		addr, _ := netip.AddrFromSlice(subnetIP)
-		result = append(result, fmt.Sprintf("%s/%d", addr.Unmap(), sliceSize))
+	subnets, err := netutil.Subdivide(prefix, sliceSize, limit)
+	if err != nil {
+		return nil, fmt.Errorf("dividing range %s: %w", inputNetwork, err)
+	}
+	result := make([]string, len(subnets))
+	for i, subnet := range subnets {
+		result[i] = fmt.Sprintf("%s/%d", subnet.Addr().Unmap(), subnet.Bits())
 	}
 	return result, nil
 }
@@ -335,33 +335,22 @@ func IPGetOffset(ip1, ip2 net.IP) (*big.Int, error) {
 	return diff, nil
 }
 
-// IPAddOffset returns ip + offset. Uses k8s.io/utils/net for IP arithmetic.
+// IPAddOffset returns ip + offset with checked shared-library arithmetic.
 // The offset must be non-negative.
 func IPAddOffset(ip net.IP, offset *big.Int) net.IP {
 	if ip == nil || offset == nil || offset.Sign() < 0 {
 		return nil
 	}
 
-	baseIP := ip.To4()
-	isIPv6 := false
-	if baseIP == nil {
-		if ip.To16() == nil {
-			return nil
-		}
-		baseIP = ip.To16()
-		isIPv6 = true
-	}
-
-	base := new(big.Int).SetBytes(baseIP)
-	resultInt := new(big.Int).Add(base, offset)
-	ipLimit := new(big.Int).Lsh(big.NewInt(1), 32)
-	if isIPv6 {
-		ipLimit.Lsh(big.NewInt(1), 128)
-	}
-	if resultInt.Sign() < 0 || resultInt.Cmp(ipLimit) >= 0 {
+	addr, ok := toAddr(ip)
+	if !ok {
 		return nil
 	}
-	return bigIntToIP(resultInt, isIPv6)
+	result, err := netutil.Add(addr, offset)
+	if err != nil {
+		return nil
+	}
+	return result.AsSlice()
 }
 
 // IsIPv4 checks if an IP is v4.
@@ -401,28 +390,6 @@ func GetIPRange(ipnet net.IPNet, rangeStart net.IP, rangeEnd net.IP) (first, las
 		}
 	}
 	return firstUsableIP, lastUsableIP, nil
-}
-
-// bigIntToIP converts a *big.Int to a net.IP of the appropriate length.
-// Uses netip.Addr for canonical representation.
-func bigIntToIP(i *big.Int, is6 bool) net.IP {
-	b := i.Bytes()
-	if is6 {
-		var arr [net.IPv6len]byte
-		if len(b) > net.IPv6len {
-			b = b[len(b)-net.IPv6len:]
-		}
-		copy(arr[net.IPv6len-len(b):], b)
-		addr := netip.AddrFrom16(arr)
-		return addr.AsSlice()
-	}
-	var arr [net.IPv4len]byte
-	if len(b) > net.IPv4len {
-		b = b[len(b)-net.IPv4len:]
-	}
-	copy(arr[net.IPv4len-len(b):], b)
-	addr := netip.AddrFrom4(arr)
-	return addr.AsSlice()
 }
 
 // addrToNetIP converts a netip.Addr back to net.IP, preserving the slice length of origIP.

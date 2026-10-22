@@ -62,6 +62,13 @@ image references, or package pins inside Dockerfile `RUN` instructions.
 Maintain these together with their consumers and validate the relevant build
 and integration jobs.
 
+The OPA constraint dependency is a nested Go module without its own release tags.
+If Dependabot proposes the parent repository's `v0.20.0` tag and reports
+`dependency_file_not_resolvable`, resolve the nested module's actual latest
+pseudo-version with `go list -m -json github.com/open-policy-agent/frameworks/constraint@latest`,
+then update that version and regenerate vendoring. Do not substitute the parent
+module's unrelated release or suppress all updates for this dependency.
+
 When a dependency raises the Go requirement, update the Go patch version and
 the Staticcheck and golangci-lint pins together. Regenerate the vendor directory
 with that Go toolchain so vendored build constraints match CI.

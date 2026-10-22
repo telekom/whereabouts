@@ -52,6 +52,11 @@ The chart's own `ghcr.io/telekom/whereabouts` image is intentionally excluded:
 its version belongs to the release process, as do `controller:latest`
 deployment placeholders.
 
+The kind suites use `hack/multus-install.yml`, not a remote quickstart with a
+mutable snapshot image. Dependabot tracks both digest-pinned Multus images there.
+Multus readiness checks the installed host CNI configuration, and setup waits for
+the full DaemonSet rollout before creating networked test pods.
+
 Dependabot does not update arbitrary tool versions, checksums, shell-script
 image references, or package pins inside Dockerfile `RUN` instructions.
 Maintain these together with their consumers and validate the relevant build

@@ -30,10 +30,11 @@ func TestNetutilIPPoolRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:           []string{"../../../config/crd/bases"},
-		ErrorIfCRDPathMissing:       true,
-		BinaryAssetsDirectory:       assets,
-		DownloadBinaryAssets:        true,
+		CRDDirectoryPaths:     []string{"../../../config/crd/bases"},
+		ErrorIfCRDPathMissing: true,
+		BinaryAssetsDirectory: assets,
+		DownloadBinaryAssets:  true,
+		// renovate: datasource=github-releases depName=kubernetes-sigs/controller-tools extractVersion=^envtest-v(?<version>\d+\.\d+\.\d+)$
 		DownloadBinaryAssetsVersion: "1.37.0",
 	}
 	cfg, err := testEnv.Start()

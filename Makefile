@@ -14,9 +14,13 @@ OCI_BIN ?= docker
 GO ?= go
 
 # Tool versions
+# renovate: datasource=go depName=sigs.k8s.io/controller-tools
 CONTROLLER_GEN_VERSION ?= v0.21.0
+# renovate: datasource=go depName=honnef.co/go/tools
 STATICCHECK_VERSION ?= v0.8.2
+# renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5
 KUSTOMIZE_VERSION ?= v5.8.1
+# renovate: datasource=go depName=github.com/golangci/golangci-lint/v2
 GOLANGCI_LINT_VERSION ?= v2.15.0
 
 # Resolved tool paths
@@ -222,6 +226,7 @@ $(GOLANGCI_LINT): | $(BIN_DIR)
 	GOBIN=$(BIN_DIR) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 YQ=$(BIN_DIR)/yq
+# renovate: datasource=github-releases depName=mikefarah/yq
 YQ_VERSION=v4.53.3
 $(YQ): | $(BIN_DIR); $(info installing yq)
 	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]') && ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/' | sed 's/arm64/arm64/') && \

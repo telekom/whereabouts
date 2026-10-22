@@ -5,6 +5,10 @@ updates:
     directory: /
     allow:
       - dependency-type: all
+    # The hosted companion owns this untagged submodule through the Go proxy.
+    # Activate Renovate before merging this handover.
+    ignore:
+      - dependency-name: github.com/open-policy-agent/frameworks/constraint
     schedule:
       interval: daily
     open-pull-requests-limit: 20

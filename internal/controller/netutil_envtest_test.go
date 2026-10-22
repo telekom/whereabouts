@@ -34,10 +34,11 @@ func TestNetutilNodeSlicePersistence(t *testing.T) {
 	}
 	preserve := true
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:           []string{"../../config/crd/bases"},
-		ErrorIfCRDPathMissing:       true,
-		BinaryAssetsDirectory:       assets,
-		DownloadBinaryAssets:        true,
+		CRDDirectoryPaths:     []string{"../../config/crd/bases"},
+		ErrorIfCRDPathMissing: true,
+		BinaryAssetsDirectory: assets,
+		DownloadBinaryAssets:  true,
+		// renovate: datasource=github-releases depName=kubernetes-sigs/controller-tools extractVersion=^envtest-v(?<version>\d+\.\d+\.\d+)$
 		DownloadBinaryAssetsVersion: "1.37.0",
 		CRDs: []*apiextensionsv1.CustomResourceDefinition{{
 			ObjectMeta: metav1.ObjectMeta{Name: "network-attachment-definitions.k8s.cni.cncf.io"},

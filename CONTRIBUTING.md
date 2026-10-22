@@ -150,6 +150,34 @@ Open an issue on GitHub with:
 - Network configuration (NAD spec, IPAM config)
 - CNI log output (usually `/var/log/whereabouts.log`)
 
+## Supplemental dependency updates
+
+Dependabot remains responsible for normal Go modules, Actions, Docker/Kubernetes
+manifests and Helm dependencies. `.github/renovate.json` complements it for the
+annotated Makefile tools, installer versions, workflow inputs, envtest assets and
+the Alpine image embedded in Go test code. Matching annotations use the same
+datasource/package identity for duplicated pins. Native Renovate Go handling
+keeps the supported compiler minor patched and refreshes the untagged OPA
+constraint module through the Go proxy, including its module/vendor artifacts.
+
+**Activation prerequisite:** authorize the hosted Renovate App for this repository
+before merging the OPA ownership handover in `dependabot.yml`. The configuration
+does not install or authorize the App. Check its dependency dashboard and first
+update PR after activation; no automatic merging is enabled. CI uses a pinned
+Renovate version under Node 24 and exercises actual extraction, atomic
+tag/digest replacement, ownership rules and Go-proxy resolution.
+
+When introducing a new version literal outside a native manifest, annotate it
+with `renovate: datasource=... depName=...` immediately above its value, and verify
+the extracted version and digest using the real updater. Release-owned self
+versions, protocol examples and compatibility fixtures are not latest-version
+targets. Preserve checksum verification when updating installer versions.
+
+Issues are never closed for inactivity. The stale workflow was disabled while
+this policy change is reviewed; after merging, maintainers may re-enable it for
+labeling only. Reopened reports remain open until explicit triage confirms a
+merged fix or another deliberate resolution.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.

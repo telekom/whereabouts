@@ -39,6 +39,7 @@ jobs:
           go-version-file: go.mod
       - name: Install govulncheck
         continue-on-error: true
+        # renovate: datasource=go depName=golang.org/x/vuln
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Run govulncheck
         id: scan
@@ -127,6 +128,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install go-licenses
+        # renovate: datasource=go depName=github.com/google/go-licenses
         run: go install github.com/google/go-licenses@v1.6.0
       - name: Check licenses
         run: go-licenses check ./... --disallowed_types=forbidden,restricted

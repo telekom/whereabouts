@@ -157,6 +157,26 @@ Open an issue on GitHub with:
 - Network configuration (NAD spec, IPAM config)
 - CNI log output (usually `/var/log/whereabouts.log`)
 
+## Dependency updates
+
+GitHub Dependabot is the only dependency updater. It checks Go modules, including
+indirect dependencies, Actions, configured Docker/Kubernetes manifests and Helm
+dependencies daily. No module ownership is handed to an external updater.
+
+Dependabot does not update arbitrary Makefile tools, installer versions, workflow
+inputs, envtest assets or images embedded in Go source. Review these pins manually
+alongside supported manifest updates, keep duplicate references consistent and
+preserve checksum verification. The untagged OPA constraint submodule may require
+a manual Go-proxy pseudo-version update when Dependabot selects an unrelated
+parent-module release; regenerate module and vendor artifacts together.
+Release-owned self versions, protocol examples and compatibility fixtures are
+not latest-version targets.
+
+Issues are never closed for inactivity. The stale workflow was disabled while
+this policy change is reviewed; after merging, maintainers may re-enable it for
+labeling only. Reopened reports remain open until explicit triage confirms a
+merged fix or another deliberate resolution.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.

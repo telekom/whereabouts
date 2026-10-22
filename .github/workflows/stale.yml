@@ -21,12 +21,12 @@ jobs:
           
           stale-issue-message: |
             This issue has been automatically marked as stale because it has not had
-            recent activity. It will be closed if no further activity occurs. Thank you
-            for your contributions.
+            recent activity. It remains open until it is explicitly triaged.
+            Thank you for your contributions.
           stale-issue-label: 'stale'
           
           days-before-issue-stale: 365
-          days-before-issue-close: 30
+          days-before-issue-close: -1
           # PR stale processing is disabled; pull requests must not be stale-closed.
           days-before-pr-stale: -1
           days-before-pr-close: -1

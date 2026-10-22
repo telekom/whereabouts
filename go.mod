@@ -6,10 +6,10 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
-	github.com/fluxcd/pkg/apis/meta v1.35.0
-	github.com/fluxcd/pkg/runtime v0.119.0
+	github.com/fluxcd/pkg/apis/meta v1.36.0
+	github.com/fluxcd/pkg/runtime v0.120.0
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/gaissmai/extnetip v1.3.2
+	github.com/gaissmai/extnetip v1.4.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/spf13/cobra v1.10.2
-	github.com/telekom/t-caas-go-library v0.1.1
+	github.com/telekom/t-caas-go-library v0.1.2
 	go.uber.org/zap v1.28.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	k8s.io/api v0.37.1
@@ -67,7 +67,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/open-policy-agent/frameworks/constraint v0.0.0-20260810200531-6ae9460de097 // indirect
+	github.com/open-policy-agent/frameworks/constraint v0.0.0-20261021004052-6d2ac79256fb // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/common v0.72.1 // indirect
@@ -90,7 +90,7 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

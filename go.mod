@@ -6,10 +6,10 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
-	github.com/fluxcd/pkg/apis/meta v1.35.0
-	github.com/fluxcd/pkg/runtime v0.119.0
+	github.com/fluxcd/pkg/apis/meta v1.36.0
+	github.com/fluxcd/pkg/runtime v0.120.0
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/gaissmai/extnetip v1.3.2
+	github.com/gaissmai/extnetip v1.4.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
@@ -90,7 +90,7 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

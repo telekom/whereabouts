@@ -45,17 +45,40 @@ make generate-api         # Regenerate deepcopy + manifests
 make update-deps  # go mod tidy && go mod vendor && go mod verify
 ```
 
-Dependabot tracks direct and indirect Go modules (including the vendor refresh),
+Dependabot checks daily for direct and indirect Go modules (including the vendor refresh),
 workflow actions, root Dockerfile bases, Kubernetes image references in `hack/`
 and `yamls/`, and the chart in `deployment/whereabouts-chart/`.
 The chart's own `ghcr.io/telekom/whereabouts` image is intentionally excluded:
 its version belongs to the release process, as do `controller:latest`
 deployment placeholders.
 
+The kind suites use `hack/multus-install.yml`, not a remote quickstart with a
+mutable snapshot image. Dependabot tracks both digest-pinned Multus images there.
+Multus readiness checks the installed host CNI configuration, and setup waits for
+the full DaemonSet rollout before creating networked test pods.
+
 Dependabot does not update arbitrary tool versions, checksums, shell-script
 image references, or package pins inside Dockerfile `RUN` instructions.
 Maintain these together with their consumers and validate the relevant build
 and integration jobs.
+
+When a dependency raises the Go requirement, update the Go patch version and
+the Staticcheck and golangci-lint pins together. Regenerate the vendor directory
+with that Go toolchain so vendored build constraints match CI.
+Standalone Staticcheck follows golangci-lint's existing deprecation policy
+(`SA1019` is excluded, including for upstream-generated Kubernetes clients).
+
+### Advisory security reports
+
+Vulnerability scanners and dependency review retain their findings but do not
+block PRs. One security report comment per PR is updated with the current commit,
+scanner warnings and links to complete logs, including the image scan.
+Builds, tests, lint, vendor consistency, REUSE and license checks remain blocking.
+
+The reporting workflow runs from the default branch with permission to comment,
+so Dependabot and fork PRs do not need a write token. It reads GitHub job metadata
+and annotations only; it never checks out or executes PR code with that token.
+The reporter becomes active after its workflow is merged into the default branch.
 
 ## Code Conventions
 

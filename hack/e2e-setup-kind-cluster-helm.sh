@@ -36,8 +36,7 @@ fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-MULTUS_DAEMONSET_REF="db30741512795c258b3ba383a571a66850e8baac"
-MULTUS_DAEMONSET_URL="https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_DAEMONSET_REF}/deployments/multus-daemonset.yml"
+MULTUS_DAEMONSET_PATH="$ROOT/hack/multus-install.yml"
 CNIS_DAEMONSET_PATH="$ROOT/hack/cni-install.yml"
 RETRY_MAX=10
 INTERVAL=10
@@ -117,8 +116,11 @@ kind export kubeconfig --name $KIND_CLUSTER_NAME
 echo "## wait for coreDNS"
 kubectl -n kube-system wait --for=condition=available deploy/coredns --timeout=$TIMEOUT_K8
 echo "## install multus"
-retry kubectl create -f "${MULTUS_DAEMONSET_URL}"
-retry kubectl -n kube-system wait --for=condition=ready -l name="multus" pod --timeout=$TIMEOUT_K8
+retry kubectl create -f "${MULTUS_DAEMONSET_PATH}"
+retry kubectl -n kube-system rollout status daemonset/kube-multus-ds --timeout=$TIMEOUT_K8
+for node in $(kind get nodes --name "$KIND_CLUSTER_NAME"); do
+  retry "$OCI_BIN" exec "$node" /bin/sh -ec 'test -s /etc/cni/net.d/00-multus.conf && test -s /etc/cni/net.d/multus.d/multus.kubeconfig && test -x /opt/cni/bin/multus'
+done
 echo "## install CNIs"
 retry kubectl create -f "${CNIS_DAEMONSET_PATH}"
 retry kubectl -n kube-system wait --for=condition=ready -l name="cni-plugins" pod --timeout=$TIMEOUT_K8

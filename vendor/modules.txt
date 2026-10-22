@@ -197,7 +197,7 @@ github.com/onsi/gomega/types
 # github.com/open-policy-agent/cert-controller v0.16.0
 ## explicit; go 1.25.0
 github.com/open-policy-agent/cert-controller/pkg/rotator
-# github.com/open-policy-agent/frameworks/constraint v0.0.0-20260810200531-6ae9460de097
+# github.com/open-policy-agent/frameworks/constraint v0.0.0-20261021004052-6d2ac79256fb
 ## explicit; go 1.26.0
 # github.com/pkg/errors v0.9.1
 ## explicit
@@ -234,8 +234,8 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.10
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/telekom/t-caas-go-library v0.1.1
-## explicit; go 1.26.6
+# github.com/telekom/t-caas-go-library v0.1.2
+## explicit; go 1.26.10
 github.com/telekom/t-caas-go-library/pkg/certrotation
 github.com/telekom/t-caas-go-library/pkg/netutil
 # github.com/tidwall/match v1.2.0

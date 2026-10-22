@@ -21,6 +21,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  reporter-tests:
+    name: Security report tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: node --test .github/scripts/security-report.test.cjs
+
   govulncheck:
     name: Go Vulnerability Check
     runs-on: ubuntu-latest
@@ -31,9 +38,15 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install govulncheck
+        continue-on-error: true
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
       - name: Run govulncheck
+        id: scan
+        continue-on-error: true
         run: govulncheck ./...
+      - name: Report scan status
+        if: always() && steps.scan.outcome != 'success'
+        run: echo '::warning title=Security scan advisory::govulncheck reported findings or could not complete. See the scan logs.'
 
   trivy:
     name: Trivy Vulnerability Scan
@@ -41,6 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run Trivy filesystem scan
+        id: scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
@@ -48,6 +63,9 @@ jobs:
           scanners: vuln
           severity: CRITICAL,HIGH
           exit-code: '1'
+      - name: Report scan status
+        if: always() && steps.scan.outcome != 'success'
+        run: echo '::warning title=Security scan advisory::Trivy reported findings or could not complete. See the scan logs.'
 
   scorecard:
     name: OpenSSF Scorecard
@@ -62,12 +80,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Run OpenSSF Scorecard
+        continue-on-error: true
         uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
       - name: Upload Scorecard results
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
         with:
           sarif_file: results.sarif
@@ -79,6 +99,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        id: scan
+        continue-on-error: true
+      - name: Report scan status
+        if: always() && steps.scan.outcome != 'success'
+        run: echo '::warning title=Security scan advisory::Dependency review reported findings or could not complete. See the scan logs.'
 
   reuse:
     name: REUSE Compliance

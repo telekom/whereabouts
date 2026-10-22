@@ -6,7 +6,8 @@ updates:
     allow:
       - dependency-type: all
     schedule:
-      interval: weekly
+      interval: daily
+    open-pull-requests-limit: 20
     groups:
       k8s:
         patterns: [ "k8s.io/*", "sigs.k8s.io/*" ]
@@ -28,14 +29,16 @@ updates:
       - /hack
       - /yamls
     schedule:
-      interval: weekly
+      interval: daily
+    open-pull-requests-limit: 20
     labels:
       - "dependencies"
       - "docker"
   - package-ecosystem: helm
     directory: /deployment/whereabouts-chart
     schedule:
-      interval: weekly
+      interval: daily
+    open-pull-requests-limit: 20
     ignore:
       - dependency-name: ghcr.io/telekom/whereabouts
     labels:
@@ -43,7 +46,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: daily
+    open-pull-requests-limit: 20
     labels:
       - "dependencies"
       - "ci"

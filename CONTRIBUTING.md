@@ -150,28 +150,20 @@ Open an issue on GitHub with:
 - Network configuration (NAD spec, IPAM config)
 - CNI log output (usually `/var/log/whereabouts.log`)
 
-## Supplemental dependency updates
+## Dependency updates
 
-Dependabot remains responsible for normal Go modules, Actions, Docker/Kubernetes
-manifests and Helm dependencies. `.github/renovate.json` complements it for the
-annotated Makefile tools, installer versions, workflow inputs, envtest assets and
-the Alpine image embedded in Go test code. Matching annotations use the same
-datasource/package identity for duplicated pins. Native Renovate Go handling
-keeps the supported compiler minor patched and refreshes the untagged OPA
-constraint module through the Go proxy, including its module/vendor artifacts.
+GitHub Dependabot is the only dependency updater. It checks Go modules, including
+indirect dependencies, Actions, configured Docker/Kubernetes manifests and Helm
+dependencies daily. No module ownership is handed to an external updater.
 
-**Activation prerequisite:** authorize the hosted Renovate App for this repository.
-The configuration does not install or authorize the App. Dependabot ownership is
-retained until its dependency dashboard and first update PR are verified; defer
-any OPA ignore in `dependabot.yml` until then. No automatic merging is enabled. CI uses a pinned
-Renovate version under Node 24 and exercises actual extraction, atomic
-tag/digest replacement, ownership rules and Go-proxy resolution.
-
-When introducing a new version literal outside a native manifest, annotate it
-with `renovate: datasource=... depName=...` immediately above its value, and verify
-the extracted version and digest using the real updater. Release-owned self
-versions, protocol examples and compatibility fixtures are not latest-version
-targets. Preserve checksum verification when updating installer versions.
+Dependabot does not update arbitrary Makefile tools, installer versions, workflow
+inputs, envtest assets or images embedded in Go source. Review these pins manually
+alongside supported manifest updates, keep duplicate references consistent and
+preserve checksum verification. The untagged OPA constraint submodule may require
+a manual Go-proxy pseudo-version update when Dependabot selects an unrelated
+parent-module release; regenerate module and vendor artifacts together.
+Release-owned self versions, protocol examples and compatibility fixtures are
+not latest-version targets.
 
 Issues are never closed for inactivity. The stale workflow was disabled while
 this policy change is reviewed; after merging, maintainers may re-enable it for

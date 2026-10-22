@@ -4,9 +4,7 @@ set -o errexit
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
-# renovate: datasource=github-releases depName=kubernetes-sigs/kind
 KIND_VERSION="v0.32.0"
-# renovate: datasource=github-releases depName=kubernetes/kubernetes
 KUBECTL_VERSION="v1.36.2"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')

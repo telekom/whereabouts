@@ -84,7 +84,6 @@ path = [
   ".github/ISSUE_TEMPLATE/**",
   ".github/CODEOWNERS",
   ".github/dependabot.yml",
-  ".github/renovate.json",
   ".github/copilot-instructions.md",
 ]
 precedence = "aggregate"

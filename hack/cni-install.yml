@@ -13,7 +13,6 @@ data:
       x86_64)  ARCH="amd64" ;;
       aarch64) ARCH="arm64" ;;
     esac
-    # renovate: datasource=github-releases depName=containernetworking/plugins
     CNI_VERSION="v1.9.1"
     archive="/tmp/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"
     wget -O "${archive}" "https://github.com/containernetworking/plugins/releases/download/${CNI_VERSION}/cni-plugins-linux-${ARCH}-${CNI_VERSION}.tgz"

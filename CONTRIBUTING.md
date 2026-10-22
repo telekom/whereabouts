@@ -160,10 +160,10 @@ datasource/package identity for duplicated pins. Native Renovate Go handling
 keeps the supported compiler minor patched and refreshes the untagged OPA
 constraint module through the Go proxy, including its module/vendor artifacts.
 
-**Activation prerequisite:** authorize the hosted Renovate App for this repository
-before merging the OPA ownership handover in `dependabot.yml`. The configuration
-does not install or authorize the App. Check its dependency dashboard and first
-update PR after activation; no automatic merging is enabled. CI uses a pinned
+**Activation prerequisite:** authorize the hosted Renovate App for this repository.
+The configuration does not install or authorize the App. Dependabot ownership is
+retained until its dependency dashboard and first update PR are verified; defer
+any OPA ignore in `dependabot.yml` until then. No automatic merging is enabled. CI uses a pinned
 Renovate version under Node 24 and exercises actual extraction, atomic
 tag/digest replacement, ownership rules and Go-proxy resolution.
 

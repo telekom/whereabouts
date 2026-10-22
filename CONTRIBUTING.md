@@ -57,6 +57,12 @@ image references, or package pins inside Dockerfile `RUN` instructions.
 Maintain these together with their consumers and validate the relevant build
 and integration jobs.
 
+When a dependency raises the Go requirement, update the Go patch version and
+the Staticcheck and golangci-lint pins together. Regenerate the vendor directory
+with that Go toolchain so vendored build constraints match CI.
+Standalone Staticcheck follows golangci-lint's existing deprecation policy
+(`SA1019` is excluded, including for upstream-generated Kubernetes clients).
+
 ## Code Conventions
 
 ### Error Handling

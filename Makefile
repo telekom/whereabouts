@@ -15,9 +15,9 @@ GO ?= go
 
 # Tool versions
 CONTROLLER_GEN_VERSION ?= v0.21.0
-STATICCHECK_VERSION ?= v0.7.0
+STATICCHECK_VERSION ?= v0.8.2
 KUSTOMIZE_VERSION ?= v5.8.1
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.15.0
 
 # Resolved tool paths
 CONTROLLER_GEN := $(BIN_DIR)/controller-gen
@@ -132,7 +132,7 @@ test-envtest: ## Characterize IPAM, snapshot patches and certificate rotation ag
 
 .PHONY: lint-staticcheck
 lint-staticcheck: $(STATICCHECK) ## Run staticcheck.
-	$(STATICCHECK) ./...
+	$(STATICCHECK) -checks=inherit,-SA1019 ./...
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT) ## Run golangci-lint.

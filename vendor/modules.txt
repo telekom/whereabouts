@@ -39,10 +39,10 @@ github.com/emicklei/go-restful/v3/log
 ## explicit; go 1.18
 github.com/evanphx/json-patch/v5
 github.com/evanphx/json-patch/v5/internal/json
-# github.com/fluxcd/pkg/apis/meta v1.36.0
+# github.com/fluxcd/pkg/apis/meta v1.38.0
 ## explicit; go 1.27.0
 github.com/fluxcd/pkg/apis/meta
-# github.com/fluxcd/pkg/runtime v0.120.0
+# github.com/fluxcd/pkg/runtime v0.122.0
 ## explicit; go 1.27.0
 github.com/fluxcd/pkg/runtime/conditions
 github.com/fluxcd/pkg/runtime/patch
@@ -56,7 +56,7 @@ github.com/fxamacker/cbor/v2
 # github.com/gaissmai/extnetip v1.4.1
 ## explicit; go 1.24
 github.com/gaissmai/extnetip
-# github.com/gkampitakis/go-snaps v0.5.23
+# github.com/gkampitakis/go-snaps v0.5.24
 ## explicit; go 1.23
 # github.com/go-logr/logr v1.4.4
 ## explicit; go 1.18
@@ -221,8 +221,8 @@ github.com/prometheus/client_model/go
 ## explicit; go 1.26.0
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
-# github.com/prometheus/procfs v0.22.0
-## explicit; go 1.25.0
+# github.com/prometheus/procfs v0.23.0
+## explicit; go 1.26.0
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/parsers
@@ -234,7 +234,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.10
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/telekom/t-caas-go-library v0.1.2
+# github.com/telekom/t-caas-go-library v0.1.3
 ## explicit; go 1.26.10
 github.com/telekom/t-caas-go-library/pkg/certrotation
 github.com/telekom/t-caas-go-library/pkg/netutil

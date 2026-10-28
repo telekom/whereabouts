@@ -40,9 +40,6 @@ updates:
         group-by: dependency-name
         patterns: [ "*" ]
         update-types: [ "minor", "patch" ]
-      docker-digests:
-        group-by: dependency-name
-        patterns: [ "*" ]
     labels:
       - "dependencies"
       - "docker"

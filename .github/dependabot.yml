@@ -32,6 +32,14 @@ updates:
       interval: daily
     open-pull-requests-limit: 20
     groups:
+      docker-major:
+        group-by: dependency-name
+        patterns: [ "*" ]
+        update-types: [ "major" ]
+      docker-minor-patch:
+        group-by: dependency-name
+        patterns: [ "*" ]
+        update-types: [ "minor", "patch" ]
       docker-digests:
         group-by: dependency-name
         patterns: [ "*" ]

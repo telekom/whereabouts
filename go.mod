@@ -6,8 +6,8 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.9.1
-	github.com/fluxcd/pkg/apis/meta v1.36.0
-	github.com/fluxcd/pkg/runtime v0.120.0
+	github.com/fluxcd/pkg/apis/meta v1.38.0
+	github.com/fluxcd/pkg/runtime v0.122.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gaissmai/extnetip v1.4.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/spf13/cobra v1.10.2
-	github.com/telekom/t-caas-go-library v0.1.2
+	github.com/telekom/t-caas-go-library v0.1.3
 	go.uber.org/zap v1.28.0
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	k8s.io/api v0.37.1
@@ -40,7 +40,7 @@ require (
 	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.6 // indirect
-	github.com/gkampitakis/go-snaps v0.5.23 // indirect
+	github.com/gkampitakis/go-snaps v0.5.24 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/common v0.72.1 // indirect
-	github.com/prometheus/procfs v0.22.0 // indirect
+	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tidwall/match v1.2.0 // indirect

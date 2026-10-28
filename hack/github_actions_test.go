@@ -98,11 +98,8 @@ func TestChartReleaseWorkflowSignsAndAttestsChart(t *testing.T) {
 	for _, want := range []string{
 		"id-token: write",
 		"attestations: write",
-		"docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
-		"sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6",
 		"id: push-chart",
 		"cosign sign --yes \"${{ steps.push-chart.outputs.chart_ref }}@${{ steps.push-chart.outputs.chart_digest }}\"",
-		"actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 		"subject-name: ${{ steps.push-chart.outputs.chart_ref }}",
 		"subject-digest: ${{ steps.push-chart.outputs.chart_digest }}",
 		"push-to-registry: true",

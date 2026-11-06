@@ -34,6 +34,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         if: matrix.platform != 'linux/amd64'
@@ -102,5 +104,5 @@ jobs:
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
-            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+            --tag "${REGISTRY}/${IMAGE_NAME}:latest" \
+            $(printf "${REGISTRY}/${IMAGE_NAME}@sha256:%s " *)

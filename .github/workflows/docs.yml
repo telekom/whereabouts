@@ -23,6 +23,7 @@ on:
       - "Makefile"
       - ".github/workflows/**"
       - "deployment/whereabouts-chart/**"
+  workflow_dispatch:
 
 permissions:
   contents: read

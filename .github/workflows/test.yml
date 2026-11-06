@@ -9,6 +9,7 @@ on:
     paths-ignore:
       - "**/*.md"
       - "doc/*.{json,png,svg}"
+  workflow_dispatch:
 
 name: Test
 

@@ -163,6 +163,10 @@ GitHub Dependabot is the only dependency updater. It checks Go modules, includin
 indirect dependencies, Actions, configured Docker/Kubernetes manifests and Helm
 dependencies daily. No module ownership is handed to an external updater.
 
+The `CI Gate` workflow merges a Dependabot PR once every other check on it has
+passed, then dispatches the main-branch workflows a merge would normally start.
+Semver-major updates other than GitHub Actions wait for a maintainer.
+
 Dependabot does not update arbitrary Makefile tools, installer versions, workflow
 inputs, envtest assets or images embedded in Go source. Review these pins manually
 alongside supported manifest updates, keep duplicate references consistent and

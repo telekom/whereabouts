@@ -19,11 +19,14 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Build and Test
         run: make test
@@ -48,6 +51,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         if: matrix.platform != 'linux/amd64'
@@ -139,15 +144,19 @@ jobs:
 
       - name: Create and push multi-arch manifest
         working-directory: ${{ runner.temp }}/digests
+        env:
+          META_JSON: ${{ steps.meta.outputs.json }}
         run: |
           docker buildx imagetools create \
-            $(jq -cr '.tags | map("--tag " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}') \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+            $(jq -cr '.tags | map("--tag " + .) | join(" ")' <<< "${META_JSON}") \
+            $(printf "${REGISTRY}/${IMAGE_NAME}@sha256:%s " *)
 
       - name: Inspect manifest
         id: inspect
+        env:
+          META_JSON: ${{ steps.meta.outputs.json }}
         run: |
-          tag=$(jq -cr '.tags[0]' <<< '${{ steps.meta.outputs.json }}')
+          tag=$(jq -cr '.tags[0]' <<< "${META_JSON}")
           digest=$(docker buildx imagetools inspect "${tag}" | awk '/^Digest:/ {print $2; exit}')
           if [ -z "${digest}" ]; then
             echo "Failed to extract manifest digest for ${tag}" >&2

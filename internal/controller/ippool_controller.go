@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"net"
 	"strconv"
@@ -88,9 +89,11 @@ func (r *IPPoolReconciler) computePoolStats(ctx context.Context, pool *whereabou
 		last := iphelpers.SubnetBroadcastIP(*ipNet)
 		offset, oErr := iphelpers.IPGetOffset(first, last)
 		if oErr == nil {
-			// math/big is needed but maybe not imported, let's use a simpler way if possible
-			// actually we can just let goimports handle it
-			totalIPs = int32(offset.Int64() + 1)
+			// Clamp like CountUsableIPs: large ranges (e.g. IPv6 /64) overflow int32.
+			totalIPs = math.MaxInt32
+			if offset.IsInt64() && offset.Int64() < math.MaxInt32 {
+				totalIPs = int32(offset.Int64() + 1)
+			}
 		}
 	} else {
 		totalIPs, err = iphelpers.CountUsableIPs(pool.Spec.Range)

@@ -125,6 +125,10 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Cheapest check first: fail in seconds instead of after kind setup.
+      - name: Verify go fmt
+        run: test -z "$(go fmt ./... | tee /dev/stderr)"
+
       - name: Install requirements
         run: sudo apt-get install jq
 
@@ -237,6 +241,10 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+
+      # Cheapest check first: fail in seconds instead of after kind setup.
+      - name: Verify go fmt
+        run: test -z "$(go fmt ./... | tee /dev/stderr)"
 
       - name: Install requirements
         run: sudo apt-get install jq

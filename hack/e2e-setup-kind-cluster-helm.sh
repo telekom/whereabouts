@@ -110,6 +110,10 @@ echo "## checking requirements"
 check_requirements
 echo "## delete existing KinD cluster if it exists"
 kind delete clusters $KIND_CLUSTER_NAME
+echo "## build whereabouts image in the background while the cluster comes up"
+image_build_log="$(mktemp -t whereabouts-image-build.XXXXXX)"
+(cd "$ROOT" && $OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .) >"$image_build_log" 2>&1 &
+image_build_pid=$!
 echo "## start KinD cluster"
 create_cluster
 kind export kubeconfig --name $KIND_CLUSTER_NAME
@@ -124,10 +128,13 @@ done
 echo "## install CNIs"
 retry kubectl create -f "${CNIS_DAEMONSET_PATH}"
 retry kubectl -n kube-system wait --for=condition=ready -l name="cni-plugins" pod --timeout=$TIMEOUT_K8
-echo "## build whereabouts"
-pushd "$ROOT"
-$OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .
-popd
+echo "## wait for whereabouts image build"
+if ! wait "$image_build_pid"; then
+  cat "$image_build_log"
+  echo "whereabouts image build failed" >&2
+  exit 1
+fi
+cat "$image_build_log"
 
 echo "## load image into KinD"
 trap "rm -f /tmp/whereabouts-img.tar" EXIT

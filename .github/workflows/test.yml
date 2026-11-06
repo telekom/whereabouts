@@ -143,8 +143,9 @@ jobs:
           TEST_PKG: ${{ matrix.test-pkg }}
         run: |
           # Compile the e2e tests while the cluster comes up; the test step
-          # then reuses the build cache and only links.
-          (cd "$TEST_DIR" && go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
+          # then reuses the build cache and only links. Idle CPU and IO
+          # priority, so kind's etcd is not starved.
+          (cd "$TEST_DIR" && nice -n 19 ionice -c 3 go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
           compile_pid=$!
           source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
           wait "$compile_pid"
@@ -255,8 +256,9 @@ jobs:
           TEST_PKG: ${{ matrix.test-pkg }}
         run: |
           # Compile the e2e tests while the cluster comes up; the test step
-          # then reuses the build cache and only links.
-          (cd "$TEST_DIR" && go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
+          # then reuses the build cache and only links. Idle CPU and IO
+          # priority, so kind's etcd is not starved.
+          (cd "$TEST_DIR" && nice -n 19 ionice -c 3 go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
           compile_pid=$!
           source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster-helm.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
           wait "$compile_pid"

@@ -110,13 +110,16 @@ echo "## checking requirements"
 check_requirements
 echo "## delete existing KinD cluster if it exists"
 kind delete clusters $KIND_CLUSTER_NAME
-echo "## build whereabouts image in the background while the cluster comes up"
-image_build_log="$(mktemp -t whereabouts-image-build.XXXXXX)"
-(cd "$ROOT" && $OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .) >"$image_build_log" 2>&1 &
-image_build_pid=$!
 echo "## start KinD cluster"
 create_cluster
 kind export kubeconfig --name $KIND_CLUSTER_NAME
+# Build the image in the background while multus and the CNIs roll out.
+# Not earlier: next to kind's control-plane bootstrap the build starves etcd
+# ("etcdserver: request timed out").
+echo "## build whereabouts image in the background"
+image_build_log="$(mktemp -t whereabouts-image-build.XXXXXX)"
+(cd "$ROOT" && $OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .) >"$image_build_log" 2>&1 &
+image_build_pid=$!
 echo "## wait for coreDNS"
 kubectl -n kube-system wait --for=condition=available deploy/coredns --timeout=$TIMEOUT_K8
 echo "## install multus"

@@ -38,8 +38,13 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           {{- $securityContext := deepCopy (.Values.securityContext | default dict) }}
+          {{- if .Values.cniPrivileged }}
+          {{- $securityContext = dict "privileged" true "runAsUser" 0 }}
+          {{- end }}
           {{- if .Values.seLinuxSpcT }}
-          {{- $_ := set $securityContext "seLinuxOptions" (dict "type" "spc_t") }}
+          {{- $seLinuxOptions := $securityContext.seLinuxOptions | default dict }}
+          {{- $_ := set $seLinuxOptions "type" "spc_t" }}
+          {{- $_ := set $securityContext "seLinuxOptions" $seLinuxOptions }}
           {{- end }}
           securityContext:
             {{- toYaml $securityContext | nindent 12 }}

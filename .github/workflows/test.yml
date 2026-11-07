@@ -130,8 +130,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Cheapest check first: fail in seconds instead of after kind setup.
+      - name: Verify go fmt
+        run: test -z "$(go fmt ./... | tee /dev/stderr)"
+
       - name: Install requirements
-        run: sudo apt-get install nmap jq && make build
+        run: sudo apt-get install jq
 
       # The runner image writes these kind limits to /etc/sysctl.conf, which
       # Ubuntu 26.04 no longer loads at boot. With the default of 128 inotify
@@ -143,7 +147,20 @@ jobs:
           sudo sysctl -w fs.inotify.max_user_instances=1280 fs.inotify.max_user_watches=655360
 
       - name: Get tools, setup KinD cluster test environment
-        run: source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
+        env:
+          TEST_DIR: ${{ matrix.test-dir }}
+          TEST_PKG: ${{ matrix.test-pkg }}
+        run: |
+          # Compile the e2e tests while the cluster comes up; the test step
+          # then reuses the build cache and only links. Idle CPU and IO
+          # priority, so kind's etcd is not starved.
+          (cd "$TEST_DIR" && nice -n 19 ionice -c 3 go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
+          compile_pid=$!
+          # Separate commands, not `a && b`: errexit is off for `a` in an && list,
+          # so a failure there would fall through to the wait and pass the step.
+          source hack/e2e-get-test-tools.sh
+          ./hack/e2e-setup-kind-cluster.sh --number-of-compute "$NUMBER_OF_COMPUTE_NODES"
+          wait "$compile_pid"
 
       - name: Clear test-cache
         run: go clean -testcache
@@ -235,8 +252,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Cheapest check first: fail in seconds instead of after kind setup.
+      - name: Verify go fmt
+        run: test -z "$(go fmt ./... | tee /dev/stderr)"
+
       - name: Install requirements
-        run: sudo apt-get install nmap jq && make build
+        run: sudo apt-get install jq
 
       # The runner image writes these kind limits to /etc/sysctl.conf, which
       # Ubuntu 26.04 no longer loads at boot. With the default of 128 inotify
@@ -248,7 +269,20 @@ jobs:
           sudo sysctl -w fs.inotify.max_user_instances=1280 fs.inotify.max_user_watches=655360
 
       - name: Get tools, setup KinD cluster with Helm
-        run: source hack/e2e-get-test-tools.sh && ./hack/e2e-setup-kind-cluster-helm.sh --number-of-compute $NUMBER_OF_COMPUTE_NODES
+        env:
+          TEST_DIR: ${{ matrix.test-dir }}
+          TEST_PKG: ${{ matrix.test-pkg }}
+        run: |
+          # Compile the e2e tests while the cluster comes up; the test step
+          # then reuses the build cache and only links. Idle CPU and IO
+          # priority, so kind's etcd is not starved.
+          (cd "$TEST_DIR" && nice -n 19 ionice -c 3 go test -c -o "$RUNNER_TEMP/e2e-bin/" "$TEST_PKG") &
+          compile_pid=$!
+          # Separate commands, not `a && b`: errexit is off for `a` in an && list,
+          # so a failure there would fall through to the wait and pass the step.
+          source hack/e2e-get-test-tools.sh
+          ./hack/e2e-setup-kind-cluster-helm.sh --number-of-compute "$NUMBER_OF_COMPUTE_NODES"
+          wait "$compile_pid"
 
       - name: Clear test-cache
         run: go clean -testcache

@@ -107,6 +107,37 @@ helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHA
 
 Helm will install the CRDs as well as the daemonset, operator, and webhooks.
 
+### Verifying release artifacts
+
+Each release binary (`whereabouts-<arch>`, `whereabouts-operator-<arch>`,
+`install-cni-<arch>`) is published with a `.sha256` checksum and a keyless
+Sigstore bundle `<binary>.sigstore.json`, signed by the
+`binaries-upload-release.yml` workflow for the release tag. Verify a downloaded
+binary with cosign v2.4+ (`TAG` is the release tag, e.g. `v0.0.21`):
+
+```
+TAG=<RELEASE_TAG>
+cosign verify-blob \
+  --bundle whereabouts-amd64.sigstore.json \
+  --certificate-identity "https://github.com/telekom/whereabouts/.github/workflows/binaries-upload-release.yml@refs/tags/${TAG}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  whereabouts-amd64
+```
+
+To accept any release tag instead of a specific one, replace
+`--certificate-identity` with
+`--certificate-identity-regexp '^https://github\.com/telekom/whereabouts/\.github/workflows/binaries-upload-release\.yml@refs/tags/v.+$'`.
+
+The container image is signed by `image-push-release.yml`; verify the digest
+the chart pins (or `ghcr.io/telekom/whereabouts:<RELEASE_TAG>`) with:
+
+```
+cosign verify \
+  --certificate-identity "https://github.com/telekom/whereabouts/.github/workflows/image-push-release.yml@refs/tags/${TAG}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/telekom/whereabouts@<DIGEST>
+```
+
 ### Upgrading
 
 For **kubectl-based** installations, re-apply the manifests with the new version:

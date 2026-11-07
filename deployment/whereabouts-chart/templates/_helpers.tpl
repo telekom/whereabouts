@@ -87,6 +87,9 @@ otherwise falls back to repository:tag (tag defaults to the chart appVersion).
 */}}
 {{- define "whereabouts.image" -}}
 {{- if .Values.image.digest -}}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" (toString .Values.image.digest)) -}}
+{{- fail (printf "image.digest must be empty or sha256:<64 lowercase hex chars>, got %q" (toString .Values.image.digest)) -}}
+{{- end -}}
 {{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
 {{- else -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}

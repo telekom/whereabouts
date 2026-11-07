@@ -4,6 +4,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"strings"
@@ -44,6 +45,7 @@ func newControllerCommand() *cobra.Command {
 		cleanupDisrupted     bool
 		verifyNetworkStatus  bool
 		serviceCIDR          string
+		webhookTLSGoDefaults bool
 	)
 
 	cmd := &cobra.Command{
@@ -72,6 +74,7 @@ func newControllerCommand() *cobra.Command {
 				WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 					Port:    webhookPort,
 					CertDir: certDir,
+					TLSOpts: webhookTLSOpts(webhookTLSGoDefaults),
 				}),
 			})
 			if err != nil {
@@ -139,9 +142,34 @@ func newControllerCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&cleanupTerminating, "cleanup-terminating-pods", false, "Treat terminating pods (DeletionTimestamp set) as orphaned and release their IPs immediately")
 	cmd.Flags().BoolVar(&cleanupDisrupted, "cleanup-disrupted-pods", true, "Treat pods with DisruptionTarget condition (taint-manager eviction) as orphaned")
 	cmd.Flags().BoolVar(&verifyNetworkStatus, "verify-network-status", true, "Verify allocated IPs against Multus network-status annotation on pods")
+	cmd.Flags().BoolVar(&webhookTLSGoDefaults, "webhook-tls-go-defaults", false, "Use Go's default TLS settings for the webhook server instead of the pinned TLS 1.2 minimum and cipher list (transitional; may be removed in a future release)")
 	cmd.Flags().StringVar(&serviceCIDR, "service-cidr", "", "Comma-separated list of Kubernetes service CIDR ranges for collision detection (e.g. 10.96.0.0/12)")
 
 	return cmd
+}
+
+// webhookTLSCipherSuites are the TLS 1.2 cipher suites the webhook server
+// accepts: ECDHE key exchange with AES-GCM or ChaCha20-Poly1305 only. Go does
+// not let TLS 1.3 suites be configured, so TLS 1.3 keeps Go's defaults.
+var webhookTLSCipherSuites = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+}
+
+// webhookTLSOpts pins the webhook server to TLS 1.2+ and the approved TLS 1.2
+// cipher suites. goDefaults skips the pinning (transitional opt-out).
+func webhookTLSOpts(goDefaults bool) []func(*tls.Config) {
+	if goDefaults {
+		return nil
+	}
+	return []func(*tls.Config){func(c *tls.Config) {
+		c.MinVersion = tls.VersionTLS12
+		c.CipherSuites = webhookTLSCipherSuites
+	}}
 }
 
 // parseServiceCIDRs splits a comma-separated CIDR string, validates each entry, and removes empty entries.

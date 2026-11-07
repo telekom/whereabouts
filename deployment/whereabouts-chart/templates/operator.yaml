@@ -46,6 +46,9 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
+        {{- if .Values.operator.webhookTLS.goDefaults }}
+        - --webhook-tls-go-defaults=true
+        {{- end }}
         {{- with .Values.operator.serviceCIDRs }}
         - --service-cidr={{ . | join "," }}
         {{- end }}

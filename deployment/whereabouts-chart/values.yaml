@@ -64,6 +64,12 @@ operator:
   replicas: 2
   # Service CIDR ranges used by the operator to warn on IPPool collisions.
   serviceCIDRs: []
+  webhookTLS:
+    # The webhook server requires TLS 1.2+ and, for TLS 1.2, only ECDHE
+    # AES-GCM/ChaCha20-Poly1305 cipher suites. Set true to restore Go's
+    # default TLS settings (--webhook-tls-go-defaults).
+    # Transitional; may be removed in a future release.
+    goDefaults: false
   # Optional operator-specific scheduling constraints.
   # If empty, the chart falls back to top-level nodeSelector/tolerations.
   nodeSelector: {}

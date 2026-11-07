@@ -57,3 +57,45 @@ func readYAML(t *testing.T, path string, into interface{}) {
 		t.Fatalf("parse %s: %v", path, err)
 	}
 }
+
+func TestCNIDaemonSetSecurityContextIsUnprivilegedAndConsistent(t *testing.T) {
+	var values struct {
+		SecurityContext map[string]interface{} `json:"securityContext"`
+		SELinuxSpcT     bool                   `json:"seLinuxSpcT"`
+	}
+	readYAML(t, filepath.Join("..", "deployment", "whereabouts-chart", "values.yaml"), &values)
+
+	var ds struct {
+		Spec struct {
+			Template struct {
+				Spec struct {
+					Containers []struct {
+						SecurityContext map[string]interface{} `json:"securityContext"`
+					} `json:"containers"`
+				} `json:"spec"`
+			} `json:"template"`
+		} `json:"spec"`
+	}
+	readYAML(t, filepath.Join("..", "config", "daemonset", "daemonset.yaml"), &ds)
+	if len(ds.Spec.Template.Spec.Containers) != 1 {
+		t.Fatalf("expected one CNI DaemonSet container, got %d", len(ds.Spec.Template.Spec.Containers))
+	}
+
+	want := `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,` +
+		`"readOnlyRootFilesystem":true,"runAsUser":0,"seccompProfile":{"type":"RuntimeDefault"}}`
+	for name, sc := range map[string]map[string]interface{}{
+		"helm values.yaml":           values.SecurityContext,
+		"config/daemonset/daemonset": ds.Spec.Template.Spec.Containers[0].SecurityContext,
+	} {
+		got, err := json.Marshal(sc)
+		if err != nil {
+			t.Fatalf("marshal %s securityContext: %v", name, err)
+		}
+		if string(got) != want {
+			t.Errorf("%s CNI securityContext = %s, want %s", name, got, want)
+		}
+	}
+	if values.SELinuxSpcT {
+		t.Errorf("seLinuxSpcT must default to false")
+	}
+}

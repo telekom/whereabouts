@@ -48,9 +48,18 @@ spec:
           limits:
             cpu: 100m
             memory: 100Mi
+        # Root is needed only to write the root-owned host CNI directories; no
+        # capabilities are needed. Keep in sync with the Helm chart values.
         securityContext:
-          privileged: true
+          privileged: false
+          allowPrivilegeEscalation: false
           runAsUser: 0
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin

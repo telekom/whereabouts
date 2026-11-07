@@ -29,12 +29,30 @@ podAnnotations: {}
 podSecurityContext: {}
   # fsGroup: 2000
 
-# The CNI DaemonSet requires privileged root access to interact with the host
-# network stack and write CNI binaries to the host filesystem (e.g. /opt/cni/bin).
-# This is intentional and currently cannot be run as non-root.
+# Security context of the CNI install DaemonSet container. The installer only
+# copies the whereabouts binary into cniConf.binDir and writes its kubeconfig and
+# config into cniConf.confDir. It runs as root (UID 0) solely because those host
+# directories are root-owned; it needs no Linux capabilities, no privilege
+# escalation and no writable root filesystem (temp files are created next to
+# their targets on the hostPath mounts). Keep in sync with
+# config/daemonset/daemonset.yaml.
 securityContext:
-  privileged: true
+  privileged: false
+  allowPrivilegeEscalation: false
   runAsUser: 0
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# Set to true on hosts with SELinux in enforcing mode. Adds
+# seLinuxOptions.type=spc_t to the CNI DaemonSet container so it may write the
+# host CNI directories (labelled e.g. etc_t/bin_t), which the default
+# container_t domain cannot. Previously this came implicitly with
+# privileged: true.
+seLinuxSpcT: false
 
 resources:
   requests:

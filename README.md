@@ -101,6 +101,21 @@ helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHA
 
 Helm will install the CRDs as well as the daemonset, operator, and webhooks.
 
+The CNI install DaemonSet runs unprivileged: UID 0 (the host CNI directories
+are root-owned), all capabilities dropped, no privilege escalation, a read-only
+root filesystem and the `RuntimeDefault` seccomp profile. The container
+security context is configurable through the `securityContext` chart value.
+On nodes with **SELinux in enforcing mode**, set `seLinuxSpcT=true` so the
+container runs as `spc_t` and may write `/opt/cni/bin` and `/etc/cni/net.d`:
+
+```
+helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION> \
+  --set seLinuxSpcT=true
+```
+
+For Kustomize installs, add `seLinuxOptions: {type: spc_t}` to the container
+`securityContext` in `config/daemonset/daemonset.yaml`.
+
 ### Upgrading
 
 For **kubectl-based** installations, re-apply the manifests with the new version:
@@ -121,6 +136,11 @@ For **Helm**:
 ```
 helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
 ```
+
+> **Upgrade note:** the CNI install DaemonSet is no longer privileged. Clusters
+> whose nodes run SELinux in enforcing mode must set `seLinuxSpcT=true` (Helm)
+> or add `seLinuxOptions.type: spc_t` (Kustomize) when upgrading; otherwise the
+> installer cannot write the host CNI directories and the pod crash-loops.
 
 ### Uninstalling
 

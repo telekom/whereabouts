@@ -37,8 +37,12 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
+          {{- $securityContext := deepCopy (.Values.securityContext | default dict) }}
+          {{- if .Values.seLinuxSpcT }}
+          {{- $_ := set $securityContext "seLinuxOptions" (dict "type" "spc_t") }}
+          {{- end }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml $securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/install-cni"]

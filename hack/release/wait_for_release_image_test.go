@@ -28,13 +28,14 @@ func TestWaitForReleaseImageSucceedsAfterRetry(t *testing.T) {
 		"GITHUB_OUTPUT":                   githubOutput,
 		"GITHUB_TAG":                      "v1.2.3",
 		"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
+		"EXPECTED_REVISION":               testRevision,
 		"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "5",
 		"WAIT_FOR_RELEASE_IMAGE_INTERVAL": "0",
 	})
 	if err != nil {
 		t.Fatalf("wait-for-release-image.sh returned error: %v\n%s", err, output)
 	}
-	if !strings.Contains(output, "Release image is available: ghcr.io/test-owner/whereabouts:v1.2.3") {
+	if !strings.Contains(output, "Release image is available: ghcr.io/test-owner/whereabouts:v1.2.3@sha256:") {
 		t.Fatalf("wait output did not report the available image:\n%s", output)
 	}
 
@@ -51,7 +52,7 @@ func TestWaitForReleaseImageSucceedsAfterRetry(t *testing.T) {
 		t.Fatalf("read fake docker log: %v", err)
 	}
 	log := string(logBytes)
-	if got := strings.Count(log, "buildx imagetools inspect ghcr.io/test-owner/whereabouts:v1.2.3"); got != 2 {
+	if got := strings.Count(log, "buildx imagetools inspect ghcr.io/test-owner/whereabouts:v1.2.3 --format"); got != 2 {
 		t.Fatalf("fake docker inspect count = %d, want 2:\n%s", got, log)
 	}
 }
@@ -68,6 +69,7 @@ func TestWaitForReleaseImageTimesOut(t *testing.T) {
 		"DOCKER_SUCCEED_AFTER":            "99",
 		"GITHUB_TAG":                      "v1.2.3",
 		"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
+		"EXPECTED_REVISION":               testRevision,
 		"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "0",
 		"WAIT_FOR_RELEASE_IMAGE_INTERVAL": "0",
 	})
@@ -76,6 +78,40 @@ func TestWaitForReleaseImageTimesOut(t *testing.T) {
 	}
 	if !strings.Contains(output, "timed out waiting for release image ghcr.io/test-owner/whereabouts:v1.2.3") {
 		t.Fatalf("wait output did not explain the timeout:\n%s", output)
+	}
+}
+
+func TestWaitForReleaseImageIgnoresStaleOrSinglePlatformImage(t *testing.T) {
+	for name, env := range map[string]map[string]string{
+		"stale revision":  {"DOCKER_REVISION": strings.Repeat("0", 40)},
+		"single platform": {"DOCKER_MEDIA_TYPE": "application/vnd.oci.image.manifest.v1+json"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			binDir := t.TempDir()
+			githubOutput := filepath.Join(t.TempDir(), "github.output")
+			writeFakeDocker(t, filepath.Join(binDir, "docker"))
+			vars := map[string]string{
+				"PATH":                            binDir + string(os.PathListSeparator) + os.Getenv("PATH"),
+				"DOCKER_LOG":                      filepath.Join(t.TempDir(), "docker.log"),
+				"DOCKER_STATE":                    filepath.Join(t.TempDir(), "docker.state"),
+				"GITHUB_OUTPUT":                   githubOutput,
+				"GITHUB_TAG":                      "v1.2.3",
+				"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
+				"EXPECTED_REVISION":               testRevision,
+				"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "0",
+				"WAIT_FOR_RELEASE_IMAGE_INTERVAL": "0",
+			}
+			for k, v := range env {
+				vars[k] = v
+			}
+			output, err := runWaitForReleaseImage(t, repoRoot(t), vars)
+			if err == nil || !strings.Contains(output, "timed out waiting for release image") {
+				t.Fatalf("wait-for-release-image.sh accepted a non-matching image: %v\n%s", err, output)
+			}
+			if ghOut, _ := os.ReadFile(githubOutput); len(ghOut) != 0 {
+				t.Fatalf("GITHUB_OUTPUT written for a non-matching image: %q", ghOut)
+			}
+		})
 	}
 }
 
@@ -100,22 +136,33 @@ func TestWaitForReleaseImageValidatesInputs(t *testing.T) {
 		{
 			name: "missing tag",
 			env: map[string]string{
-				"IMAGE_NAME": "ghcr.io/test-owner/whereabouts",
+				"IMAGE_NAME":        "ghcr.io/test-owner/whereabouts",
+				"EXPECTED_REVISION": testRevision,
 			},
 			want: "GITHUB_TAG must be provided",
 		},
 		{
 			name: "missing image",
 			env: map[string]string{
-				"GITHUB_TAG": "v1.2.3",
+				"GITHUB_TAG":        "v1.2.3",
+				"EXPECTED_REVISION": testRevision,
 			},
 			want: "IMAGE_NAME must be provided",
+		},
+		{
+			name: "missing revision",
+			env: map[string]string{
+				"GITHUB_TAG": "v1.2.3",
+				"IMAGE_NAME": "ghcr.io/test-owner/whereabouts",
+			},
+			want: "EXPECTED_REVISION must be a full git commit SHA",
 		},
 		{
 			name: "invalid timeout",
 			env: map[string]string{
 				"GITHUB_TAG":                      "v1.2.3",
 				"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
+				"EXPECTED_REVISION":               testRevision,
 				"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "soon",
 				"WAIT_FOR_RELEASE_IMAGE_INTERVAL": "0",
 			},
@@ -126,6 +173,7 @@ func TestWaitForReleaseImageValidatesInputs(t *testing.T) {
 			env: map[string]string{
 				"GITHUB_TAG":                      "v1.2.3;",
 				"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
+				"EXPECTED_REVISION":               testRevision,
 				"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "0",
 				"WAIT_FOR_RELEASE_IMAGE_INTERVAL": "0",
 			},
@@ -181,6 +229,8 @@ func runWaitForReleaseImage(t *testing.T, repoRoot string, env map[string]string
 	return output.String(), err
 }
 
+const testRevision = "0123456789abcdef0123456789abcdef01234567"
+
 func writeFakeDocker(t *testing.T, path string) {
 	t.Helper()
 
@@ -189,7 +239,7 @@ set -eu
 
 printf '%s\n' "$*" >> "$DOCKER_LOG"
 
-if [ "$1" != "buildx" ] || [ "$2" != "imagetools" ] || [ "$3" != "inspect" ]; then
+if [ "$1" != "buildx" ] || [ "$2" != "imagetools" ] || [ "$3" != "inspect" ] || [ "$5" != "--format" ]; then
     echo "unexpected docker arguments: $*" >&2
     exit 2
 fi
@@ -202,7 +252,9 @@ count=$((count + 1))
 printf '%s' "$count" > "$DOCKER_STATE"
 
 if [ "$count" -ge "${DOCKER_SUCCEED_AFTER:-1}" ]; then
-    printf 'Name: %s\nDigest: sha256:abababababababababababababababababababababababababababababababab\n' "$4"
+    rev=${DOCKER_REVISION:-0123456789abcdef0123456789abcdef01234567}
+    printf '{"name":"%s","manifest":{"mediaType":"%s","digest":"sha256:abababababababababababababababababababababababababababababababab"},"image":{"linux/amd64":{"config":{"Labels":{"org.opencontainers.image.revision":"%s"}}},"linux/arm64":{"config":{"Labels":{"org.opencontainers.image.revision":"%s"}}}}}\n' \
+        "$4" "${DOCKER_MEDIA_TYPE:-application/vnd.oci.image.index.v1+json}" "$rev" "$rev"
     exit 0
 fi
 

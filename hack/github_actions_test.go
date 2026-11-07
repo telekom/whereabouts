@@ -73,6 +73,7 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 		"IMAGE_NAME: ${{ env.IMAGE_NAME }}",
 		"GITHUB_TAG: ${{ github.ref_name }}",
 		"IMAGE_DIGEST: ${{ steps.release-image.outputs.digest }}",
+		"EXPECTED_REVISION: ${{ github.sha }}",
 	} {
 		if !strings.Contains(workflowText, want) {
 			t.Fatalf("release chart workflow missing %q", want)

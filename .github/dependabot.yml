@@ -2,9 +2,14 @@
 version: 2
 updates:
   # Build tools pinned via tool directives (Makefile and security scan).
+  # go-licenses has its own module: its old genproto requirement makes the
+  # shared graph ambiguous for controller-gen.
   - package-ecosystem: gomod
-    directory: /hack/gotools
+    directories:
+      - /hack/gotools
+      - /hack/gotools/go-licenses
     allow:
+      - dependency-name: github.com/google/go-licenses
       - dependency-name: github.com/mikefarah/yq/v4
       - dependency-name: golang.org/x/vuln
       - dependency-name: honnef.co/go/tools

@@ -33,6 +33,12 @@ VWC=<validating webhook config name>  # e.g. whereabouts-validating-webhook-conf
 DEPLOY=<operator deployment name>
 ```
 
+> **Warning:** both procedures below interrupt webhook validation for a short
+> window (see [In-flight requests](#in-flight-requests)). With
+> `failurePolicy: Fail`, IPPool, NodeSlicePool and OverlappingRangeIPReservation
+> writes are rejected during that window. Blanking `ca.key` discards the CA
+> permanently; there is no way back to the old CA.
+
 ### Server key pair only
 
 Use this when the server key may be exposed but the CA key is not (the CA key
@@ -82,12 +88,17 @@ kubectl -n "$NS" rollout status deployment/"$DEPLOY"
   the API server rejects that replica's old certificate during the TLS
   handshake, and again the `failurePolicy` applies.
 - With the default `failurePolicy: Ignore`, these requests are admitted
-  without validation; the reconcilers repair any inconsistent state on their
-  next run. With `Fail`, the affected requests are rejected and clients retry.
+  without validation, so an invalid object can be stored; list the objects
+  written during the window and check them. With `Fail`, the affected
+  requests are rejected and clients retry.
 - A rolling restart stops pods with SIGTERM. The webhook server stops
   accepting new connections and completes requests in flight within the
-  termination grace period. The PodDisruptionBudget (more than one replica)
-  keeps at least one replica serving.
+  termination grace period. With more than one replica the rolling update
+  keeps the other replicas serving (kustomize: `maxSurge: 1`,
+  `maxUnavailable: 0`; Helm: Deployment defaults, which round to the same
+  for two or three replicas). The
+  PodDisruptionBudget only covers evictions such as node drains, not a
+  rollout restart.
 
 To keep the window short, run the re-issue during low CRD write activity and
 follow it with the rolling restart above.
@@ -122,11 +133,13 @@ follow it with the rolling restart above.
    The serial must match step 1.
 
 4. The pinned TLS policy is in force (unless `--webhook-tls-go-defaults` is
-   set). Both of these handshakes must fail:
+   set). The CBC suite below is in Go's default list but not in the pinned
+   list, so this handshake must fail. With `--webhook-tls-go-defaults` it
+   succeeds. The second handshake (TLS 1.3) must succeed:
 
    ```bash
-   openssl s_client -connect 127.0.0.1:9443 -tls1_1 </dev/null
-   openssl s_client -connect 127.0.0.1:9443 -tls1_2 -cipher AES256-SHA </dev/null
+   openssl s_client -connect 127.0.0.1:9443 -tls1_2 -cipher ECDHE-RSA-AES128-SHA </dev/null
+   openssl s_client -connect 127.0.0.1:9443 -tls1_3 </dev/null
    ```
 
 5. All operator pods are ready, and the API server reaches the webhook: a

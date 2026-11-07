@@ -113,6 +113,13 @@ kind delete clusters $KIND_CLUSTER_NAME
 echo "## start KinD cluster"
 create_cluster
 kind export kubeconfig --name $KIND_CLUSTER_NAME
+# Build the image in the background while multus and the CNIs roll out.
+# Not earlier: next to kind's control-plane bootstrap the build starves etcd
+# ("etcdserver: request timed out").
+echo "## build whereabouts image in the background"
+image_build_log="$(mktemp -t whereabouts-image-build.XXXXXX)"
+(cd "$ROOT" && $OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .) >"$image_build_log" 2>&1 &
+image_build_pid=$!
 echo "## wait for coreDNS"
 kubectl -n kube-system wait --for=condition=available deploy/coredns --timeout=$TIMEOUT_K8
 echo "## install multus"
@@ -124,10 +131,13 @@ done
 echo "## install CNIs"
 retry kubectl create -f "${CNIS_DAEMONSET_PATH}"
 retry kubectl -n kube-system wait --for=condition=ready -l name="cni-plugins" pod --timeout=$TIMEOUT_K8
-echo "## build whereabouts"
-pushd "$ROOT"
-$OCI_BIN build --load -t "$IMG_NAME" -f Dockerfile .
-popd
+echo "## wait for whereabouts image build"
+if ! wait "$image_build_pid"; then
+  cat "$image_build_log"
+  echo "whereabouts image build failed" >&2
+  exit 1
+fi
+cat "$image_build_log"
 
 echo "## load image into KinD"
 trap "rm -f /tmp/whereabouts-img.tar" EXIT

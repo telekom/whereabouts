@@ -6,6 +6,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"math"
 	"net"
 	"time"
 
@@ -1025,4 +1026,22 @@ var _ = Describe("computePoolStats overlapping counts", func() {
 		reconciler.computePoolStats(context.Background(), pool1, 0, 0)
 		Expect(pool1.Status.OverlappingReservations).To(Equal(int32(1)))
 	})
+})
+
+var _ = Describe("computePoolStats L3 total IPs", func() {
+	DescribeTable("counts the full CIDR and clamps to int32",
+		func(cidr string, want int32) {
+			pool := &whereaboutsv1alpha1.IPPool{
+				ObjectMeta: metav1.ObjectMeta{Name: "l3", Namespace: "default"},
+				Spec:       whereaboutsv1alpha1.IPPoolSpec{Range: cidr, EnableL3: true},
+			}
+			reconciler := &IPPoolReconciler{client: fake.NewClientBuilder().WithScheme(newTestScheme()).Build()}
+			reconciler.computePoolStats(context.Background(), pool, 0, 0)
+			Expect(pool.Status.TotalIPs).To(Equal(want))
+			Expect(pool.Status.FreeIPs).To(Equal(want))
+		},
+		Entry("IPv4 /24", "10.0.0.0/24", int32(256)),
+		Entry("IPv4 /1 overflows int32", "0.0.0.0/1", int32(math.MaxInt32)),
+		Entry("IPv6 /64 overflows int64", "fd00::/64", int32(math.MaxInt32)),
+	)
 })

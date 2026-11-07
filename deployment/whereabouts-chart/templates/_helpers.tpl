@@ -80,3 +80,15 @@ matchConditions:
     !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.serviceAccountName" . }}")
     && !(request.userInfo.username == "system:serviceaccount:{{ .Values.namespaceOverride | default .Release.Namespace }}:{{ include "whereabouts.fullname" . }}-operator")
 {{- end }}
+
+{{/*
+Container image reference. Uses repository@digest when image.digest is set,
+otherwise falls back to repository:tag (tag defaults to the chart appVersion).
+*/}}
+{{- define "whereabouts.image" -}}
+{{- if .Values.image.digest -}}
+{{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
+{{- end -}}
+{{- end -}}

@@ -91,6 +91,12 @@ You can also install whereabouts with helm 3:
 Helm chart versions do not include the release tag's leading `v`. For example,
 use chart version `0.0.7` for the `v0.0.7` application release.
 
+Released charts pin the image by digest: the release workflow stamps
+`image.digest` with the digest of the image pushed for the tag, and the chart
+renders `image.repository@image.digest`. To opt out during the transition and
+use the tag-only reference `image.repository:image.tag`, set
+`--set image.digest=""`.
+
 ```
 # Install from OCI registry
 helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>

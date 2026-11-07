@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write # keyless cosign sign-blob
     strategy:
       matrix:
         arch: [amd64, arm64, arm]
@@ -36,16 +37,29 @@ jobs:
         sha256sum whereabouts-${{ matrix.arch }} > whereabouts-${{ matrix.arch }}.sha256
         sha256sum whereabouts-operator-${{ matrix.arch }} > whereabouts-operator-${{ matrix.arch }}.sha256
         sha256sum install-cni-${{ matrix.arch }} > install-cni-${{ matrix.arch }}.sha256
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+    - name: Sign binaries with Cosign (keyless)
+      env:
+        ARCH: ${{ matrix.arch }}
+      run: |
+        cd ./bin
+        for f in "whereabouts-${ARCH}" "whereabouts-operator-${ARCH}" "install-cni-${ARCH}"; do
+          cosign sign-blob --yes --bundle "${f}.sigstore.json" "${f}"
+        done
     - name: Upload release binaries
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
       with:
         files: |
           ./bin/whereabouts-${{ matrix.arch }}
           ./bin/whereabouts-${{ matrix.arch }}.sha256
+          ./bin/whereabouts-${{ matrix.arch }}.sigstore.json
           ./bin/whereabouts-operator-${{ matrix.arch }}
           ./bin/whereabouts-operator-${{ matrix.arch }}.sha256
+          ./bin/whereabouts-operator-${{ matrix.arch }}.sigstore.json
           ./bin/install-cni-${{ matrix.arch }}
           ./bin/install-cni-${{ matrix.arch }}.sha256
+          ./bin/install-cni-${{ matrix.arch }}.sigstore.json
         tag_name: ${{ github.ref_name }}
         generate_release_notes: true
       env:

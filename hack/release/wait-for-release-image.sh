@@ -43,8 +43,17 @@ deadline=$((SECONDS + WAIT_FOR_RELEASE_IMAGE_TIMEOUT))
 attempt=1
 
 while true; do
-    if docker buildx imagetools inspect "${image_ref}" >/dev/null 2>&1; then
+    if inspect_output=$(docker buildx imagetools inspect "${image_ref}" 2>/dev/null); then
         echo "Release image is available: ${image_ref}"
+        digest=$(awk '/^Digest:/ {print $2; exit}' <<< "${inspect_output}")
+        if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: could not resolve a sha256 digest for ${image_ref} (got '${digest}')"
+            exit 1
+        fi
+        echo "Release image digest: ${digest}"
+        if [ -n "${GITHUB_OUTPUT:-}" ]; then
+            echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+        fi
         exit 0
     fi
 

@@ -72,6 +72,7 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 		"run: bash hack/release/wait-for-release-image.sh",
 		"IMAGE_NAME: ${{ env.IMAGE_NAME }}",
 		"GITHUB_TAG: ${{ github.ref_name }}",
+		"IMAGE_DIGEST: ${{ steps.release-image.outputs.digest }}",
 	} {
 		if !strings.Contains(workflowText, want) {
 			t.Fatalf("release chart workflow missing %q", want)
@@ -85,6 +86,9 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 	}
 	if waitIndex > pushIndex {
 		t.Fatalf("release chart workflow waits for the release image after pushing the chart")
+	}
+	if prepareIndex := strings.Index(workflowText, "run: make chart-prepare-release"); prepareIndex == -1 || waitIndex > prepareIndex {
+		t.Fatalf("release chart workflow must resolve the image digest before stamping the chart")
 	}
 }
 

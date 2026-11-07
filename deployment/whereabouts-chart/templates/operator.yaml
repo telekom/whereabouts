@@ -27,7 +27,7 @@ spec:
       {{- end }}
       containers:
       - name: controller
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        image: {{ include "whereabouts.image" . | quote }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /whereabouts-operator

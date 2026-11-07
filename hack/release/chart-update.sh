@@ -5,6 +5,8 @@ set -euo pipefail
 GITHUB_TAG=${GITHUB_TAG:-}
 # github repo owner e.g k8snetworkplumbingwg
 GITHUB_REPO_OWNER=${GITHUB_REPO_OWNER:-}
+# optional image digest e.g sha256:<64 hex>; empty keeps the tag-only reference
+IMAGE_DIGEST=${IMAGE_DIGEST:-}
 
 BASE=${PWD}
 YQ_CMD="${BASE}/bin/yq"
@@ -22,6 +24,11 @@ if [ -z "$GITHUB_REPO_OWNER" ]; then
     exit 1
 fi
 
+if [ -n "$IMAGE_DIGEST" ] && [[ ! "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "ERROR: IMAGE_DIGEST must look like sha256:<64 hex chars>, got '${IMAGE_DIGEST}'"
+    exit 1
+fi
+
 bash "${BASE}/hack/release/validate-tag.sh" "${GITHUB_TAG}"
 
 # tag provided via env var
@@ -33,6 +40,7 @@ WHEREABOUTS_TAG=${GITHUB_TAG}
 WHEREABOUTS_REPO=${GITHUB_REPO_OWNER} # this is used to allow to release whereabouts from forks
 "$YQ_CMD" -i ".image.repository = \"ghcr.io/${WHEREABOUTS_REPO}/whereabouts\"" "$HELM_VALUES"
 "$YQ_CMD" -i ".image.tag = \"${WHEREABOUTS_TAG}\"" "$HELM_VALUES"
+"$YQ_CMD" -i ".image.digest = \"${IMAGE_DIGEST}\"" "$HELM_VALUES"
 
 # patch Chart.yaml in-place
 "$YQ_CMD" -i ".version = \"${WHEREABOUTS_TAG#"v"}\"" "$HELM_CHART"

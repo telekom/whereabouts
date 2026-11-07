@@ -17,6 +17,7 @@ func TestWaitForReleaseImageSucceedsAfterRetry(t *testing.T) {
 	binDir := t.TempDir()
 	dockerLog := filepath.Join(t.TempDir(), "docker.log")
 	dockerState := filepath.Join(t.TempDir(), "docker.state")
+	githubOutput := filepath.Join(t.TempDir(), "github.output")
 	writeFakeDocker(t, filepath.Join(binDir, "docker"))
 
 	output, err := runWaitForReleaseImage(t, repoRoot, map[string]string{
@@ -24,6 +25,7 @@ func TestWaitForReleaseImageSucceedsAfterRetry(t *testing.T) {
 		"DOCKER_LOG":                      dockerLog,
 		"DOCKER_STATE":                    dockerState,
 		"DOCKER_SUCCEED_AFTER":            "2",
+		"GITHUB_OUTPUT":                   githubOutput,
 		"GITHUB_TAG":                      "v1.2.3",
 		"IMAGE_NAME":                      "ghcr.io/test-owner/whereabouts",
 		"WAIT_FOR_RELEASE_IMAGE_TIMEOUT":  "5",
@@ -34,6 +36,14 @@ func TestWaitForReleaseImageSucceedsAfterRetry(t *testing.T) {
 	}
 	if !strings.Contains(output, "Release image is available: ghcr.io/test-owner/whereabouts:v1.2.3") {
 		t.Fatalf("wait output did not report the available image:\n%s", output)
+	}
+
+	ghOut, err := os.ReadFile(githubOutput)
+	if err != nil {
+		t.Fatalf("read GITHUB_OUTPUT: %v", err)
+	}
+	if want := "digest=sha256:" + strings.Repeat("ab", 32) + "\n"; string(ghOut) != want {
+		t.Fatalf("GITHUB_OUTPUT = %q, want %q", ghOut, want)
 	}
 
 	logBytes, err := os.ReadFile(dockerLog)
@@ -192,7 +202,7 @@ count=$((count + 1))
 printf '%s' "$count" > "$DOCKER_STATE"
 
 if [ "$count" -ge "${DOCKER_SUCCEED_AFTER:-1}" ]; then
-    printf 'Name: %s\nDigest: sha256:abc123\n' "$4"
+    printf 'Name: %s\nDigest: sha256:abababababababababababababababababababababababababababababababab\n' "$4"
     exit 0
 fi
 

@@ -48,6 +48,9 @@ make update-deps  # go mod tidy && go mod vendor && go mod verify
 Dependabot checks daily for direct and indirect Go modules (including the vendor refresh),
 workflow actions, root Dockerfile bases, Kubernetes image references in `hack/`
 and `yamls/`, and the chart in `deployment/whereabouts-chart/`.
+It also tracks controller-gen, staticcheck, kustomize, yq and govulncheck, which
+are pinned by `tool` directives in `hack/gotools/go.mod` and built from there by
+the Makefile and the security scan.
 The chart's own `ghcr.io/telekom/whereabouts` image is intentionally excluded:
 its version belongs to the release process, as do `controller:latest`
 deployment placeholders.

@@ -1,6 +1,27 @@
 ---
 version: 2
 updates:
+  # Build tools pinned via tool directives (Makefile and security scan).
+  - package-ecosystem: gomod
+    directory: /hack/gotools
+    allow:
+      - dependency-name: github.com/mikefarah/yq/v4
+      - dependency-name: golang.org/x/vuln
+      - dependency-name: honnef.co/go/tools
+      - dependency-name: sigs.k8s.io/controller-tools
+      - dependency-name: sigs.k8s.io/kustomize/kustomize/v5
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+    open-pull-requests-limit: 20
+    groups:
+      go-tools:
+        patterns: [ "*" ]
+    labels:
+      - "dependencies"
+      - "go"
   - package-ecosystem: gomod
     directory: /
     allow:

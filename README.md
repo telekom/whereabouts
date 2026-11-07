@@ -113,7 +113,7 @@ Each release binary (`whereabouts-<arch>`, `whereabouts-operator-<arch>`,
 `install-cni-<arch>`) is published with a `.sha256` checksum and a keyless
 Sigstore bundle `<binary>.sigstore.json`, signed by the
 `binaries-upload-release.yml` workflow for the release tag. Verify a downloaded
-binary with cosign v2.4+ (`TAG` is the release tag, e.g. `v0.0.21`):
+binary with cosign v3+ (`TAG` is the release tag, e.g. `v0.0.21`):
 
 ```
 TAG=<RELEASE_TAG>

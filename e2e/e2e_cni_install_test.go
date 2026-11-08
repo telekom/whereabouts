@@ -94,12 +94,15 @@ var _ = Describe("CNI install DaemonSet", func() {
 			pid := containerPID(ctx, pod.Spec.NodeName, status.ContainerID)
 
 			procStatus := nodeExec(ctx, pod.Spec.NodeName, "cat", "/proc/"+pid+"/status")
-			capEff := procField(procStatus, "CapEff")
 			if privileged {
-				Expect(capEff).NotTo(Equal("0000000000000000"), "privileged install-cni must hold capabilities")
+				Expect(procField(procStatus, "CapEff")).NotTo(Equal("0000000000000000"), "privileged install-cni must hold capabilities")
 				Expect(procField(procStatus, "Seccomp")).To(Equal("0"), "privileged install-cni runs unconfined")
 			} else {
-				Expect(capEff).To(Equal("0000000000000000"), "install-cni must run without effective capabilities")
+				// Empty permitted and bounding sets too: the process cannot regain
+				// capabilities, not even through execve of a file-capability binary.
+				for _, set := range []string{"CapEff", "CapPrm", "CapBnd"} {
+					Expect(procField(procStatus, set)).To(Equal("0000000000000000"), "install-cni %s must be empty", set)
+				}
 				Expect(procField(procStatus, "NoNewPrivs")).To(Equal("1"))
 				Expect(procField(procStatus, "Seccomp")).To(Equal("2"), "install-cni must run under a seccomp filter")
 				Expect(rootMountOptions(nodeExec(ctx, pod.Spec.NodeName, "cat", "/proc/"+pid+"/mounts"))).
@@ -163,6 +166,8 @@ func expectCNISecurityContext(g Gomega, sc *corev1.SecurityContext, privileged, 
 	g.Expect(sc).NotTo(BeNil())
 	g.Expect(sc.RunAsUser).To(HaveValue(BeZero()))
 	if spcT {
+		// kind nodes have no SELinux, so the runtime ignores the label: this
+		// run can only verify the rendered spec and that the pods still run.
 		g.Expect(sc.SELinuxOptions).NotTo(BeNil())
 		g.Expect(sc.SELinuxOptions.Type).To(Equal("spc_t"))
 	} else {

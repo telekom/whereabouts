@@ -41,9 +41,11 @@ DEPLOY=<operator deployment name>
 
 ### Server key pair only
 
-Use this when the server key may be exposed but the CA key is not (the CA key
-lives in the same Secret, so a Secret leak exposes both; then use the full
-procedure below).
+Use this for routine renewal only. It does not revoke the old server
+certificate: that certificate stays valid under the unchanged CA in `caBundle`
+until it expires, and there is no CRL or OCSP to reject it. If the server key
+may be exposed, use the CA and server procedure below even when the CA key was
+not exposed.
 
 ```bash
 kubectl -n "$NS" patch secret "$SECRET" --type=merge \
@@ -105,11 +107,13 @@ follow it with the rolling restart above.
 
 ## Verify
 
-1. The Secret holds a new certificate (check serial and dates):
+1. The Secret holds a new certificate (compare the fingerprint with the one
+   before the re-issue, and check the dates). cert-controller gives every
+   server certificate serial 1, so serials cannot tell certificates apart:
 
    ```bash
    kubectl -n "$NS" get secret "$SECRET" -o jsonpath='{.data.tls\.crt}' \
-     | base64 -d | openssl x509 -noout -serial -subject -issuer -dates
+     | base64 -d | openssl x509 -noout -fingerprint -sha256 -subject -issuer -dates
    ```
 
 2. The CA bundle matches the CA in the Secret:
@@ -122,27 +126,34 @@ follow it with the rolling restart above.
      | base64 -d | openssl x509 -noout -fingerprint -sha256
    ```
 
-3. Each replica serves the new certificate (repeat for every pod):
+3. Each replica serves the new certificate and the pinned TLS policy. The
+   loop forwards one pod at a time and stops the forward before the next pod,
+   so every probe reaches the pod it names:
 
    ```bash
-   kubectl -n "$NS" port-forward pod/<operator-pod> 9443:9443 &
-   openssl s_client -connect 127.0.0.1:9443 </dev/null 2>/dev/null \
-     | openssl x509 -noout -serial
+   kubectl -n "$NS" get secret "$SECRET" -o jsonpath='{.data.tls\.crt}' \
+     | base64 -d | openssl x509 -noout -fingerprint -sha256
+   for POD in $(kubectl -n "$NS" get pods -l app=<fullname>-operator -o name); do
+     kubectl -n "$NS" port-forward "$POD" 9443:9443 >/dev/null &
+     PF=$!
+     for _ in $(seq 30); do nc -z 127.0.0.1 9443 2>/dev/null && break; sleep 1; done
+     echo "== $POD"
+     openssl s_client -connect 127.0.0.1:9443 </dev/null 2>/dev/null \
+       | openssl x509 -noout -fingerprint -sha256
+     openssl s_client -connect 127.0.0.1:9443 -tls1_2 -cipher ECDHE-RSA-AES128-SHA </dev/null >/dev/null 2>&1 \
+       && echo "CBC handshake: accepted" || echo "CBC handshake: rejected"
+     openssl s_client -connect 127.0.0.1:9443 -tls1_3 </dev/null >/dev/null 2>&1 \
+       && echo "TLS 1.3 handshake: accepted" || echo "TLS 1.3 handshake: rejected"
+     kill "$PF"; wait "$PF" 2>/dev/null
+   done
    ```
 
-   The serial must match step 1.
+   Every pod's fingerprint must match the Secret's. The CBC suite is in Go's
+   default list but not in the pinned list, so the CBC handshake must be
+   rejected (accepted with `--webhook-tls-go-defaults`), and the TLS 1.3
+   handshake must be accepted.
 
-4. The pinned TLS policy is in force (unless `--webhook-tls-go-defaults` is
-   set). The CBC suite below is in Go's default list but not in the pinned
-   list, so this handshake must fail. With `--webhook-tls-go-defaults` it
-   succeeds. The second handshake (TLS 1.3) must succeed:
-
-   ```bash
-   openssl s_client -connect 127.0.0.1:9443 -tls1_2 -cipher ECDHE-RSA-AES128-SHA </dev/null
-   openssl s_client -connect 127.0.0.1:9443 -tls1_3 </dev/null
-   ```
-
-5. All operator pods are ready, and the API server reaches the webhook: a
+4. All operator pods are ready, and the API server reaches the webhook: a
    dry-run of an invalid IPPool is rejected.
 
    ```bash

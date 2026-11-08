@@ -124,7 +124,7 @@ var _ = Describe("Webhook TLS", func() {
 			name := tls.CipherSuiteName(suite)
 			state, err := handshake(&tls.Config{MaxVersion: tls.VersionTLS12, CipherSuites: []uint16{suite}})
 			if !strings.Contains(name, keyType) {
-				Expect(err).To(HaveOccurred(), "%s needs a different certificate key type", name)
+				Expect(err).To(MatchError(ContainSubstring("handshake failure")), "%s needs a different certificate key type", name)
 				continue
 			}
 			Expect(err).NotTo(HaveOccurred(), name)
@@ -155,17 +155,20 @@ var _ = Describe("Webhook TLS", func() {
 
 	It("still serves the API server's admission calls", func() {
 		// failurePolicy is Ignore, so a failed API server handshake would
-		// silently admit this invalid pool instead of rejecting it.
+		// silently admit this invalid pool instead of rejecting it. Retry for
+		// a while: right after a rollout the webhook endpoints may still lag.
 		pool := &v1alpha1.IPPool{
 			ObjectMeta: metav1.ObjectMeta{Name: "wb-webhook-tls-probe", Namespace: ipPoolNamespace},
 			Spec:       v1alpha1.IPPoolSpec{Range: "not-a-cidr", Allocations: map[string]v1alpha1.IPAllocation{}},
 		}
 		pools := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace)
-		_, err := pools.Create(context.Background(), pool, metav1.CreateOptions{})
-		if err == nil {
-			_ = pools.Delete(context.Background(), pool.Name, metav1.DeleteOptions{})
-		}
-		Expect(err).To(MatchError(ContainSubstring("invalid spec.range")))
+		Eventually(func(g Gomega) {
+			_, err := pools.Create(context.Background(), pool, metav1.CreateOptions{})
+			if err == nil {
+				_ = pools.Delete(context.Background(), pool.Name, metav1.DeleteOptions{})
+			}
+			g.Expect(err).To(MatchError(ContainSubstring("invalid spec.range")))
+		}, time.Minute, 2*time.Second).Should(Succeed())
 	})
 })
 

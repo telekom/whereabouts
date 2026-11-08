@@ -17,11 +17,9 @@ func TestE2EWorkflowRunsOperatorRestartRecovery(t *testing.T) {
 	}
 	contents := string(workflow)
 
-	if !strings.Contains(contents, `focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery|Webhook TLS"`) {
-		t.Fatal("non-Helm core-lifecycle e2e shard must include Operator restart recovery")
-	}
-	if strings.Contains(contents, `e2e-helm`) &&
-		strings.Contains(contents, `focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery|Webhook TLS"`+"\n"+`    env:`) {
-		t.Fatal("operator restart recovery uses the kustomize deployment name and must not be enabled in the Helm shard without generalizing the test")
+	// One core-lifecycle shard each in the e2e (kustomize) and e2e-helm jobs.
+	const focus = `focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery|Webhook TLS"`
+	if got := strings.Count(contents, focus); got != 2 {
+		t.Fatalf("expected the kustomize and Helm core-lifecycle shards to use %s, found it %d times", focus, got)
 	}
 }

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Webhook server TLS hardening: minimum TLS 1.2, and for TLS 1.2 only ECDHE
+  cipher suites with AES-GCM or ChaCha20-Poly1305. TLS 1.3 keeps Go's defaults.
+  Opt out with `--webhook-tls-go-defaults=true` (Helm:
+  `operator.webhookTLS.goDefaults: true`). The opt-out is transitional; may be
+  removed in a future release.
+- Webhook certificate rotation and revocation runbook in
+  `doc/webhook-certificate-runbook.md`.
 - Operator binary with single `controller` subcommand that runs both reconcilers
   and webhook server, replacing the legacy `ip-control-loop` and `node-slice-controller` binaries.
 - Validating webhooks for IPPool, NodeSlicePool, and OverlappingRangeIPReservation

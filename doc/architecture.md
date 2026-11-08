@@ -89,6 +89,9 @@ helpers on every replica. Certificates are:
 - Rotated before expiry without manual intervention
 - CA bundle injected into the ValidatingWebhookConfiguration
 
+See the [webhook certificate runbook](webhook-certificate-runbook.md) for
+forced re-issue and revocation.
+
 ## IPAM Features
 
 The CNI plugin supports several allocation modes and features:

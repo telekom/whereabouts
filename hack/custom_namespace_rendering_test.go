@@ -144,3 +144,20 @@ func assertContainsNone(t *testing.T, text string, disallowed ...string) {
 		}
 	}
 }
+
+func TestHelmWebhookTLSGoDefaultsRendersOnlyWhenTrue(t *testing.T) {
+	const flag = "--webhook-tls-go-defaults=true"
+	for _, args := range [][]string{
+		nil,
+		{"--set", "operator.webhookTLS=null"}, // --reuse-values from a chart without webhookTLS
+		{"--set-string", "operator.webhookTLS.goDefaults=false"},
+	} {
+		assertContainsNone(t, renderHelmChart(t, "custom-ns", args...), flag)
+	}
+	for _, args := range [][]string{
+		{"--set", "operator.webhookTLS.goDefaults=true"},
+		{"--set-string", "operator.webhookTLS.goDefaults=true"},
+	} {
+		assertContainsAll(t, renderHelmChart(t, "custom-ns", args...), flag)
+	}
+}

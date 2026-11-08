@@ -9,7 +9,7 @@ updates:
       - /hack/gotools
       - /hack/gotools/go-licenses
     allow:
-      - dependency-name: github.com/google/go-licenses
+      - dependency-name: github.com/google/go-licenses/v2
       - dependency-name: github.com/mikefarah/yq/v4
       - dependency-name: golang.org/x/vuln
       - dependency-name: honnef.co/go/tools

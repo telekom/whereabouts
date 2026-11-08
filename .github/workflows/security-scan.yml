@@ -139,7 +139,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install go-licenses
-        run: go -C hack/gotools/go-licenses install github.com/google/go-licenses
+        run: go -C hack/gotools/go-licenses install github.com/google/go-licenses/v2
       - name: Check licenses
         run: go-licenses check ./... --disallowed_types=forbidden,restricted
       - name: Generate license report

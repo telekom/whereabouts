@@ -61,23 +61,62 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
+      # image-push-release.yml runs as a separate workflow on the same tag, so
+      # wait for its multi-arch index built from this commit and resolve the
+      # index digest from the registry (a stale image under the tag is ignored).
+      - name: wait for release image
+        id: release-image
+        env:
+          GITHUB_TAG: ${{ github.ref_name }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: bash hack/release/wait-for-release-image.sh
+
+      # Only pin an image that image-push-release.yml signed for this tag and
+      # commit. Its Sign job runs after the manifest is pushed, so retry.
+      # Transitional opt-out: set the repository variable
+      # SKIP_RELEASE_IMAGE_SIGNATURE_CHECK=true (may be removed later).
+      - name: verify release image signature
+        if: ${{ vars.SKIP_RELEASE_IMAGE_SIGNATURE_CHECK != 'true' }}
+        env:
+          IMAGE_REF: ${{ env.IMAGE_NAME }}@${{ steps.release-image.outputs.digest }}
+          SIGNER_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/image-push-release.yml@${{ github.ref }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if cosign verify \
+                --certificate-identity "${SIGNER_IDENTITY}" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                --certificate-github-workflow-sha "${EXPECTED_REVISION}" \
+                "${IMAGE_REF}" >/dev/null; then
+              echo "verified signature on ${IMAGE_REF}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: no valid signature on ${IMAGE_REF} yet"
+            sleep 15
+          done
+          echo "release image ${IMAGE_REF} is not signed by ${SIGNER_IDENTITY}" >&2
+          exit 1
+
       - name: update chart
         env:
           GITHUB_TAG: ${{ github.ref_name }}
           GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+          IMAGE_DIGEST: ${{ steps.release-image.outputs.digest }}
         run: make chart-prepare-release
 
       - name: lint release chart
         run: helm lint deployment/whereabouts-chart
 
       - name: template release chart
-        run: helm template whereabouts deployment/whereabouts-chart
-
-      - name: wait for release image
         env:
-          GITHUB_TAG: ${{ github.ref_name }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-        run: bash hack/release/wait-for-release-image.sh
+          IMAGE_DIGEST: ${{ steps.release-image.outputs.digest }}
+        run: |
+          helm template whereabouts deployment/whereabouts-chart > "${RUNNER_TEMP}/rendered.yaml"
+          if ! grep -qF "${IMAGE_NAME}@${IMAGE_DIGEST}" "${RUNNER_TEMP}/rendered.yaml"; then
+            echo "release chart does not reference ${IMAGE_NAME}@${IMAGE_DIGEST}" >&2
+            exit 1
+          fi
 
       - name: push chart
         id: push-chart

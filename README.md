@@ -91,6 +91,12 @@ You can also install whereabouts with helm 3:
 Helm chart versions do not include the release tag's leading `v`. For example,
 use chart version `0.0.7` for the `v0.0.7` application release.
 
+Released charts pin the image by digest: the release workflow stamps
+`image.digest` with the digest of the image pushed for the tag, and the chart
+renders `image.repository@image.digest`. To opt out during the transition and
+use the tag-only reference `image.repository:image.tag`, set
+`--set image.digest=""`.
+
 ```
 # Install from OCI registry
 helm install whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
@@ -163,6 +169,42 @@ Things to know:
             privileged: true
             runAsUser: 0
     ```
+
+### Verifying release artifacts
+
+Each release binary (`whereabouts-<arch>`, `whereabouts-operator-<arch>`,
+`install-cni-<arch>`) is published with a `.sha256` checksum and a keyless
+Sigstore bundle `<binary>.sigstore.json`, signed by the
+`binaries-upload-release.yml` workflow for the release tag. Verify a downloaded
+binary with cosign v3+ (`TAG` is the release tag, e.g. `v0.0.21`):
+
+```
+TAG=<RELEASE_TAG>
+cosign verify-blob \
+  --bundle whereabouts-amd64.sigstore.json \
+  --certificate-identity "https://github.com/telekom/whereabouts/.github/workflows/binaries-upload-release.yml@refs/tags/${TAG}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  whereabouts-amd64
+```
+
+To accept any release tag instead of a specific one, replace
+`--certificate-identity` with
+`--certificate-identity-regexp '^https://github\.com/telekom/whereabouts/\.github/workflows/binaries-upload-release\.yml@refs/tags/v.+$'`.
+
+The container image is signed by `image-push-release.yml`; verify the digest
+the chart pins (or `ghcr.io/telekom/whereabouts:<RELEASE_TAG>`) with:
+
+```
+cosign verify \
+  --certificate-identity "https://github.com/telekom/whereabouts/.github/workflows/image-push-release.yml@refs/tags/${TAG}" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/telekom/whereabouts@<DIGEST>
+```
+
+The chart release workflow runs this check (pinned to the tag's commit) before
+it pins the image digest into the chart. The repository variable
+`SKIP_RELEASE_IMAGE_SIGNATURE_CHECK=true` skips it as a transitional escape
+hatch that may be removed later.
 
 ### Upgrading
 

@@ -6,7 +6,13 @@ image:
   repository: ghcr.io/telekom/whereabouts
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: v0.0.7
+  tag: v0.0.20
+  # Optional image digest (sha256:...). When set, the image is referenced as
+  # repository@digest and the tag is ignored. Released charts have this
+  # stamped with the digest of the image pushed for the release tag.
+  # Transitional opt-out: set it to "" (e.g. --set image.digest="") to fall
+  # back to the tag-only reference repository:tag.
+  digest: ""
 
 updateStrategy: RollingUpdate
 imagePullSecrets: []

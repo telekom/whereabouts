@@ -158,7 +158,7 @@ var _ = Describe("Webhook TLS", func() {
 		// silently admit this invalid pool instead of rejecting it.
 		pool := &v1alpha1.IPPool{
 			ObjectMeta: metav1.ObjectMeta{Name: "wb-webhook-tls-probe", Namespace: ipPoolNamespace},
-			Spec:       v1alpha1.IPPoolSpec{Range: "not-a-cidr"},
+			Spec:       v1alpha1.IPPoolSpec{Range: "not-a-cidr", Allocations: map[string]v1alpha1.IPAllocation{}},
 		}
 		pools := clientInfo.WbClient.WhereaboutsV1alpha1().IPPools(ipPoolNamespace)
 		_, err := pools.Create(context.Background(), pool, metav1.CreateOptions{})

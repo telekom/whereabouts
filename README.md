@@ -138,6 +138,11 @@ cosign verify \
   ghcr.io/telekom/whereabouts@<DIGEST>
 ```
 
+The chart release workflow runs this check (pinned to the tag's commit) before
+it pins the image digest into the chart. The repository variable
+`SKIP_RELEASE_IMAGE_SIGNATURE_CHECK=true` skips it as a transitional escape
+hatch that may be removed later.
+
 ### Upgrading
 
 For **kubectl-based** installations, re-apply the manifests with the new version:

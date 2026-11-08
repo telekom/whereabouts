@@ -72,6 +72,32 @@ jobs:
           EXPECTED_REVISION: ${{ github.sha }}
         run: bash hack/release/wait-for-release-image.sh
 
+      # Only pin an image that image-push-release.yml signed for this tag and
+      # commit. Its Sign job runs after the manifest is pushed, so retry.
+      # Transitional opt-out: set the repository variable
+      # SKIP_RELEASE_IMAGE_SIGNATURE_CHECK=true (may be removed later).
+      - name: verify release image signature
+        if: ${{ vars.SKIP_RELEASE_IMAGE_SIGNATURE_CHECK != 'true' }}
+        env:
+          IMAGE_REF: ${{ env.IMAGE_NAME }}@${{ steps.release-image.outputs.digest }}
+          SIGNER_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/image-push-release.yml@${{ github.ref }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if cosign verify \
+                --certificate-identity "${SIGNER_IDENTITY}" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+                --certificate-github-workflow-sha "${EXPECTED_REVISION}" \
+                "${IMAGE_REF}" >/dev/null; then
+              echo "verified signature on ${IMAGE_REF}"
+              exit 0
+            fi
+            echo "attempt ${attempt}: no valid signature on ${IMAGE_REF} yet"
+            sleep 15
+          done
+          echo "release image ${IMAGE_REF} is not signed by ${SIGNER_IDENTITY}" >&2
+          exit 1
+
       - name: update chart
         env:
           GITHUB_TAG: ${{ github.ref_name }}

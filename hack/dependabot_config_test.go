@@ -65,3 +65,45 @@ func TestDependabotCooldown(t *testing.T) {
 		}
 	}
 }
+
+// TestDependabotGrouping pins the grouping policy: every Go module updater
+// collects its security updates in one PR, and Actions keep majors apart from
+// minor/patch bumps.
+func TestDependabotGrouping(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", ".github", "dependabot.yml"))
+	if err != nil {
+		t.Fatalf("reading dependabot config: %v", err)
+	}
+	var config struct {
+		Updates []struct {
+			Ecosystem string `json:"package-ecosystem"`
+			Groups    map[string]struct {
+				AppliesTo   string   `json:"applies-to"`
+				UpdateTypes []string `json:"update-types"`
+			} `json:"groups"`
+		} `json:"updates"`
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		t.Fatalf("parsing dependabot config: %v", err)
+	}
+	for _, u := range config.Updates {
+		security := 0
+		types := map[string]bool{}
+		for _, g := range u.Groups {
+			if g.AppliesTo == "security-updates" {
+				security++
+			}
+			types[strings.Join(g.UpdateTypes, ",")] = true
+		}
+		switch u.Ecosystem {
+		case "gomod":
+			if security != 1 {
+				t.Errorf("gomod updater has %d security-updates groups, want 1", security)
+			}
+		case "github-actions":
+			if !types["major"] || !types["minor,patch"] {
+				t.Errorf("github-actions updater must group major and minor/patch separately")
+			}
+		}
+	}
+}

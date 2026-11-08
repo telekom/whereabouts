@@ -22,7 +22,14 @@ updates:
       semver-major-days: 14
     open-pull-requests-limit: 20
     groups:
+      # One PR across both tool modules.
       go-tools:
+        patterns: [ "*" ]
+      # Security updates ignore `allow` and can touch any module in the tool
+      # graphs (golang.org/x/net, x/crypto, ...). Collect them in one PR
+      # instead of one PR per dependency and directory.
+      go-tools-security:
+        applies-to: security-updates
         patterns: [ "*" ]
     labels:
       - "dependencies"
@@ -49,6 +56,9 @@ updates:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
           - "github.com/containernetworking/*"
+      go-security:
+        applies-to: security-updates
+        patterns: [ "*" ]
     labels:
       - "dependencies"
       - "go"
@@ -71,6 +81,11 @@ updates:
         group-by: dependency-name
         patterns: [ "*" ]
         update-types: [ "minor", "patch" ]
+      # Digest-only updates have no SemVer increase. Group what the version
+      # groups leave over, per image across all configured directories.
+      docker-digests:
+        group-by: dependency-name
+        patterns: [ "*" ]
     labels:
       - "dependencies"
       - "docker"
@@ -92,6 +107,13 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 20
+    groups:
+      actions-major:
+        patterns: [ "*" ]
+        update-types: [ "major" ]
+      actions-minor-patch:
+        patterns: [ "*" ]
+        update-types: [ "minor", "patch" ]
     labels:
       - "dependencies"
       - "ci"

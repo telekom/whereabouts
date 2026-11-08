@@ -79,6 +79,7 @@ func TestDependabotGrouping(t *testing.T) {
 			Ecosystem string `json:"package-ecosystem"`
 			Groups    map[string]struct {
 				AppliesTo   string   `json:"applies-to"`
+				Patterns    []string `json:"patterns"`
 				UpdateTypes []string `json:"update-types"`
 			} `json:"groups"`
 		} `json:"updates"`
@@ -92,6 +93,9 @@ func TestDependabotGrouping(t *testing.T) {
 		for _, g := range u.Groups {
 			if g.AppliesTo == "security-updates" {
 				security++
+				if strings.Join(g.Patterns, ",") != "*" {
+					t.Errorf("%s security group patterns = %v, want [*]", u.Ecosystem, g.Patterns)
+				}
 			}
 			types[strings.Join(g.UpdateTypes, ",")] = true
 		}

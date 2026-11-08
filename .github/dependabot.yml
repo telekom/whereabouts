@@ -25,9 +25,9 @@ updates:
       # One PR across both tool modules.
       go-tools:
         patterns: [ "*" ]
-      # Security updates ignore `allow` and can touch any module in the tool
-      # graphs (golang.org/x/net, x/crypto, ...). Collect them in one PR
-      # instead of one PR per dependency and directory.
+      # Dependabot has raised security updates for modules in these graphs
+      # that `allow` does not list (x/crypto and x/net in go-licenses: #492,
+      # #493). Collect them in one PR instead of one per dependency.
       go-tools-security:
         applies-to: security-updates
         patterns: [ "*" ]

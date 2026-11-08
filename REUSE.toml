@@ -98,6 +98,10 @@ path = [
   ".gitignore",
   "go.mod",
   "go.sum",
+  "hack/gotools/go.mod",
+  "hack/gotools/go.sum",
+  "hack/gotools/go-licenses/go.mod",
+  "hack/gotools/go-licenses/go.sum",
   "PROJECT",
 ]
 precedence = "aggregate"

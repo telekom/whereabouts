@@ -48,7 +48,7 @@ spec:
           {{- end }}
           securityContext:
             {{- toYaml $securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "whereabouts.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/install-cni"]
           env:

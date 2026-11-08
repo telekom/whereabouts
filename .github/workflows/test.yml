@@ -92,7 +92,7 @@ jobs:
           - suite: core-lifecycle
             test-dir: e2e
             test-pkg: "."
-            focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery"
+            focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery|Webhook TLS"
           - suite: node-loss
             test-dir: e2e
             test-pkg: "."
@@ -218,7 +218,7 @@ jobs:
           - suite: core-lifecycle
             test-dir: e2e
             test-pkg: "."
-            focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery"
+            focus: "Pod cleanup|Node drain|Reconciler cleanup|Operator restart recovery|Webhook TLS"
           - suite: node-loss
             test-dir: e2e
             test-pkg: "."
@@ -322,6 +322,18 @@ jobs:
           helm upgrade whereabouts ../deployment/whereabouts-chart -n kube-system --reuse-values \
             --set cniPrivileged=false --set seLinuxSpcT=true --wait --timeout 300s
           E2E_CNI_SELINUX_SPC_T=true go test -v . -timeout 15m -ginkgo.focus="CNI install DaemonSet"
+
+      # The spec above covered the pinned default; re-run it against the
+      # chart's opt-out to Go's default TLS settings.
+      - name: Webhook TLS opt-out (operator.webhookTLS.goDefaults)
+        if: matrix.suite == 'core-lifecycle'
+        env:
+          KUBECONFIG: /home/runner/.kube/config
+        run: |
+          cd ${{ matrix.test-dir }}
+          helm upgrade whereabouts ../deployment/whereabouts-chart -n kube-system --reuse-values \
+            --set operator.webhookTLS.goDefaults=true --wait --timeout 300s
+          E2E_WEBHOOK_TLS_GO_DEFAULTS=true go test -v . -timeout 15m -ginkgo.focus="Webhook TLS"
 
       - name: Collect cluster diagnostics
         if: failure()

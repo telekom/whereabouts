@@ -6,7 +6,13 @@ image:
   repository: ghcr.io/telekom/whereabouts
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: v0.0.7
+  tag: v0.0.20
+  # Optional image digest (sha256:...). When set, the image is referenced as
+  # repository@digest and the tag is ignored. Released charts have this
+  # stamped with the digest of the image pushed for the release tag.
+  # Transitional opt-out: set it to "" (e.g. --set image.digest="") to fall
+  # back to the tag-only reference repository:tag.
+  digest: ""
 
 updateStrategy: RollingUpdate
 imagePullSecrets: []
@@ -89,6 +95,12 @@ operator:
   replicas: 2
   # Service CIDR ranges used by the operator to warn on IPPool collisions.
   serviceCIDRs: []
+  webhookTLS:
+    # The webhook server requires TLS 1.2+ and, for TLS 1.2, only ECDHE
+    # AES-GCM/ChaCha20-Poly1305 cipher suites. Set true to restore Go's
+    # default TLS settings (--webhook-tls-go-defaults).
+    # Transitional; may be removed in a future release.
+    goDefaults: false
   # Optional operator-specific scheduling constraints.
   # If empty, the chart falls back to top-level nodeSelector/tolerations.
   nodeSelector: {}

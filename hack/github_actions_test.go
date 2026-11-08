@@ -72,6 +72,8 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 		"run: bash hack/release/wait-for-release-image.sh",
 		"IMAGE_NAME: ${{ env.IMAGE_NAME }}",
 		"GITHUB_TAG: ${{ github.ref_name }}",
+		"IMAGE_DIGEST: ${{ steps.release-image.outputs.digest }}",
+		"EXPECTED_REVISION: ${{ github.sha }}",
 	} {
 		if !strings.Contains(workflowText, want) {
 			t.Fatalf("release chart workflow missing %q", want)
@@ -85,6 +87,9 @@ func TestChartReleaseWorkflowWaitsForReleaseImageBeforePushingChart(t *testing.T
 	}
 	if waitIndex > pushIndex {
 		t.Fatalf("release chart workflow waits for the release image after pushing the chart")
+	}
+	if prepareIndex := strings.Index(workflowText, "run: make chart-prepare-release"); prepareIndex == -1 || waitIndex > prepareIndex {
+		t.Fatalf("release chart workflow must resolve the image digest before stamping the chart")
 	}
 }
 
@@ -120,5 +125,31 @@ func TestChartReleaseWorkflowSignsAndAttestsChart(t *testing.T) {
 	}
 	if signIndex > attestIndex {
 		t.Fatalf("release chart workflow attests before signing the chart")
+	}
+}
+
+func TestChartReleaseWorkflowVerifiesImageSignatureBeforePinning(t *testing.T) {
+	workflow, err := os.ReadFile(filepath.Join("..", ".github", "workflows", "chart-push-release.yml"))
+	if err != nil {
+		t.Fatalf("read release chart workflow: %v", err)
+	}
+	workflowText := string(workflow)
+
+	for _, want := range []string{
+		"if: ${{ vars.SKIP_RELEASE_IMAGE_SIGNATURE_CHECK != 'true' }}",
+		"SIGNER_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/image-push-release.yml@${{ github.ref }}",
+		"--certificate-oidc-issuer https://token.actions.githubusercontent.com",
+		"--certificate-github-workflow-sha \"${EXPECTED_REVISION}\"",
+	} {
+		if !strings.Contains(workflowText, want) {
+			t.Fatalf("release chart workflow missing %q", want)
+		}
+	}
+
+	waitIndex := strings.Index(workflowText, "run: bash hack/release/wait-for-release-image.sh")
+	verifyIndex := strings.Index(workflowText, "cosign verify \\")
+	prepareIndex := strings.Index(workflowText, "run: make chart-prepare-release")
+	if waitIndex == -1 || verifyIndex == -1 || prepareIndex == -1 || waitIndex > verifyIndex || verifyIndex > prepareIndex {
+		t.Fatalf("release chart workflow must verify the image signature after resolving the digest and before stamping the chart")
 	}
 }

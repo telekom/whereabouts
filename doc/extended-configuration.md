@@ -539,6 +539,23 @@ admission requests.
 | `--webhook-service-name` | `whereabouts-webhook-service` | Name of the Service for TLS certificate DNS SAN |
 | `--webhook-secret-name` | `whereabouts-webhook-cert` | Name of the Secret storing webhook TLS certificates |
 | `--webhook-config-name` | `whereabouts-validating-webhook-configuration` | Name of the ValidatingWebhookConfiguration to inject CA into |
+| `--webhook-tls-go-defaults` | `false` | Restore Go's default TLS settings (transitional; may be removed in a future release) |
+
+### TLS Protocol Settings
+
+The webhook server accepts TLS 1.2 and TLS 1.3 only. For TLS 1.2 it accepts
+only ECDHE key exchange with AES-GCM or ChaCha20-Poly1305:
+
+- `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`
+- `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+- `TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256`, `TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256`
+
+TLS 1.3 cipher suites keep Go's defaults.
+
+`--webhook-tls-go-defaults=true` (Helm: `operator.webhookTLS.goDefaults: true`)
+drops this pinning and restores Go's defaults. It is an opt-out for clients
+that cannot negotiate the settings above. The flag is transitional; may be
+removed in a future release.
 
 ### TLS Certificate Rotation
 
@@ -554,7 +571,9 @@ library. The operator:
    `--webhook-config-name`.
 4. Automatically rotates certificates before expiry.
 
-No manual certificate management is required.
+No manual certificate management is required. To force a re-issue or revoke
+the certificates, see the
+[webhook certificate runbook](webhook-certificate-runbook.md).
 
 ### Failure Policy
 
@@ -603,6 +622,7 @@ Complete list of all operator flags:
 | `--cleanup-terminating-pods` | `false` | Release IPs from pods with `DeletionTimestamp` set |
 | `--cleanup-disrupted-pods` | `true` | Release IPs from pods with `DisruptionTarget` condition |
 | `--verify-network-status` | `true` | Check Multus network-status annotation for IP presence |
+| `--webhook-tls-go-defaults` | `false` | Use Go's default webhook TLS settings instead of TLS 1.2+ with pinned cipher suites (transitional; may be removed in a future release) |
 
 ## Debugging
 

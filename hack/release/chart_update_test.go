@@ -42,6 +42,37 @@ func TestChartUpdateDoesNotRequireGitHubToken(t *testing.T) {
 	}
 }
 
+func TestChartUpdateStampsOptionalImageDigest(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	tempRoot := prepareChartUpdateWorkspace(t, true)
+
+	output, err := runChartUpdate(t, tempRoot, map[string]string{
+		"GITHUB_TAG":        "v1.2.3",
+		"GITHUB_REPO_OWNER": "example-owner",
+		"IMAGE_DIGEST":      digest,
+	})
+	if err != nil {
+		t.Fatalf("chart-update.sh returned error: %v\n%s", err, output)
+	}
+	yqArgs, err := os.ReadFile(filepath.Join(tempRoot, "yq.args"))
+	if err != nil {
+		t.Fatalf("reading fake yq args: %v", err)
+	}
+	if want := `.image.digest = "` + digest + `"`; !strings.Contains(string(yqArgs), want) {
+		t.Fatalf("fake yq args did not contain %q:\n%s", want, yqArgs)
+	}
+
+	tempRoot = prepareChartUpdateWorkspace(t, true)
+	output, err = runChartUpdate(t, tempRoot, map[string]string{
+		"GITHUB_TAG":        "v1.2.3",
+		"GITHUB_REPO_OWNER": "example-owner",
+		"IMAGE_DIGEST":      "sha256:abc",
+	})
+	if err == nil || !strings.Contains(output, "IMAGE_DIGEST must look like") {
+		t.Fatalf("chart-update.sh accepted a malformed digest: %v\n%s", err, output)
+	}
+}
+
 func TestChartUpdateStillRequiresTagAndOwner(t *testing.T) {
 	tests := []struct {
 		name string

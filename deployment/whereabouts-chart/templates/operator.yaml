@@ -27,7 +27,7 @@ spec:
       {{- end }}
       containers:
       - name: controller
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        image: {{ include "whereabouts.image" . | quote }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /whereabouts-operator
@@ -46,6 +46,10 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
+        {{- /* dig + toString: nil-safe for --reuse-values from charts without webhookTLS, and "false" strings stay off. */}}
+        {{- if eq (toString (dig "webhookTLS" "goDefaults" false .Values.operator)) "true" }}
+        - --webhook-tls-go-defaults=true
+        {{- end }}
         {{- with .Values.operator.serviceCIDRs }}
         - --service-cidr={{ . | join "," }}
         {{- end }}

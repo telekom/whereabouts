@@ -206,17 +206,20 @@ func podPinnedToNode(name, namespace, networkName, nodeName string) *corev1.Pod 
 }
 
 func removeKindWorker(ctx context.Context, nodeName string) error {
-	ociBin := os.Getenv("OCI_BIN")
-	if ociBin == "" {
-		ociBin = "docker"
-	}
-
-	cmd := exec.CommandContext(ctx, ociBin, "rm", "-f", nodeName)
+	cmd := exec.CommandContext(ctx, ociBin(), "rm", "-f", nodeName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s rm -f %s failed: %w\n%s", ociBin, nodeName, err, output)
+		return fmt.Errorf("%s rm -f %s failed: %w\n%s", ociBin(), nodeName, err, output)
 	}
 	return nil
+}
+
+// ociBin returns the container CLI that runs the kind nodes.
+func ociBin() string {
+	if bin := os.Getenv("OCI_BIN"); bin != "" {
+		return bin
+	}
+	return "docker"
 }
 
 func nodeReadyStatus(node *corev1.Node) corev1.ConditionStatus {

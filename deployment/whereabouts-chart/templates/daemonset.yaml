@@ -37,8 +37,17 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
+          {{- $securityContext := deepCopy (.Values.securityContext | default dict) }}
+          {{- if .Values.cniPrivileged }}
+          {{- $securityContext = dict "privileged" true "runAsUser" 0 }}
+          {{- end }}
+          {{- if .Values.seLinuxSpcT }}
+          {{- $seLinuxOptions := $securityContext.seLinuxOptions | default dict }}
+          {{- $_ := set $seLinuxOptions "type" "spc_t" }}
+          {{- $_ := set $securityContext "seLinuxOptions" $seLinuxOptions }}
+          {{- end }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml $securityContext | nindent 12 }}
           image: {{ include "whereabouts.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/install-cni"]

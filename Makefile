@@ -13,10 +13,9 @@ COMPUTE_NODES ?= 2
 OCI_BIN ?= docker
 GO ?= go
 
-# Tool versions
-CONTROLLER_GEN_VERSION ?= v0.21.0
-STATICCHECK_VERSION ?= v0.8.2
-KUSTOMIZE_VERSION ?= v5.8.1
+# Tool versions. controller-gen, staticcheck, kustomize, yq and govulncheck
+# are pinned by the tool directives in hack/gotools/go.mod (Dependabot-tracked).
+GOTOOLS_MOD := hack/gotools/go.mod
 GOLANGCI_LINT_VERSION ?= v2.15.0
 
 # Resolved tool paths
@@ -206,14 +205,14 @@ update-deps: ## Update Go dependencies.
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)
 
-$(CONTROLLER_GEN): | $(BIN_DIR)
-	GOBIN=$(BIN_DIR) $(GO) install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+$(CONTROLLER_GEN): $(GOTOOLS_MOD) | $(BIN_DIR)
+	$(GO) -C hack/gotools build -o $@ sigs.k8s.io/controller-tools/cmd/controller-gen
 
-$(STATICCHECK): | $(BIN_DIR)
-	GOBIN=$(BIN_DIR) $(GO) install honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+$(STATICCHECK): $(GOTOOLS_MOD) | $(BIN_DIR)
+	$(GO) -C hack/gotools build -o $@ honnef.co/go/tools/cmd/staticcheck
 
-$(KUSTOMIZE): | $(BIN_DIR)
-	GOBIN=$(BIN_DIR) $(GO) install sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
+$(KUSTOMIZE): $(GOTOOLS_MOD) | $(BIN_DIR)
+	$(GO) -C hack/gotools build -o $@ sigs.k8s.io/kustomize/kustomize/v5
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Install kustomize binary.
@@ -222,10 +221,8 @@ $(GOLANGCI_LINT): | $(BIN_DIR)
 	GOBIN=$(BIN_DIR) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 YQ=$(BIN_DIR)/yq
-YQ_VERSION=v4.53.3
-$(YQ): | $(BIN_DIR); $(info installing yq)
-	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]') && ARCH=$$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/' | sed 's/arm64/arm64/') && \
-	curl -fsSL -o $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$${OS}_$${ARCH} && chmod +x $(YQ)
+$(YQ): $(GOTOOLS_MOD) | $(BIN_DIR); $(info installing yq)
+	$(GO) -C hack/gotools build -o $@ github.com/mikefarah/yq/v4
 
 # ---------------------------------------------------------------
 # Release

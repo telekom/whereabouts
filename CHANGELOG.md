@@ -67,6 +67,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `doc/sample_config.json` is now valid JSON (removed malformed second object).
 
 ### Security
+- The CNI install DaemonSet no longer runs privileged. It keeps `runAsUser: 0`
+  but sets `privileged: false`, `allowPrivilegeEscalation: false`, drops all
+  capabilities, uses a read-only root filesystem and the `RuntimeDefault`
+  seccomp profile, in both the Kustomize manifest and the Helm chart. The Helm
+  `securityContext` value remains overridable, and the new `seLinuxSpcT` value
+  (default `false`) sets `seLinuxOptions.type: spc_t`.
+  **Upgrade note:** on SELinux-enforcing nodes, set `seLinuxSpcT=true` (Helm)
+  or add the Kustomize patch documented in the README, because the default
+  `container_t` domain cannot write `/opt/cni/bin` and `/etc/cni/net.d`.
+  Without capabilities, the host CNI directories must also be root-owned and
+  owner-writable. The namespace still needs the `privileged` Pod Security
+  level (hostNetwork and hostPath).
+  **Opt-out:** set the new Helm value `cniPrivileged=true`, or apply the
+  Kustomize patch documented in the README, to restore the previous
+  `privileged: true`, `runAsUser: 0` security context. This is a transitional
+  escape hatch and may be removed in a future release.
 - Added `configuration_path` validation to reject paths containing `..` (path
   traversal prevention).
 - Restricted Helm webhook ClusterRole: broad `secrets` access split into

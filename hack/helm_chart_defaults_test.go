@@ -57,3 +57,84 @@ func readYAML(t *testing.T, path string, into interface{}) {
 		t.Fatalf("parse %s: %v", path, err)
 	}
 }
+
+// cniDaemonSet holds the fields of the CNI DaemonSet the security tests read.
+type cniDaemonSet struct {
+	Spec struct {
+		Template struct {
+			Spec struct {
+				Containers []struct {
+					SecurityContext map[string]interface{} `json:"securityContext"`
+				} `json:"containers"`
+			} `json:"spec"`
+		} `json:"template"`
+	} `json:"spec"`
+}
+
+func (ds *cniDaemonSet) securityContextJSON(t *testing.T, name string) string {
+	t.Helper()
+	if len(ds.Spec.Template.Spec.Containers) != 1 {
+		t.Fatalf("%s: expected one CNI DaemonSet container, got %d", name, len(ds.Spec.Template.Spec.Containers))
+	}
+	got, err := json.Marshal(ds.Spec.Template.Spec.Containers[0].SecurityContext)
+	if err != nil {
+		t.Fatalf("marshal %s securityContext: %v", name, err)
+	}
+	return string(got)
+}
+
+func renderHelmCNIDaemonSet(t *testing.T, args ...string) string {
+	t.Helper()
+	rendered := renderHelmChart(t, "kube-system", append([]string{"--show-only", "templates/daemonset.yaml"}, args...)...)
+	jsonData, err := yaml.ToJSON([]byte(rendered))
+	if err != nil {
+		t.Fatalf("convert rendered Helm DaemonSet to JSON: %v", err)
+	}
+	var ds cniDaemonSet
+	if err := json.Unmarshal(jsonData, &ds); err != nil {
+		t.Fatalf("parse rendered Helm DaemonSet: %v", err)
+	}
+	return ds.securityContextJSON(t, "helm "+strings.Join(args, " "))
+}
+
+const unprivilegedCNISecurityContext = `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,` +
+	`"readOnlyRootFilesystem":true,"runAsUser":0,"seccompProfile":{"type":"RuntimeDefault"}}`
+
+func TestCNIDaemonSetSecurityContextIsUnprivilegedAndConsistent(t *testing.T) {
+	var ds cniDaemonSet
+	readYAML(t, filepath.Join("..", "config", "daemonset", "daemonset.yaml"), &ds)
+	if got := ds.securityContextJSON(t, "config/daemonset/daemonset.yaml"); got != unprivilegedCNISecurityContext {
+		t.Errorf("kustomize CNI securityContext = %s, want %s", got, unprivilegedCNISecurityContext)
+	}
+
+	// Render the chart rather than reading values.yaml so the template wiring
+	// (and the seLinuxSpcT default) is covered too.
+	if got := renderHelmCNIDaemonSet(t); got != unprivilegedCNISecurityContext {
+		t.Errorf("helm default CNI securityContext = %s, want %s", got, unprivilegedCNISecurityContext)
+	}
+}
+
+func TestHelmSELinuxSpcTAddsTypeAndKeepsSecurityContext(t *testing.T) {
+	withSpcT := strings.TrimSuffix(unprivilegedCNISecurityContext, `,"seccompProfile":{"type":"RuntimeDefault"}}`) +
+		`,"seLinuxOptions":{"type":"spc_t"},"seccompProfile":{"type":"RuntimeDefault"}}`
+	if got := renderHelmCNIDaemonSet(t, "--set", "seLinuxSpcT=true"); got != withSpcT {
+		t.Errorf("seLinuxSpcT=true CNI securityContext = %s, want %s", got, withSpcT)
+	}
+
+	got := renderHelmCNIDaemonSet(t, "--set", "seLinuxSpcT=true", "--set", "securityContext.seLinuxOptions.level=s0:c1")
+	if !strings.Contains(got, `"seLinuxOptions":{"level":"s0:c1","type":"spc_t"}`) {
+		t.Errorf("seLinuxSpcT=true must keep user seLinuxOptions, got %s", got)
+	}
+
+	want := `{"seLinuxOptions":{"type":"spc_t"}}`
+	if got := renderHelmCNIDaemonSet(t, "--set", "seLinuxSpcT=true", "--set", "securityContext=null"); got != want {
+		t.Errorf("seLinuxSpcT=true with null securityContext = %s, want %s", got, want)
+	}
+}
+
+func TestHelmCNIPrivilegedOptOutRestoresPreviousSecurityContext(t *testing.T) {
+	want := `{"privileged":true,"runAsUser":0}`
+	if got := renderHelmCNIDaemonSet(t, "--set", "cniPrivileged=true"); got != want {
+		t.Errorf("cniPrivileged=true CNI securityContext = %s, want %s", got, want)
+	}
+}

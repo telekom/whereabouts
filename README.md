@@ -107,6 +107,69 @@ helm template whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHA
 
 Helm will install the CRDs as well as the daemonset, operator, and webhooks.
 
+### CNI DaemonSet security context
+
+The CNI install DaemonSet (Kustomize and Helm) runs unprivileged: UID 0, all
+capabilities dropped, no privilege escalation, a read-only root filesystem and
+the `RuntimeDefault` seccomp profile. Without capabilities, UID 0 only has
+ordinary owner permissions, so the host CNI directories (`/opt/cni/bin` and
+`/etc/cni/net.d` by default) must be **owned by root and owner-writable**,
+which is the default on common distributions. If they are owned by another
+user, add `DAC_OVERRIDE` to `capabilities.add`.
+
+Things to know:
+
+* **Pod Security Admission:** the pod still uses `hostNetwork` and `hostPath`
+  volumes, so its namespace must allow the `privileged` PSA level, as before.
+  `seLinuxOptions.type: spc_t` (below) is not allowed by the `baseline` level
+  either.
+* **AppArmor:** the container no longer runs unconfined. On AppArmor hosts the
+  container runtime's default profile applies; it does not restrict ordinary
+  file writes to the mounted host directories.
+* **SELinux:** on nodes in enforcing mode, the default `container_t` domain
+  cannot write the host CNI directories (labelled `etc_t` and `bin_t`).
+  Privileged mode used to run the container as `spc_t` implicitly; it now has
+  to be requested.
+  * Helm: `--set seLinuxSpcT=true`. It adds `seLinuxOptions.type: spc_t` to
+    the container `securityContext` and keeps any other `seLinuxOptions` you
+    set.
+  * Kustomize: add this to `config/daemonset/kustomization.yaml` before
+    `make deploy`:
+
+    ```yaml
+    patches:
+    - target:
+        kind: DaemonSet
+        name: cni
+      patch: |-
+        - op: add
+          path: /spec/template/spec/containers/0/securityContext/seLinuxOptions
+          value:
+            type: spc_t
+    ```
+
+* **Opting out (back to the previous privileged DaemonSet):** this is a
+  transitional escape hatch and may be removed in a future release.
+  * Helm: `--set cniPrivileged=true`. It replaces `securityContext` with the
+    previous `privileged: true` and `runAsUser: 0`. (If you override
+    `securityContext` yourself instead, note that the API server rejects
+    `privileged: true` together with `allowPrivilegeEscalation: false`.)
+  * Kustomize: add this to `config/daemonset/kustomization.yaml` before
+    `make deploy`:
+
+    ```yaml
+    patches:
+    - target:
+        kind: DaemonSet
+        name: cni
+      patch: |-
+        - op: replace
+          path: /spec/template/spec/containers/0/securityContext
+          value:
+            privileged: true
+            runAsUser: 0
+    ```
+
 ### Verifying release artifacts
 
 Each release binary (`whereabouts-<arch>`, `whereabouts-operator-<arch>`,
@@ -163,6 +226,16 @@ For **Helm**:
 ```
 helm upgrade whereabouts oci://ghcr.io/telekom/whereabouts-chart --version <CHART_VERSION>
 ```
+
+> **Upgrade note:** the CNI install DaemonSet is no longer privileged. On
+> nodes with SELinux in enforcing mode, set `seLinuxSpcT=true` (Helm) or add
+> the Kustomize patch from [CNI DaemonSet security context](#cni-daemonset-security-context)
+> when upgrading. Otherwise the installer cannot write the host CNI directories
+> and the pod crash-loops. The same applies if those directories are not
+> root-owned. To keep the previous privileged DaemonSet instead, set
+> `cniPrivileged=true` (Helm) or apply the Kustomize opt-out patch from the
+> same section (a transitional escape hatch that may be removed in a future
+> release).
 
 ### Uninstalling
 

@@ -38,6 +38,12 @@ updates:
     directory: /
     allow:
       - dependency-type: all
+    ignore:
+      # Indirect (via cert-controller) on a pseudo-version. Dependabot
+      # resolves it to the root module's v0.20.0 tag, which does not contain
+      # the constraint package, and every update run fails. It moves with
+      # cert-controller.
+      - dependency-name: github.com/open-policy-agent/frameworks/constraint
     cooldown:
       default-days: 3
       semver-major-days: 14

@@ -76,7 +76,7 @@ type logCall struct {
 // package the binary at pkg links.
 func scanBinary(t *testing.T, pkg string) []logCall {
 	t.Helper()
-	cmd := exec.Command("go", "list", "-deps", "-f", `{{.ImportPath}}|{{.Dir}}|{{join .GoFiles ","}}`, pkg) //nolint:gosec // pkg comes from the fixed components table
+	cmd := exec.Command("go", "list", "-deps", "-f", `{{.ImportPath}}|{{.Dir}}|{{join .GoFiles ","}}`, pkg)
 	cmd.Dir = ".."
 	out, err := cmd.Output()
 	if err != nil {

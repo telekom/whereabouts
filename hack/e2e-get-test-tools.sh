@@ -4,8 +4,8 @@ set -o errexit
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
-KIND_VERSION="v0.32.0"
-KUBECTL_VERSION="v1.36.2"
+KIND_VERSION="v0.33.0"
+KUBECTL_VERSION="v1.37.2"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
 KIND_BINARY_URL="https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-${OS}-${ARCH}"

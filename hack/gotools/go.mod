@@ -1,6 +1,6 @@
 module github.com/telekom/whereabouts/hack/gotools
 
-go 1.27.3
+go 1.27.4
 
 tool (
 	github.com/mikefarah/yq/v4

@@ -33,7 +33,7 @@ var components = []struct {
 
 // TestLoggingReference fails when a log call in the code is missing from
 // doc/logging.md, or the document lists one the code no longer makes.
-// Regenerate the tables with: go test ./doc -run TestLoggingReference -update
+// Regenerate the tables with "go test ./doc -run TestLoggingReference -update".
 func TestLoggingReference(t *testing.T) {
 	const docPath = "logging.md"
 	raw, err := os.ReadFile(docPath)
@@ -108,7 +108,7 @@ func scanDir(t *testing.T, dir string) []logCall {
 	return calls
 }
 
-// classify recognises the log calls of the three loggers in this repository:
+// classify recognizes the log calls of the three loggers in this repository:
 // pkg/logging (CNI plugin), log/slog (install-cni), logr (operator), plus
 // direct writes to stderr.
 func classify(call *ast.CallExpr) (logCall, bool) {

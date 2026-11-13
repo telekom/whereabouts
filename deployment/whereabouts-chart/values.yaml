@@ -89,10 +89,30 @@ priorityClassName: ""
 cniConf:
   confDir: /etc/cni/net.d
   binDir: /opt/cni/bin
+  # Log level of the whereabouts CNI plugin: debug, verbose, error or panic.
+  # Written as log_level to whereabouts.d/whereabouts.conf; a log_level in the
+  # NetworkAttachmentDefinition's IPAM config takes precedence. Empty keeps the
+  # plugin default, error. See doc/logging.md.
+  logLevel: ""
+  # Optional host log file of the CNI plugin (log_file), in addition to stderr.
+  # Must be an absolute path under /var/log or /tmp on the node.
+  logFile: ""
+
+# Logging of the install-cni DaemonSet container (LOG_LEVEL, LOG_FORMAT).
+installCNI:
+  # debug, info, warn or error.
+  logLevel: info
+  # json or text.
+  logFormat: json
 
 operator:
   enabled: true
   replicas: 2
+  # Operator log level (--log-level): debug, info, warn or error.
+  logLevel: info
+  # Operator log format (--log-format): json or console. Empty selects console
+  # for logLevel debug and json otherwise, as before this option existed.
+  logFormat: ""
   # Service CIDR ranges used by the operator to warn on IPPool collisions.
   serviceCIDRs: []
   webhookTLS:

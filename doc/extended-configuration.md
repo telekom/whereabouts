@@ -50,6 +50,9 @@ There are two optional parameters for logging, they are:
 * `log_file`: An absolute path to a logfile under `/var/log` or the node's system temporary directory. Symlinks are rejected.
 * `log_level`: Set the logging verbosity, from most to least: `debug`,`verbose`,`error`,`panic`
 
+What each level logs, and how to set the level for all networks through the
+Helm chart (`cniConf.logLevel`), is described in [logging.md](logging.md).
+
 ## Flatfile configuration
 
 During installation using the daemonset-style install, Whereabouts creates a configuration file @ `/etc/cni/net.d/whereabouts.d/whereabouts.conf`. Any parameter that you do not wish to repeatedly put into the `ipam` section of a CNI configuration can be put into this file (such as Kubernetes configuration parameters or logging).
@@ -641,27 +644,29 @@ Enable debug logging in the IPAM configuration:
 }
 ```
 
-The log file is written on the node where the CNI plugin runs (inside the
-DaemonSet pod at `/host/var/log/whereabouts.log`). To read it:
+The log file is written on the node where the CNI plugin runs. The DaemonSet
+does not mount `/var/log`, so read it on the node:
 
 ```bash
-# Find the whereabouts DaemonSet pod on the target node
-kubectl get pods -n kube-system -l app=whereabouts -o wide
-
-# Read the log file
-kubectl exec -n kube-system <whereabouts-pod> -- cat /host/var/log/whereabouts.log
+kubectl debug node/<node> -it --image=busybox -- cat /host/var/log/whereabouts.log
 ```
+
+To set the level for all networks, use the Helm values `cniConf.logLevel` and
+`cniConf.logFile` (see [logging.md](logging.md)).
 
 ### Operator Debugging
 
-The operator uses controller-runtime's structured logging via `klog`. Increase
-verbosity by adding `-v` flags to the operator Deployment:
+The operator logs through controller-runtime's zap logger. Set
+`--log-level=debug` (Helm: `operator.logLevel: debug`) for a line per reconcile
+and the reason each allocation is released; `--log-format=json` keeps debug
+output as JSON. See [logging.md](logging.md) for every level and message.
 
 ```yaml
 command:
 - /whereabouts-operator
 - controller
-- -v=4    # Increase log verbosity (0=info, 4=debug, 8=trace)
+- --log-level=debug
+- --log-format=json
 ```
 
 View operator logs:

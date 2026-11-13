@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -377,6 +378,82 @@ func TestWriteWhereaboutsConf(t *testing.T) {
 	assertEqual(t, "datastore", parsed.Datastore, "kubernetes")
 	assertEqual(t, "configuration_path", parsed.ConfigurationPath, cfg.configurationPathLiteral())
 	assertEqual(t, "kubeconfig", parsed.Kubernetes.Kubeconfig, cfg.kubeconfigLiteral())
+}
+
+func TestWriteWhereaboutsConf_CNILogging(t *testing.T) {
+	cfg := newTestConfig(t, false)
+	data := func() string {
+		must(t, writeWhereaboutsConf(cfg))
+		b, err := os.ReadFile(cfg.whereaboutsConfPath())
+		must(t, err)
+		return string(b)
+	}
+	if got := data(); strings.Contains(got, "log_") {
+		t.Fatalf("unset CNI logging must not be written, got:\n%s", got)
+	}
+	cfg.CNILogLevel, cfg.CNILogFile = "verbose", "/var/log/whereabouts.log"
+	var parsed whereaboutsConf
+	must(t, json.Unmarshal([]byte(data()), &parsed))
+	assertEqual(t, "log_level", parsed.LogLevel, "verbose")
+	assertEqual(t, "log_file", parsed.LogFile, "/var/log/whereabouts.log")
+}
+
+func TestLoadConfig_CNILogLevel(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+	t.Setenv("CNI_LOG_LEVEL", "verbose")
+	t.Setenv("CNI_LOG_FILE", "/var/log/whereabouts.log")
+	cfg, err := loadConfig()
+	must(t, err)
+	assertEqual(t, "CNILogLevel", cfg.CNILogLevel, "verbose")
+	assertEqual(t, "CNILogFile", cfg.CNILogFile, "/var/log/whereabouts.log")
+
+	t.Setenv("CNI_LOG_LEVEL", "info")
+	if _, err := loadConfig(); err == nil {
+		t.Fatal("expected an error for CNI_LOG_LEVEL=info")
+	}
+}
+
+func TestNewLogHandler(t *testing.T) {
+	for _, tc := range []struct {
+		level, format, want string
+		wantErr             bool
+	}{
+		{level: "info", format: "json", want: `{"time":`},
+		{level: "debug", format: "text", want: "time="},
+		{level: "warn", format: "json"},
+		{level: "error", format: "text"},
+		{level: "trace", format: "json", wantErr: true},
+		{level: "info", format: "console", wantErr: true},
+	} {
+		t.Run(tc.level+"/"+tc.format, func(t *testing.T) {
+			var buf strings.Builder
+			h, err := newLogHandler(&buf, tc.level, tc.format)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected an error")
+				}
+				return
+			}
+			must(t, err)
+			logger := slog.New(h)
+			logger.Debug("debug line")
+			logger.Info("info line")
+			logger.Warn("warn line")
+			out := buf.String()
+			if !strings.HasPrefix(out, tc.want) {
+				t.Errorf("output %q does not start with %q", out, tc.want)
+			}
+			wantDebug := tc.level == "debug"
+			wantInfo := tc.level == "debug" || tc.level == "info"
+			wantWarn := tc.level != "error"
+			if strings.Contains(out, "debug line") != wantDebug ||
+				strings.Contains(out, "info line") != wantInfo ||
+				strings.Contains(out, "warn line") != wantWarn {
+				t.Errorf("level %s: unexpected output %q", tc.level, out)
+			}
+		})
+	}
 }
 
 func TestWriteWhereaboutsConf_UnwritableDir(t *testing.T) {

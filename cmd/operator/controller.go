@@ -52,7 +52,9 @@ func newControllerCommand() *cobra.Command {
 		Use:   "controller",
 		Short: "Run leader-elected reconcilers and validating webhooks",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			setupLogger(cmd)
+			if err := setupLogger(cmd); err != nil {
+				return err
+			}
 			log := ctrl.Log.WithName("controller")
 
 			cfg, err := ctrl.GetConfig()

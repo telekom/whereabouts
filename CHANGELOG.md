@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Configurable logging for every binary, documented per level in
+  `doc/logging.md`. Defaults keep the current output.
+  - Operator: `--log-format` (`json`, `console`; Helm `operator.logFormat`).
+    Empty keeps the previous behavior (console for `--log-level=debug`, json
+    otherwise); an invalid value stops the operator. The Helm value
+    `operator.logLevel` (default `info`) sets `--log-level`.
+  - install-cni: `LOG_LEVEL` (`debug`, `info`, `warn`, `error`; default `info`)
+    and `LOG_FORMAT` (`json`, `text`; default `json`), Helm
+    `installCNI.logLevel`/`installCNI.logFormat`. Invalid values stop
+    install-cni.
+  - CNI plugin: install-cni writes `CNI_LOG_LEVEL`/`CNI_LOG_FILE` as
+    `log_level`/`log_file` into `whereabouts.conf` (Helm
+    `cniConf.logLevel`/`cniConf.logFile`, empty by default). The
+    NetworkAttachmentDefinition's IPAM config still takes precedence.
+  - `doc/logging_test.go` fails `make test` when a log message is missing from
+    `doc/logging.md`.
 - Webhook server TLS hardening: minimum TLS 1.2, and for TLS 1.2 only ECDHE
   cipher suites with AES-GCM or ChaCha20-Poly1305. TLS 1.3 keeps Go's defaults.
   Opt out with `--webhook-tls-go-defaults=true` (Helm:

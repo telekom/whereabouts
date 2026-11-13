@@ -46,6 +46,10 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
+        - --log-level={{ dig "logLevel" "info" .Values.operator }}
+        {{- with (dig "logFormat" "" .Values.operator) }}
+        - --log-format={{ . }}
+        {{- end }}
         {{- /* dig + toString: nil-safe for --reuse-values from charts without webhookTLS, and "false" strings stay off. */}}
         {{- if eq (toString (dig "webhookTLS" "goDefaults" false .Values.operator)) "true" }}
         - --webhook-tls-go-defaults=true

@@ -63,6 +63,10 @@ type config struct {
 	KubePort           string
 	Namespace          string
 	NodeName           string
+	// CNILogLevel and CNILogFile are written to whereabouts.conf as
+	// log_level and log_file for the CNI plugin; empty values are omitted.
+	CNILogLevel string
+	CNILogFile  string
 }
 
 func loadConfig() (*config, error) {
@@ -80,6 +84,13 @@ func loadConfig() (*config, error) {
 		KubePort:           os.Getenv("KUBERNETES_SERVICE_PORT"),
 		Namespace:          os.Getenv("WHEREABOUTS_NAMESPACE"),
 		NodeName:           os.Getenv("NODENAME"),
+		CNILogLevel:        os.Getenv("CNI_LOG_LEVEL"),
+		CNILogFile:         os.Getenv("CNI_LOG_FILE"),
+	}
+	switch c.CNILogLevel {
+	case "", "debug", "verbose", "error", "panic":
+	default:
+		return nil, fmt.Errorf("CNI_LOG_LEVEL %q is invalid: must be debug, verbose, error or panic", c.CNILogLevel)
 	}
 	if c.KubeHost == "" {
 		return nil, fmt.Errorf("KUBERNETES_SERVICE_HOST not set")
@@ -148,18 +159,41 @@ func (c *config) wrappedHost() string {
 }
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})))
+	handler, err := newLogHandler(os.Stdout, envOr("LOG_LEVEL", "info"), envOr("LOG_FORMAT", "json"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "install-cni:", err)
+		os.Exit(1)
+	}
+	slog.SetDefault(slog.New(handler))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	err := run(ctx)
+	err = run(ctx)
 	cancel()
 
 	if err != nil {
 		slog.Error("fatal error", "error", err)
 		os.Exit(1)
 	}
+}
+
+// newLogHandler returns the slog handler for LOG_LEVEL (debug, info, warn,
+// error) and LOG_FORMAT (json, text).
+func newLogHandler(w io.Writer, level, format string) (slog.Handler, error) {
+	var lvl slog.Level
+	switch level {
+	case "debug", "info", "warn", "error":
+		_ = lvl.UnmarshalText([]byte(level)) // cannot fail for these values
+	default:
+		return nil, fmt.Errorf("LOG_LEVEL %q is invalid: must be debug, info, warn or error", level)
+	}
+	opts := &slog.HandlerOptions{Level: lvl}
+	switch format {
+	case "json":
+		return slog.NewJSONHandler(w, opts), nil
+	case "text":
+		return slog.NewTextHandler(w, opts), nil
+	}
+	return nil, fmt.Errorf("LOG_FORMAT %q is invalid: must be json or text", format)
 }
 
 // run performs the full CNI installer lifecycle: config loading,
@@ -263,6 +297,8 @@ type whereaboutsConf struct {
 	Datastore         string         `json:"datastore"`
 	ConfigurationPath string         `json:"configuration_path"`
 	Kubernetes        kubernetesConf `json:"kubernetes"`
+	LogLevel          string         `json:"log_level,omitempty"`
+	LogFile           string         `json:"log_file,omitempty"`
 }
 
 type kubernetesConf struct {
@@ -277,6 +313,8 @@ func writeWhereaboutsConf(cfg *config) error {
 		Kubernetes: kubernetesConf{
 			Kubeconfig: cfg.kubeconfigLiteral(),
 		},
+		LogLevel: cfg.CNILogLevel,
+		LogFile:  cfg.CNILogFile,
 	}
 
 	data, err := json.MarshalIndent(conf, "", "  ")

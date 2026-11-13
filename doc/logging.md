@@ -63,8 +63,10 @@ IPAM configuration wins over the flat file:
      logFile: /var/log/whereabouts.log
    ```
 
-   An unknown `CNI_LOG_LEVEL` stops install-cni at startup. Empty values are not
-   written, so the file is unchanged unless you set them.
+   `CNI_LOG_LEVEL` is case-insensitive. An unknown `CNI_LOG_LEVEL`, or a
+   `CNI_LOG_FILE` that is not an absolute path under `/var/log` or `/tmp`, stops
+   install-cni at startup. Empty values are not written, so the file is
+   unchanged unless you set them.
 
 An unknown `log_level` in the IPAM configuration is ignored: the plugin keeps
 `error` and writes `Whereabouts logging: cannot set logging level to …` to
@@ -80,7 +82,7 @@ Each level includes the levels above it.
 | `panic` | Nothing. The plugin has no panic-level messages, so this silences it. |
 | `error` (default) | Every failed CNI ADD, DEL and CHECK with its cause: configuration that cannot be loaded, Kubernetes client creation, IPPool and OverlappingRangeIPReservation reads and updates (with the retry attempt), exhausted ranges, node slice lookup, leader election setup, and rollbacks of partial multi-range allocations. DEL failures are logged per retry attempt. |
 | `verbose` | One line per successful allocation (`ADD: allocated …`) and release (`DEL: released …`) with container ID and podRef. |
-| `debug` | The full allocation trace: loaded configuration (counts and flags, not the ranges), the pod and interface of each call, flat file used, leader election steps, pool identifiers, every IP considered, reserved, skipped or already allocated, preferred-IP handling, overlapping reservation lookups (new and legacy names), stale reservation cleanup, retries and rollbacks, and CHECK results. |
+| `debug` | The full allocation trace: loaded configuration (a summary line with counts and flags, plus the configured ranges when a range has an invalid CIDR), the pod and interface of each call, flat file used, leader election steps, pool identifiers, every IP considered, reserved, skipped or already allocated, preferred-IP handling, overlapping reservation lookups (new and legacy names), stale reservation cleanup, retries and rollbacks, and CHECK results. |
 
 ### Output
 
@@ -363,7 +365,9 @@ are not affected by `--log-level` or `--log-format`.
 | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` | `installCNI.logLevel` |
 | `LOG_FORMAT` | `json`, `text` | `json` | `installCNI.logFormat` |
 
-An unknown value stops install-cni at startup. install-cni has no `debug`
+Both are case-insensitive, and `warning` is accepted for `warn`. An unknown
+`LOG_LEVEL` falls back to `info` and logs `unknown LOG_LEVEL, using info`; an
+unknown `LOG_FORMAT` stops install-cni at startup. install-cni has no `debug`
 messages yet, so `debug` logs the same as `info`.
 
 ### Levels
@@ -385,8 +389,8 @@ install-cni writes to stdout through `log/slog`. `json` lines have the keys
 {"time":"2026-11-13T10:15:04.123Z","level":"INFO","msg":"wrote whereabouts.conf","path":"/host/etc/cni/net.d/whereabouts.d/whereabouts.conf"}
 ```
 
-The `stderr` row is written when `LOG_LEVEL` or `LOG_FORMAT` is invalid,
-before the logger exists.
+The `stderr` row is written when `LOG_FORMAT` is invalid, before the logger
+exists.
 
 ### Log reference
 
@@ -400,6 +404,7 @@ before the logger exists.
 | warn | `` cannot watch SA directory, falling back to polling `` | `error` | cmd/install-cni/main.go |
 | warn | `` fsnotify error `` | `error` | cmd/install-cni/main.go |
 | warn | `` fsnotify unavailable, falling back to polling only `` | `error` | cmd/install-cni/main.go |
+| warn | `` unknown LOG_LEVEL, using info `` | `logLevel` | cmd/install-cni/main.go |
 | info | `` CNI installer setup complete `` | - | cmd/install-cni/main.go |
 | info | `` copied whereabouts binary `` | `src`, `dst` | cmd/install-cni/main.go |
 | info | `` detected credential change, regenerating kubeconfig `` | - | cmd/install-cni/main.go |
@@ -415,11 +420,17 @@ before the logger exists.
 ## Keeping this document current
 
 The log reference tables are generated from the code by `doc/logging_test.go`.
-It parses the sources of each binary and collects every log call with its
-level, message, logged values (format arguments for the CNI plugin, structured
-keys for the operator and install-cni) and source file. The test runs in
-`make test` and fails when a table differs from the code: a new, changed or
-removed log message must update this document in the same pull request.
+It parses the non-test sources of every module package each binary links
+(`go list -deps`) and collects every log call with its level, message, logged
+values (format arguments for the CNI plugin, structured keys for the operator
+and install-cni) and source file. The test runs in `make test` and fails when:
+
+- a table differs from the code, so a new, changed or removed log message must
+  update this document in the same pull request;
+- a log call has no literal message (a constant string or a concatenation with
+  one), because it could not be documented; or
+- code writes output past the documented loggers: `fmt.Print*`, writes to
+  stdout, the standard `log` package, klog, zap, or `print`/`println`.
 Regenerate the tables with
 
 ```sh

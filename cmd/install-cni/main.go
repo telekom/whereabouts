@@ -84,13 +84,16 @@ func loadConfig() (*config, error) {
 		KubePort:           os.Getenv("KUBERNETES_SERVICE_PORT"),
 		Namespace:          os.Getenv("WHEREABOUTS_NAMESPACE"),
 		NodeName:           os.Getenv("NODENAME"),
-		CNILogLevel:        os.Getenv("CNI_LOG_LEVEL"),
+		CNILogLevel:        strings.ToLower(os.Getenv("CNI_LOG_LEVEL")),
 		CNILogFile:         os.Getenv("CNI_LOG_FILE"),
 	}
 	switch c.CNILogLevel {
 	case "", "debug", "verbose", "error", "panic":
 	default:
 		return nil, fmt.Errorf("CNI_LOG_LEVEL %q is invalid: must be debug, verbose, error or panic", c.CNILogLevel)
+	}
+	if err := validateCNILogFile(c.CNILogFile); err != nil {
+		return nil, fmt.Errorf("CNI_LOG_FILE %q is invalid: %w", c.CNILogFile, err)
 	}
 	if c.KubeHost == "" {
 		return nil, fmt.Errorf("KUBERNETES_SERVICE_HOST not set")
@@ -99,6 +102,26 @@ func loadConfig() (*config, error) {
 		return nil, fmt.Errorf("KUBERNETES_SERVICE_PORT not set")
 	}
 	return c, nil
+}
+
+// validateCNILogFile applies the path rules of the CNI plugin's log_file
+// (pkg/logging) that can be checked without the node's filesystem: an
+// absolute path under /var/log or /tmp. The plugin additionally rejects
+// symlinks and non-regular files on the node when it opens the file.
+func validateCNILogFile(path string) error {
+	if path == "" {
+		return nil
+	}
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("path must be absolute")
+	}
+	clean := filepath.Clean(path)
+	for _, root := range []string{"/var/log", "/tmp"} {
+		if strings.HasPrefix(clean, root+"/") {
+			return nil
+		}
+	}
+	return fmt.Errorf("path must be a file under /var/log or /tmp")
 }
 
 // tokenPath returns the path to the projected ServiceAccount token.
@@ -159,12 +182,16 @@ func (c *config) wrappedHost() string {
 }
 
 func main() {
-	handler, err := newLogHandler(os.Stdout, envOr("LOG_LEVEL", "info"), envOr("LOG_FORMAT", "json"))
+	logLevel := envOr("LOG_LEVEL", "info")
+	handler, levelKnown, err := newLogHandler(os.Stdout, logLevel, envOr("LOG_FORMAT", "json"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "install-cni:", err)
 		os.Exit(1)
 	}
 	slog.SetDefault(slog.New(handler))
+	if !levelKnown {
+		slog.Warn("unknown LOG_LEVEL, using info", "logLevel", logLevel)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	err = run(ctx)
@@ -176,24 +203,23 @@ func main() {
 	}
 }
 
-// newLogHandler returns the slog handler for LOG_LEVEL (debug, info, warn,
-// error) and LOG_FORMAT (json, text).
-func newLogHandler(w io.Writer, level, format string) (slog.Handler, error) {
-	var lvl slog.Level
-	switch level {
-	case "debug", "info", "warn", "error":
-		_ = lvl.UnmarshalText([]byte(level)) // cannot fail for these values
-	default:
-		return nil, fmt.Errorf("LOG_LEVEL %q is invalid: must be debug, info, warn or error", level)
-	}
-	opts := &slog.HandlerOptions{Level: lvl}
-	switch format {
+// newLogHandler returns the slog handler for LOG_LEVEL (debug, info, warn or
+// warning, error; any case) and LOG_FORMAT (json, text; any case). An unknown
+// level selects info and reports levelKnown false, like the operator's
+// --log-level; an unknown format is an error.
+func newLogHandler(w io.Writer, level, format string) (h slog.Handler, levelKnown bool, err error) {
+	lvl, levelKnown := map[string]slog.Level{
+		"debug": slog.LevelDebug, "info": slog.LevelInfo,
+		"warn": slog.LevelWarn, "warning": slog.LevelWarn, "error": slog.LevelError,
+	}[strings.ToLower(level)]
+	opts := &slog.HandlerOptions{Level: lvl} // zero value is info
+	switch strings.ToLower(format) {
 	case "json":
-		return slog.NewJSONHandler(w, opts), nil
+		return slog.NewJSONHandler(w, opts), levelKnown, nil
 	case "text":
-		return slog.NewTextHandler(w, opts), nil
+		return slog.NewTextHandler(w, opts), levelKnown, nil
 	}
-	return nil, fmt.Errorf("LOG_FORMAT %q is invalid: must be json or text", format)
+	return nil, levelKnown, fmt.Errorf("LOG_FORMAT %q is invalid: must be json or text", format)
 }
 
 // run performs the full CNI installer lifecycle: config loading,

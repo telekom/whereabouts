@@ -46,7 +46,10 @@ spec:
         - --webhook-service-name={{ include "whereabouts.fullname" . }}-webhook
         - --webhook-config-name={{ include "whereabouts.fullname" . }}-webhooks
         - --namespace={{ .Values.namespaceOverride | default .Release.Namespace }}
-        - --log-level={{ dig "logLevel" "info" .Values.operator }}
+        {{- /* The default (info) is not rendered, so upgrades keep the pod spec. */}}
+        {{- with (dig "logLevel" "info" .Values.operator) }}{{ if ne . "info" }}
+        - --log-level={{ . }}
+        {{- end }}{{ end }}
         {{- with (dig "logFormat" "" .Values.operator) }}
         - --log-format={{ . }}
         {{- end }}

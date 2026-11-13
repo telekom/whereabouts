@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `operator.logLevel` (default `info`) sets `--log-level`.
   - install-cni: `LOG_LEVEL` (`debug`, `info`, `warn`, `error`; default `info`)
     and `LOG_FORMAT` (`json`, `text`; default `json`), Helm
-    `installCNI.logLevel`/`installCNI.logFormat`. Invalid values stop
+    `installCNI.logLevel`/`installCNI.logFormat`, both case-insensitive. An
+    unknown level falls back to `info` with a warning; an unknown format stops
     install-cni.
   - CNI plugin: install-cni writes `CNI_LOG_LEVEL`/`CNI_LOG_FILE` as
     `log_level`/`log_file` into `whereabouts.conf` (Helm

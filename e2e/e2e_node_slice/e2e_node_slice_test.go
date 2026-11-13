@@ -73,7 +73,11 @@ var _ = Describe("Whereabouts node slice functionality", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("checking node slices have been allocated and nodes are assigned")
-			Expect(util.ValidateNodeSlicePoolSlicesCreatedAndNodesAssigned(testNetworkName, testNamespace, subnets, clientInfo)).To(Succeed())
+			// The controller creates the pool and fills in its allocations
+			// asynchronously, so a single check races it under CI load.
+			Eventually(func() error {
+				return util.ValidateNodeSlicePoolSlicesCreatedAndNodesAssigned(testNetworkName, testNamespace, subnets, clientInfo)
+			}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 		})
 
 		AfterEach(func() {

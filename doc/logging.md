@@ -79,7 +79,7 @@ Each level includes the levels above it.
 
 | Level | What is logged |
 |-------|----------------|
-| `panic` | Nothing. The plugin has no panic-level messages, so this silences it. |
+| `panic` | Nothing from `pkg/logging`: the plugin has no panic-level messages, so this silences its own log lines. It does not silence the client-go lines described in [Lines from client-go](#lines-from-client-go). |
 | `error` (default) | Every failed CNI ADD, DEL and CHECK with its cause: configuration that cannot be loaded, Kubernetes client creation, IPPool and OverlappingRangeIPReservation reads and updates (with the retry attempt), exhausted ranges, node slice lookup, leader election setup, and rollbacks of partial multi-range allocations. DEL failures are logged per retry attempt. |
 | `verbose` | One line per successful allocation (`ADD: allocated …`) and release (`DEL: released …`) with container ID and podRef. |
 | `debug` | The full allocation trace: loaded configuration (a summary line with counts and flags, plus the configured ranges when a range has an invalid CIDR), the pod and interface of each call, flat file used, leader election steps, pool identifiers, every IP considered, reserved, skipped or already allocated, preferred-IP handling, overlapping reservation lookups (new and legacy names), stale reservation cleanup, retries and rollbacks, and CHECK results. |
@@ -106,6 +106,26 @@ which reports it as a pod event (for example `FailedCreatePodSandBox`).
 
 The `stderr` rows below are written directly to stderr, regardless of
 `log_level`, while the logging configuration is applied.
+
+### Lines from client-go
+
+Without `optimistic_ipam`, every ADD and DEL takes a Kubernetes Lease through
+client-go leader election. client-go logs through klog, not `pkg/logging`, so
+these lines ignore `log_level` (including `panic`), do not use the format
+above and are not written to `log_file`. klog writes them to the plugin's
+stderr in its own format, for example:
+
+```text
+I1113 10:15:04.123456   4711 leaderelection.go:258] "Attempting to acquire leader lease..." lock="<namespace>/whereabouts"
+I1113 10:15:04.234567   4711 leaderelection.go:272] "Successfully acquired lease" lock="<namespace>/whereabouts"
+```
+
+Lease failures (for example `Error retrieving lease lock`, `Failed to update
+lease`, `Failed to release lease`) appear the same way, at klog error level,
+and other client-go warnings can too. The plugin's own leader election errors
+are logged through `pkg/logging` as listed below. With `optimistic_ipam: true`
+no lease is taken and the leader election lines do not appear. The lease is
+`whereabouts`, or the node slice pool name with `node_slice_size`.
 
 ### Log reference
 

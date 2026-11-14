@@ -68,3 +68,11 @@ Preserve these local policies when considering further upstream adoption:
   rotation, explicit Whereabouts CA identity/DNS and restart-on-refresh.
 - `pkg/storage/kubernetes/ipam.go`: already uses client-go leader election;
   retain its one-shot election semantics rather than adding a wrapper.
+
+## Logging documentation
+
+A change that alters what a binary logs, a log level default or a log setting
+updates [`doc/logging.md`](doc/logging.md) in the same pull request. The log
+reference tables are generated: run
+`go test ./doc -run TestLoggingReference -update`. `make test` fails when they
+are out of date.

@@ -58,6 +58,7 @@ There's three steps to installing Whereabouts:
 * Creating IPAM CNI configurations.
 
 Further installation options and configuration parameters can be found in the [extended configuration document](doc/extended-configuration.md).
+Log levels, formats and every logged message of the CNI plugin, the operator and install-cni are documented in [doc/logging.md](doc/logging.md).
 
 ### Installing Whereabouts.
 

@@ -65,6 +65,25 @@ spec:
             value: {{ $cniBinDir | quote }}
           - name: CNI_CONF_DIR
             value: {{ $cniConfDir | quote }}
+          {{- /* dig: nil-safe for --reuse-values from charts without these values.
+                 Defaults (info, json) are not rendered, so upgrades keep the pod spec. */}}
+          {{- $installCNI := .Values.installCNI | default dict }}
+          {{- with (dig "logLevel" "info" $installCNI) }}{{ if ne . "info" }}
+          - name: LOG_LEVEL
+            value: {{ . | quote }}
+          {{- end }}{{ end }}
+          {{- with (dig "logFormat" "json" $installCNI) }}{{ if ne . "json" }}
+          - name: LOG_FORMAT
+            value: {{ . | quote }}
+          {{- end }}{{ end }}
+          {{- with (dig "logLevel" "" .Values.cniConf) }}
+          - name: CNI_LOG_LEVEL
+            value: {{ . | quote }}
+          {{- end }}
+          {{- with (dig "logFile" "" .Values.cniConf) }}
+          - name: CNI_LOG_FILE
+            value: {{ . | quote }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

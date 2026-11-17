@@ -45,22 +45,35 @@ func TestLoggingReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := string(raw)
-	for _, c := range components {
-		begin := "<!-- BEGIN GENERATED LOG TABLE: " + c.name + " -->\n"
-		end := "<!-- END GENERATED LOG TABLE: " + c.name + " -->"
+	sync := func(name, want string) {
+		begin := "<!-- BEGIN GENERATED " + name + " -->\n"
+		end := "<!-- END GENERATED " + name + " -->"
 		i, j := strings.Index(doc, begin), strings.Index(doc, end)
 		if i < 0 || j < i {
-			t.Fatalf("%s: markers for %q missing", docPath, c.name)
+			t.Fatalf("%s: markers for %q missing", docPath, name)
 		}
-		want := renderTable(scanBinary(t, c.pkg))
 		if got := doc[i+len(begin) : j]; got != want {
 			if !*update {
-				t.Errorf("%s: log table %q is out of date with the code; run: go test ./doc -run TestLoggingReference -update\n--- want\n%s", docPath, c.name, want)
-				continue
+				t.Errorf("%s: %s is out of date with the code; run: go test ./doc -run TestLoggingReference -update\n--- want\n%s", docPath, name, want)
+				return
 			}
 			doc = doc[:i+len(begin)] + want + doc[j:]
 		}
 	}
+	pdTable := "| Binary | Field | Class | Data subject | Levels | Content |\n|---|---|---|---|---|---|\n"
+	for _, c := range components {
+		calls := scanBinary(t, c.pkg)
+		sync("LOG TABLE: "+c.name, renderTable(calls))
+		rows, missing, stale := renderPersonalData(c.name, calls)
+		for _, f := range missing {
+			t.Errorf("%s field %q has no entry in personalData (doc/personal_data_test.go): classify it", c.name, f)
+		}
+		for _, f := range stale {
+			t.Errorf("personalData[%q] lists %q, which no log call uses: remove it", c.name, f)
+		}
+		pdTable += rows
+	}
+	sync("PERSONAL DATA TABLE", pdTable)
 	if *update {
 		if err := os.WriteFile(docPath, []byte(doc), 0o644); err != nil {
 			t.Fatal(err)

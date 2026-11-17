@@ -107,13 +107,14 @@ every field of the log reference, the non-personal ones included.
 | operator | `expectedIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
 | operator | `expectedPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
 | operator | `ip` | customer-data | end-customer | debug | IP address allocated to a pod |
+| operator | `key` | customer-data | end-customer | info, debug | allocation key: the offset of the pod IP address in the pool's range, which the pool name gives |
 | operator | `name` | customer-data | end-customer | error, info, debug | name of the reconciled or rejected object; an OverlappingRangeIPReservation is named after the pod IP address |
 | operator | `namespace` | tenant-pii | tenant-user | info, debug | namespace of the reconciled object; a NetworkAttachmentDefinition lives in a tenant namespace |
 | operator | `node` | tenant-pii | tenant-user | info | node host name, which can carry the tenant's cluster name |
 | operator | `podRef` | tenant-pii | tenant-user | info, debug | pod namespace and name (podRef) |
 | operator | `podUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
 | operator | `pool` | tenant-pii | tenant-user | info, debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
-| operator | `reason` | tenant-pii | tenant-user | info, debug | pod status reason, or webhook rejection text that can quote a podRef, container ID or pod UID |
+| operator | `reason` | customer-data | end-customer | info, debug | pod status reason, or webhook rejection text that can quote a podRef, container ID, pod UID or allocation key (the offset of a pod IP address) |
 | operator | `resIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
 | operator | `resPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
 | operator | `reservationPodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |

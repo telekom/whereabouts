@@ -234,6 +234,8 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 		return v.kvCall(strings.ToLower(name), call.Args, 0)
 	case strings.HasSuffix(name, "Context") && slices.Contains([]string{"DebugContext", "InfoContext", "WarnContext", "ErrorContext"}, name):
 		return v.kvCall(strings.ToLower(strings.TrimSuffix(name, "Context")), call.Args, 1)
+	case name == "WithValues" || name == "With": // logr, *slog.Logger: keys of every later line
+		return v.withCall(logrLevel(sel.X), call.Args)
 	case name == "Info": // logr or *slog.Logger
 		return v.kvCall(logrLevel(sel.X), call.Args, 0)
 	case name == "Error" && len(call.Args) > 0:
@@ -293,6 +295,16 @@ func (v visitor) printfCall(level string, args []ast.Expr, msgIdx int) (logCall,
 		fields = append(fields, "`"+keys[len(keys)-1]+"`")
 	}
 	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source, keys: keys}, true, ""
+}
+
+// withValuesMsg is the message recorded for a WithValues or With call.
+const withValuesMsg = "(WithValues: fields of every later line)"
+
+// withCall records the keys a WithValues or With call adds to every later
+// line of the derived logger.
+func (v visitor) withCall(level string, args []ast.Expr) (logCall, bool, string) {
+	args = append([]ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(withValuesMsg)}}, args...)
+	return v.kvCall(level, args, 0)
 }
 
 func (v visitor) kvCall(level string, args []ast.Expr, msgIdx int) (logCall, bool, string) {
@@ -454,6 +466,7 @@ func f(l logger, s *sl.Logger, msg string, err error) {
 		"warn logger warn `k`",
 		"error logger error ",
 		"debug deep debug `b`",
+		"debug " + withValuesMsg + " `a`",
 		"V(2) trace ",
 		"error failed `error`, `k`",
 		"PROBLEM l.Info",

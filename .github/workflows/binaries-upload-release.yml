@@ -91,7 +91,9 @@ jobs:
           ./bin/install-cni-${{ matrix.arch }}.sha256
           ./bin/install-cni-${{ matrix.arch }}.sigstore.json
         tag_name: ${{ github.ref_name }}
-        generate_release_notes: true
+        # No generate_release_notes here: on an existing release the action
+        # appends the notes, so three parallel arch jobs duplicate them.
+        # upload-manifests (single job) generates them once.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -132,5 +134,6 @@ jobs:
         files: |
           ./manifests/*.yaml
         tag_name: ${{ github.ref_name }}
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

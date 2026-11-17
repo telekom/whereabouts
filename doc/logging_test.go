@@ -45,22 +45,35 @@ func TestLoggingReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := string(raw)
-	for _, c := range components {
-		begin := "<!-- BEGIN GENERATED LOG TABLE: " + c.name + " -->\n"
-		end := "<!-- END GENERATED LOG TABLE: " + c.name + " -->"
+	sync := func(name, want string) {
+		begin := "<!-- BEGIN GENERATED " + name + " -->\n"
+		end := "<!-- END GENERATED " + name + " -->"
 		i, j := strings.Index(doc, begin), strings.Index(doc, end)
 		if i < 0 || j < i {
-			t.Fatalf("%s: markers for %q missing", docPath, c.name)
+			t.Fatalf("%s: markers for %q missing", docPath, name)
 		}
-		want := renderTable(scanBinary(t, c.pkg))
 		if got := doc[i+len(begin) : j]; got != want {
 			if !*update {
-				t.Errorf("%s: log table %q is out of date with the code; run: go test ./doc -run TestLoggingReference -update\n--- want\n%s", docPath, c.name, want)
-				continue
+				t.Errorf("%s: %s is out of date with the code; run: go test ./doc -run TestLoggingReference -update\n--- want\n%s", docPath, name, want)
+				return
 			}
 			doc = doc[:i+len(begin)] + want + doc[j:]
 		}
 	}
+	pdTable := "| Binary | Field | Class | Data subject | Levels | Content |\n|---|---|---|---|---|---|\n"
+	for _, c := range components {
+		calls := scanBinary(t, c.pkg)
+		sync("LOG TABLE: "+c.name, renderTable(calls))
+		rows, missing, stale := renderPersonalData(c.name, calls)
+		for _, f := range missing {
+			t.Errorf("%s field %q has no entry in personalData (doc/personal_data_test.go): classify it", c.name, f)
+		}
+		for _, f := range stale {
+			t.Errorf("personalData[%q] lists %q, which no log call uses: remove it", c.name, f)
+		}
+		pdTable += rows
+	}
+	sync("PERSONAL DATA TABLE", pdTable)
 	if *update {
 		if err := os.WriteFile(docPath, []byte(doc), 0o644); err != nil {
 			t.Fatal(err)
@@ -70,6 +83,7 @@ func TestLoggingReference(t *testing.T) {
 
 type logCall struct {
 	level, msg, fields, source string
+	keys                       []string // the fields, unquoted, for personalData
 }
 
 // scanBinary returns the log calls in the non-test Go files of every module
@@ -220,6 +234,8 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 		return v.kvCall(strings.ToLower(name), call.Args, 0)
 	case strings.HasSuffix(name, "Context") && slices.Contains([]string{"DebugContext", "InfoContext", "WarnContext", "ErrorContext"}, name):
 		return v.kvCall(strings.ToLower(strings.TrimSuffix(name, "Context")), call.Args, 1)
+	case name == "WithValues" || name == "With": // logr, *slog.Logger: keys of every later line
+		return v.withCall(logrLevel(sel.X), call.Args)
 	case name == "Info": // logr or *slog.Logger
 		return v.kvCall(logrLevel(sel.X), call.Args, 0)
 	case name == "Error" && len(call.Args) > 0:
@@ -229,6 +245,7 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 		if len(call.Args) > 1 { // logr: Error(err, msg, kv...)
 			c, isLog, problem = v.kvCall("error", call.Args, 1)
 			c.fields = strings.TrimSuffix("`error`, "+c.fields, ", ")
+			c.keys = append([]string{"error"}, c.keys...)
 			return c, isLog, problem
 		}
 	}
@@ -272,11 +289,22 @@ func (v visitor) printfCall(level string, args []ast.Expr, msgIdx int) (logCall,
 		}
 		return logCall{}, false, fmt.Sprintf("%s log call needs a literal message, got %s", level, types.ExprString(args[msgIdx]))
 	}
-	var fields []string
+	var fields, keys []string
 	for _, a := range args[msgIdx+1:] {
-		fields = append(fields, "`"+types.ExprString(a)+"`")
+		keys = append(keys, types.ExprString(a))
+		fields = append(fields, "`"+keys[len(keys)-1]+"`")
 	}
-	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source}, true, ""
+	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source, keys: keys}, true, ""
+}
+
+// withValuesMsg is the message recorded for a WithValues or With call.
+const withValuesMsg = "(WithValues: fields of every later line)"
+
+// withCall records the keys a WithValues or With call adds to every later
+// line of the derived logger.
+func (v visitor) withCall(level string, args []ast.Expr) (logCall, bool, string) {
+	args = append([]ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(withValuesMsg)}}, args...)
+	return v.kvCall(level, args, 0)
 }
 
 func (v visitor) kvCall(level string, args []ast.Expr, msgIdx int) (logCall, bool, string) {
@@ -287,16 +315,16 @@ func (v visitor) kvCall(level string, args []ast.Expr, msgIdx int) (logCall, boo
 	if !ok {
 		return logCall{}, false, fmt.Sprintf("%s log call needs a literal message, got %s", level, types.ExprString(args[msgIdx]))
 	}
-	var fields []string
+	var fields, keys []string
 	for i := msgIdx + 1; i < len(args); i += 2 {
+		key := "<" + types.ExprString(args[i]) + ">"
 		if lit, ok := args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			key, _ := strconv.Unquote(lit.Value)
-			fields = append(fields, "`"+key+"`")
-		} else {
-			fields = append(fields, "`<"+types.ExprString(args[i])+">`")
+			key, _ = strconv.Unquote(lit.Value)
 		}
+		keys = append(keys, key)
+		fields = append(fields, "`"+key+"`")
 	}
-	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source}, true, ""
+	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source, keys: keys}, true, ""
 }
 
 // message renders a string literal or a concatenation containing one; other
@@ -438,6 +466,7 @@ func f(l logger, s *sl.Logger, msg string, err error) {
 		"warn logger warn `k`",
 		"error logger error ",
 		"debug deep debug `b`",
+		"debug " + withValuesMsg + " `a`",
 		"V(2) trace ",
 		"error failed `error`, `k`",
 		"PROBLEM l.Info",

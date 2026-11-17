@@ -29,8 +29,96 @@ They appear in:
   podRef), and most `debug` messages.
 - install-cni: none. It logs file paths and errors only.
 
-Credentials are never logged. install-cni logs that the ServiceAccount token
-changed, not its content.
+Credentials are never logged: not the ServiceAccount token, the kubeconfig
+install-cni writes, or the webhook certificate and key (the operator logs the
+Secret's name only). install-cni logs that the ServiceAccount token changed,
+not its content.
+
+The table below classifies every logged field that can hold personal data, by
+the class and data subject of the platform logging contract. *Levels* are the
+levels of the log calls that pass the field; the first one listed is the least
+verbose level that adds it. controller-runtime also adds the `name` and
+`namespace` of the reconciled object to every operator reconciler line,
+including its own `Reconciler error` line, so in the operator both are logged
+from `error`, whatever the table lists. The CNI plugin also appends its lines
+to the host file set by `log_file`. Pod IP
+addresses and the reservation names derived from them count as
+`customer-data` of the `end-customer` behind the workload's traffic; a field
+that can hold several kinds of data carries the highest subject. The table is
+generated from `personalData` in `doc/personal_data_test.go`, which classifies
+every field of the log reference, the non-personal ones included.
+
+<!-- BEGIN GENERATED PERSONAL DATA TABLE -->
+| Binary | Field | Class | Data subject | Levels | Content |
+|---|---|---|---|---|---|
+| cni-plugin | `IPPoolName(poolIdentifier)` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| cni-plugin | `allocation` | tenant-pii | tenant-user | debug | node slice allocation: node name and range |
+| cni-plugin | `args.ContainerID` | tenant-pii | tenant-user | error, debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `args.IfName` | tenant-pii | tenant-user | error, debug | pod interface name, which the pod's network selection can set |
+| cni-plugin | `c.containerID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `c.ifName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| cni-plugin | `c.ip` | customer-data | end-customer | error, debug | IP address allocated to a pod |
+| cni-plugin | `c.overlapIP` | customer-data | end-customer | error, debug | IP address allocated to a pod |
+| cni-plugin | `c.podRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| cni-plugin | `candidate.String()` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `client.Config.GetPodRef()` | tenant-pii | tenant-user | verbose | pod namespace and name (podRef) |
+| cni-plugin | `client.ContainerID` | tenant-pii | tenant-user | verbose | container ID or pod UID, which identify one pod |
+| cni-plugin | `clusteripres` | customer-data | end-customer | debug | OverlappingRangeIPReservation: IP address name, podRef, interface, container ID |
+| cni-plugin | `containerID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `delErr` | customer-data | end-customer | error | error text; can name pod IP addresses, podRefs and pool names |
+| cni-plugin | `err` | customer-data | end-customer | stderr, error, debug | error text; can name pod IP addresses, podRefs and pool names |
+| cni-plugin | `existing.Spec.PodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `getNodeSliceName(ipam)` | tenant-pii | tenant-user | error | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| cni-plugin | `hostname` | tenant-pii | tenant-user | debug | node host name, which can carry the tenant's cluster name |
+| cni-plugin | `ifName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| cni-plugin | `ip` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `ip.String()` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `ipam.ContainerID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `ipam.IfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| cni-plugin | `ipamConf.GetPodRef()` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| cni-plugin | `ipamConf.PodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `ipamConf.PreferredIP` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `ipforoverlappingrangeupdate` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `key` | customer-data | end-customer | error, debug | IP address allocated to a pod |
+| cni-plugin | `lastErr` | customer-data | end-customer | error | error text; can name pod IP addresses, podRefs and pool names |
+| cni-plugin | `leaseName` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| cni-plugin | `legacyName` | customer-data | end-customer | debug | OverlappingRangeIPReservation name, derived from the pod IP address |
+| cni-plugin | `n.IPAM.IPRanges` | customer-data | end-customer | debug | range configuration, including pick_addresses and preferred IP addresses of pods |
+| cni-plugin | `networkName` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| cni-plugin | `newip` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `newip.IP` | customer-data | end-customer | error, debug | IP address allocated to a pod |
+| cni-plugin | `newips` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `nodeName` | tenant-pii | tenant-user | debug | node host name, which can carry the tenant's cluster name |
+| cni-plugin | `normalizedIP` | customer-data | end-customer | debug | OverlappingRangeIPReservation name, derived from the pod IP address |
+| cni-plugin | `overlappingRangeIPReservation.Spec.IfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| cni-plugin | `overlappingRangeIPReservation.Spec.PodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `pickAddresses` | customer-data | end-customer | debug | candidate IP addresses, which can be assigned to pods |
+| cni-plugin | `podRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| cni-plugin | `podUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `poolIdentifier` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| cni-plugin | `preferred` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `preferredIP` | customer-data | end-customer | debug | IP address allocated to a pod |
+| cni-plugin | `r.IP.String()` | customer-data | end-customer | debug | IP address allocated to a pod |
+| operator | `allocIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| operator | `allocPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| operator | `currentIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| operator | `currentPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| operator | `error` | customer-data | end-customer | error, debug | error text; can name pod IP addresses, podRefs and pool names |
+| operator | `expectedIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| operator | `expectedPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| operator | `ip` | customer-data | end-customer | debug | IP address allocated to a pod |
+| operator | `key` | customer-data | end-customer | info, debug | allocation key: the offset of the pod IP address in the pool's range, which the pool name gives |
+| operator | `name` | customer-data | end-customer | error, info, debug | name of the reconciled or rejected object; an OverlappingRangeIPReservation is named after the pod IP address |
+| operator | `namespace` | tenant-pii | tenant-user | info, debug | namespace of the reconciled object; a NetworkAttachmentDefinition lives in a tenant namespace |
+| operator | `node` | tenant-pii | tenant-user | info | node host name, which can carry the tenant's cluster name |
+| operator | `podRef` | tenant-pii | tenant-user | info, debug | pod namespace and name (podRef) |
+| operator | `podUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| operator | `pool` | tenant-pii | tenant-user | info, debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
+| operator | `reason` | customer-data | end-customer | info, debug | pod status reason, or webhook rejection text that can quote a podRef, container ID, pod UID or allocation key (the offset of a pod IP address) |
+| operator | `resIfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
+| operator | `resPodRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
+| operator | `reservationPodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+<!-- END GENERATED PERSONAL DATA TABLE -->
 
 ## CNI plugin (`whereabouts`)
 
@@ -447,6 +535,9 @@ and install-cni) and source file. The test runs in `make test` and fails when:
 
 - a table differs from the code, so a new, changed or removed log message must
   update this document in the same pull request;
+- a logged field has no entry in `personalData` in `doc/personal_data_test.go`,
+  or an entry names a field no log call uses, so every new field must be
+  classified by personal-data class and data subject;
 - a log call has no literal message (a constant string or a concatenation with
   one), because it could not be documented; or
 - code writes output past the documented loggers: `fmt.Print*`, writes to

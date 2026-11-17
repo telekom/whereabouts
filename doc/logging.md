@@ -36,8 +36,12 @@ not its content.
 
 The table below classifies every logged field that can hold personal data, by
 the class and data subject of the platform logging contract. *Levels* are the
-levels that log the field; the first one listed is the least verbose level that adds it. The CNI
-plugin also appends these lines to the host file set by `log_file`. Pod IP
+levels of the log calls that pass the field; the first one listed is the least
+verbose level that adds it. controller-runtime also adds the `name` and
+`namespace` of the reconciled object to every operator reconciler line,
+including its own `Reconciler error` line, so in the operator both are logged
+from `error`, whatever the table lists. The CNI plugin also appends its lines
+to the host file set by `log_file`. Pod IP
 addresses and the reservation names derived from them count as
 `customer-data` of the `end-customer` behind the workload's traffic; a field
 that can hold several kinds of data carries the highest subject. The table is
@@ -79,6 +83,7 @@ every field of the log reference, the non-personal ones included.
 | cni-plugin | `lastErr` | customer-data | end-customer | error | error text; can name pod IP addresses, podRefs and pool names |
 | cni-plugin | `leaseName` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
 | cni-plugin | `legacyName` | customer-data | end-customer | debug | OverlappingRangeIPReservation name, derived from the pod IP address |
+| cni-plugin | `n.IPAM.IPRanges` | customer-data | end-customer | debug | range configuration, including pick_addresses and preferred IP addresses of pods |
 | cni-plugin | `networkName` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |
 | cni-plugin | `newip` | customer-data | end-customer | debug | IP address allocated to a pod |
 | cni-plugin | `newip.IP` | customer-data | end-customer | error, debug | IP address allocated to a pod |
@@ -87,6 +92,7 @@ every field of the log reference, the non-personal ones included.
 | cni-plugin | `normalizedIP` | customer-data | end-customer | debug | OverlappingRangeIPReservation name, derived from the pod IP address |
 | cni-plugin | `overlappingRangeIPReservation.Spec.IfName` | tenant-pii | tenant-user | debug | pod interface name, which the pod's network selection can set |
 | cni-plugin | `overlappingRangeIPReservation.Spec.PodUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
+| cni-plugin | `pickAddresses` | customer-data | end-customer | debug | candidate IP addresses, which can be assigned to pods |
 | cni-plugin | `podRef` | tenant-pii | tenant-user | debug | pod namespace and name (podRef) |
 | cni-plugin | `podUID` | tenant-pii | tenant-user | debug | container ID or pod UID, which identify one pod |
 | cni-plugin | `poolIdentifier` | tenant-pii | tenant-user | debug | network, IPPool, node slice or lease name; contains the network name and can contain the node name |

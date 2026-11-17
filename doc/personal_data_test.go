@@ -92,7 +92,7 @@ var personalData = map[string]map[string]pd{
 		"levelStr":                       notPersonal,
 		"mode":                           notPersonal,
 		"n.IPAM.Gateway":                 notPersonal,
-		"n.IPAM.IPRanges":                notPersonal,
+		"n.IPAM.IPRanges":                pd{"customer-data", "end-customer", "range configuration, including pick_addresses and preferred IP addresses of pods"},
 		"n.IPAM.IPRanges[idx].Range":     notPersonal,
 		"networkName":                    poolName,
 		"newip":                          podAddress,
@@ -104,7 +104,7 @@ var personalData = map[string]map[string]pd{
 		"operation":                      notPersonal,
 		"overlappingRangeIPReservation.Spec.IfName": ifName,
 		"overlappingRangeIPReservation.Spec.PodUID": podID,
-		"pickAddresses":                    notPersonal,
+		"pickAddresses":                    pd{"customer-data", "end-customer", "candidate IP addresses, which can be assigned to pods"},
 		"podRef":                           podRef,
 		"podUID":                           podID,
 		"poolIdentifier":                   poolName,
@@ -169,8 +169,8 @@ var personalData = map[string]map[string]pd{
 func renderPersonalData(component string, calls []logCall) (rows string, missing, stale []string) {
 	levels := map[string][]string{}
 	for _, c := range calls {
-		for f := range strings.SplitSeq(c.fields, ", ") {
-			if field := strings.Trim(f, "`"); field != "" && !slices.Contains(levels[field], c.level) {
+		for _, field := range c.keys {
+			if !slices.Contains(levels[field], c.level) {
 				levels[field] = append(levels[field], c.level)
 			}
 		}

@@ -83,6 +83,7 @@ func TestLoggingReference(t *testing.T) {
 
 type logCall struct {
 	level, msg, fields, source string
+	keys                       []string // the fields, unquoted, for personalData
 }
 
 // scanBinary returns the log calls in the non-test Go files of every module
@@ -242,6 +243,7 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 		if len(call.Args) > 1 { // logr: Error(err, msg, kv...)
 			c, isLog, problem = v.kvCall("error", call.Args, 1)
 			c.fields = strings.TrimSuffix("`error`, "+c.fields, ", ")
+			c.keys = append([]string{"error"}, c.keys...)
 			return c, isLog, problem
 		}
 	}
@@ -285,11 +287,12 @@ func (v visitor) printfCall(level string, args []ast.Expr, msgIdx int) (logCall,
 		}
 		return logCall{}, false, fmt.Sprintf("%s log call needs a literal message, got %s", level, types.ExprString(args[msgIdx]))
 	}
-	var fields []string
+	var fields, keys []string
 	for _, a := range args[msgIdx+1:] {
-		fields = append(fields, "`"+types.ExprString(a)+"`")
+		keys = append(keys, types.ExprString(a))
+		fields = append(fields, "`"+keys[len(keys)-1]+"`")
 	}
-	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source}, true, ""
+	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source, keys: keys}, true, ""
 }
 
 func (v visitor) kvCall(level string, args []ast.Expr, msgIdx int) (logCall, bool, string) {
@@ -300,16 +303,16 @@ func (v visitor) kvCall(level string, args []ast.Expr, msgIdx int) (logCall, boo
 	if !ok {
 		return logCall{}, false, fmt.Sprintf("%s log call needs a literal message, got %s", level, types.ExprString(args[msgIdx]))
 	}
-	var fields []string
+	var fields, keys []string
 	for i := msgIdx + 1; i < len(args); i += 2 {
+		key := "<" + types.ExprString(args[i]) + ">"
 		if lit, ok := args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			key, _ := strconv.Unquote(lit.Value)
-			fields = append(fields, "`"+key+"`")
-		} else {
-			fields = append(fields, "`<"+types.ExprString(args[i])+">`")
+			key, _ = strconv.Unquote(lit.Value)
 		}
+		keys = append(keys, key)
+		fields = append(fields, "`"+key+"`")
 	}
-	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source}, true, ""
+	return logCall{level: level, msg: msg, fields: strings.Join(fields, ", "), source: v.source, keys: keys}, true, ""
 }
 
 // message renders a string literal or a concatenation containing one; other

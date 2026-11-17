@@ -130,8 +130,8 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3
-## explicit; go 1.25.0
+# github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26
+## explicit; go 1.26.0
 github.com/google/pprof/profile
 # github.com/google/uuid v1.6.0
 ## explicit
@@ -237,7 +237,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.1.0
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/telekom/t-caas-go-library v0.1.5
+# github.com/telekom/t-caas-go-library v0.1.6
 ## explicit; go 1.26.10
 github.com/telekom/t-caas-go-library/pkg/certrotation
 github.com/telekom/t-caas-go-library/pkg/netutil

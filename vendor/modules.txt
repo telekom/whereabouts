@@ -237,7 +237,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.1.0
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/telekom/t-caas-go-library v0.1.6
+# github.com/telekom/t-caas-go-library v0.1.7
 ## explicit; go 1.26.10
 github.com/telekom/t-caas-go-library/pkg/certrotation
 github.com/telekom/t-caas-go-library/pkg/netutil

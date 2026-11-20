@@ -6,8 +6,8 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/containernetworking/cni v1.3.1
 	github.com/containernetworking/plugins v1.10.0
-	github.com/fluxcd/pkg/apis/meta v1.38.0
-	github.com/fluxcd/pkg/runtime v0.122.0
+	github.com/fluxcd/pkg/apis/meta v1.39.0
+	github.com/fluxcd/pkg/runtime v0.123.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gaissmai/extnetip v1.4.1
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7

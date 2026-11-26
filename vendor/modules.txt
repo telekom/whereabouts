@@ -56,7 +56,7 @@ github.com/fxamacker/cbor/v2
 # github.com/gaissmai/extnetip v1.4.1
 ## explicit; go 1.24
 github.com/gaissmai/extnetip
-# github.com/gkampitakis/go-snaps v0.5.25
+# github.com/gkampitakis/go-snaps v0.5.26
 ## explicit; go 1.23
 # github.com/go-logr/logr v1.4.4
 ## explicit; go 1.18
